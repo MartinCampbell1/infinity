@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 
 	import HermesEmbeddedWorkspaceFrame from '$lib/components/hermes/workspace/HermesEmbeddedWorkspaceFrame.svelte';
+	import { founderosHostContext } from '$lib/founderos/bridge';
 	import { founderosLaunchContext } from '$lib/founderos';
 	import { createOrchestrationDelivery } from '$lib/apis/orchestration/delivery';
 	import { buildFounderosScopedHref, buildFounderosShellHref } from '$lib/founderos/navigation';
@@ -74,6 +75,15 @@
 					shellOrigin
 				)
 			: null;
+	$: shellReturnHref = shellOrigin
+		? buildFounderosShellHref(
+				$founderosHostContext?.sessionId
+					? `/execution/workspace/${encodeURIComponent($founderosHostContext.sessionId)}`
+					: '/execution',
+				$founderosLaunchContext,
+				shellOrigin
+			)
+		: null;
 	$: canVerify = canRunVerification(assembly);
 	$: canDeliver = canCreateDelivery(verification);
 	$: verificationBlockReason = getVerificationBlockReason(assembly);
@@ -229,7 +239,7 @@
 
 <HermesEmbeddedWorkspaceFrame
 	title="Project result"
-	subtitle="Verification, delivery, and handoff context for the current workspace session."
+	subtitle="Secondary verification and delivery drill-down while the shell workspace stays the canonical outcome surface."
 	badge={actionState === 'running' ? 'Verifying' : loadState === 'ready' ? 'Ready' : 'Loading'}
 	metaItems={metaItems}
 >
@@ -344,30 +354,43 @@
 						</div>
 					{/if}
 
+					<div class="rounded-2xl border border-white/8 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
+						Use this page to inspect proof, rerun blocked steps, or recover a stalled result. The shell remains the primary place to continue the session.
+					</div>
+
 					<div class="flex flex-wrap gap-3">
+						{#if shellReturnHref}
+							<a
+								class="rounded-full border border-sky-500/20 bg-sky-500/15 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20"
+								href={shellReturnHref}
+								target="_top"
+							>
+								Return to shell workspace
+							</a>
+						{/if}
 						<button
 							type="button"
 							class="rounded-full border border-white/10 bg-slate-950/80 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
 							on:click={runVerification}
 							disabled={actionState === 'running' || !canVerify}
 						>
-							Run verification manually
-							</button>
+							Run verification override
+						</button>
 						<button
 							type="button"
 							class="rounded-full border border-white/10 bg-slate-950/80 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
 							on:click={createDelivery}
 							disabled={actionState === 'running' || !canDeliver}
 						>
-							Create delivery manually
-							</button>
+							Create delivery override
+						</button>
 						<a
 							class="rounded-full border border-white/10 bg-slate-950/80 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-900"
 							href={projectRunHref ?? '#'}
 						>
-							Return to run
+							Open local run drill-down
 						</a>
-						{#if batchShellHref || continuityShellHref || continuity}
+						{#if !shellReturnHref && (batchShellHref || continuityShellHref || continuity)}
 							<a
 								class="rounded-full border border-sky-500/20 bg-sky-500/15 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20"
 								href={continuityShellHref ?? batchShellHref ?? buildFounderosShellHref(
@@ -377,7 +400,7 @@
 								)}
 								target="_top"
 							>
-								Continue in shell
+								Open shell automation
 							</a>
 						{/if}
 					</div>

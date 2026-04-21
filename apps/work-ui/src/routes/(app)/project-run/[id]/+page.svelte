@@ -69,6 +69,15 @@
 					shellOrigin
 				)
 			: null;
+	$: shellReturnHref = shellOrigin
+		? buildFounderosShellHref(
+				$founderosHostContext?.sessionId
+					? `/execution/workspace/${encodeURIComponent($founderosHostContext.sessionId)}`
+					: '/execution',
+				$founderosLaunchContext,
+				shellOrigin
+			)
+		: null;
 	$: batchSummary = summarizeBatchProgress(batchProgress);
 	$: canAssemble = canCreateAssembly(taskGraph);
 	$: assemblyBlockReason = getAssemblyBlockReason(taskGraph, batchProgress);
@@ -188,7 +197,7 @@
 
 <HermesEmbeddedWorkspaceFrame
 	title="Project run"
-	subtitle="Planner, batch, and assembly context for the current workspace session."
+	subtitle="Secondary planner and assembly drill-down while the shell workspace remains the canonical run surface."
 	badge={actionState === 'running' ? 'Working' : loadState === 'ready' ? 'Ready' : 'Loading'}
 	metaItems={metaItems}
 >
@@ -272,29 +281,42 @@
 							</div>
 						{/if}
 
+						<div class="rounded-2xl border border-white/8 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
+							Use this page for operator support, inspection, or recovery overrides. The shell workspace remains the primary place to continue the run.
+						</div>
+
 						<div class="flex flex-wrap gap-3">
+							{#if shellReturnHref}
+								<a
+									class="rounded-full border border-sky-500/20 bg-sky-500/15 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20"
+									href={shellReturnHref}
+									target="_top"
+								>
+									Return to shell workspace
+								</a>
+							{/if}
 							<button
 								type="button"
 								class="rounded-full border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
 								on:click={createAssembly}
 								disabled={actionState === 'running' || !canAssemble}
 							>
-								{assembly ? 'Refresh assembly manually' : 'Build assembly manually'}
+								{assembly ? 'Refresh assembly override' : 'Create assembly override'}
 							</button>
-							{#if batchShellHref}
+							{#if batchShellHref && !shellReturnHref}
 								<a
 									class="rounded-full border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-800"
 									href={batchShellHref ?? taskGraphShellHref ?? continuityShellHref ?? '#'}
 									target="_top"
 								>
-									Continue in shell
+									Open shell automation
 								</a>
 							{/if}
 							<a
-								class="rounded-full border border-sky-500/20 bg-sky-500/15 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20"
+								class="rounded-full border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-800"
 								href={projectResultHref ?? '#'}
 							>
-								Open result
+								Open local result view
 							</a>
 						</div>
 					</section>

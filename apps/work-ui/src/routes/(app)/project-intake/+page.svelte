@@ -5,7 +5,7 @@
 	import HermesEmbeddedWorkspaceFrame from '$lib/components/hermes/workspace/HermesEmbeddedWorkspaceFrame.svelte';
 	import { founderosHostContext } from '$lib/founderos/bridge';
 	import { founderosLaunchContext } from '$lib/founderos';
-	import { buildFounderosScopedHref } from '$lib/founderos/navigation';
+	import { buildFounderosScopedHref, buildFounderosShellHref } from '$lib/founderos/navigation';
 	import { resolveFounderosShellOrigin } from '$lib/founderos/shell-origin';
 	import { user } from '$lib/stores';
 	import { createOrchestrationBrief } from '$lib/apis/orchestration/briefs';
@@ -39,6 +39,15 @@
 		$founderosHostContext?.projectName ?? 'Infinity',
 		$founderosHostContext?.accountLabel ?? $founderosHostContext?.accountId ?? 'shell orchestration'
 	];
+	$: shellReturnHref = shellOrigin
+		? buildFounderosShellHref(
+				$founderosHostContext?.sessionId
+					? `/execution/workspace/${encodeURIComponent($founderosHostContext.sessionId)}`
+					: '/execution',
+				$founderosLaunchContext,
+				shellOrigin
+			)
+		: null;
 
 	const submit = async () => {
 		saving = true;
@@ -65,6 +74,11 @@
 				{ shellOrigin }
 			);
 
+			if (browser && shellReturnHref) {
+				window.open(shellReturnHref, '_top');
+				return;
+			}
+
 			await goto(
 				buildFounderosScopedHref(
 					`/project-brief/${encodeURIComponent(briefResponse.brief.id)}`,
@@ -89,7 +103,7 @@
 
 <HermesEmbeddedWorkspaceFrame
 	title="Project intake"
-	subtitle="Create the initial initiative and brief when the workspace needs a direct intake path."
+	subtitle="Secondary intake override for cases where the shell needs a direct operator-created initiative and brief."
 	badge={saving ? 'Saving' : 'Ready'}
 	metaItems={metaItems}
 	maxWidthClass="max-w-4xl"
@@ -99,12 +113,23 @@
 					Launch context
 				</div>
 				<p class="mt-2 text-sm leading-7 text-slate-200">
-					This route writes the first durable orchestration objects into the shell-owned API
-					boundary and then hands the session back into the normal workspace and shell flow.
+					Use this route only when the shell needs a direct operator override. The normal
+					journey stays in the shell-owned primary run and execution views.
 				</p>
 				<p class="mt-2 font-mono text-xs text-slate-400">
 					{shellOrigin || 'same-origin shell route'}
 				</p>
+				{#if shellReturnHref}
+					<div class="mt-4 flex flex-wrap gap-3">
+						<a
+							class="rounded-full border border-sky-500/20 bg-sky-500/15 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20"
+							href={shellReturnHref}
+							target="_top"
+						>
+							Return to shell workspace
+						</a>
+					</div>
+				{/if}
 			</div>
 
 			<form
@@ -167,10 +192,10 @@
 					<div class="flex items-end">
 						<button
 							type="submit"
-							class="w-full rounded-full border border-sky-500/20 bg-sky-500/15 px-4 py-3 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+							class="w-full rounded-full border border-white/10 bg-slate-900 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
 							disabled={saving}
 						>
-							{saving ? 'Creating…' : 'Create initiative'}
+							{saving ? 'Creating…' : 'Create intake override'}
 						</button>
 					</div>
 				</div>

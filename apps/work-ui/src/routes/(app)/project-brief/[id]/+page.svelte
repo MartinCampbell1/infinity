@@ -67,6 +67,15 @@
 					shellOrigin
 				)
 			: null;
+	$: shellReturnHref = shellOrigin
+		? buildFounderosShellHref(
+				$founderosHostContext?.sessionId
+					? `/execution/workspace/${encodeURIComponent($founderosHostContext.sessionId)}`
+					: '/execution',
+				$founderosLaunchContext,
+				shellOrigin
+			)
+		: null;
 	$: projectRunHref = initiativeId
 		? buildFounderosScopedHref(`/project-run/${encodeURIComponent(initiativeId)}`, $founderosLaunchContext)
 		: null;
@@ -238,7 +247,7 @@
 
 <HermesEmbeddedWorkspaceFrame
 	title="Project brief"
-	subtitle="Brief inspection and clarification capture for the current workspace session."
+	subtitle="Secondary brief drill-down for clarification, inspection, and recovery while the shell stays primary."
 	badge={saveState === 'saving' ? 'Saving' : loadState === 'ready' ? 'Ready' : 'Loading'}
 	metaItems={metaItems}
 >
@@ -316,7 +325,7 @@
 							<div class="mt-4 space-y-3">
 								{#if clarificationLog.length === 0}
 									<div class="rounded-2xl border border-dashed border-white/10 px-4 py-4 text-sm text-slate-400">
-										No clarifications yet. Add the first question/answer pair before forcing a manual approval.
+										No clarifications yet. Add the first question/answer pair if the shell needs extra context before an approval override.
 									</div>
 								{/if}
 								{#each clarificationLog as entry, index}
@@ -354,6 +363,15 @@
 						{/if}
 
 						<div class="flex flex-wrap gap-3">
+							{#if shellReturnHref}
+								<a
+									class="rounded-full border border-sky-500/20 bg-sky-500/15 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20"
+									href={shellReturnHref}
+									target="_top"
+								>
+									Return to shell workspace
+								</a>
+							{/if}
 							<button
 								type="submit"
 								class="rounded-full border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
@@ -367,7 +385,7 @@
 								on:click={() => saveBrief('approved')}
 								disabled={saveState === 'saving'}
 							>
-								Finalize brief manually
+								Approve brief override
 							</button>
 						</div>
 					</form>
@@ -397,10 +415,22 @@
 									Task graph <code class="rounded bg-white/10 px-1 py-0.5 text-[12px]">{taskGraph.id}</code>
 									is {taskGraph.status} with {taskGraph.nodeIds.length} node{taskGraph.nodeIds.length === 1 ? '' : 's'}.
 								{:else}
-									No task graph is attached yet. Brief approval moves this initiative to <code class="rounded bg-white/10 px-1 py-0.5 text-[12px]">brief_ready</code>; the planner normally launches after that.
+									No task graph is attached yet. Brief approval moves this initiative to <code class="rounded bg-white/10 px-1 py-0.5 text-[12px]">brief_ready</code>; shell automation normally launches the planner after that.
 								{/if}
 							</div>
+							<div class="mt-2 text-sm leading-7 text-slate-300">
+								Use this page for clarification capture or recovery-only overrides, then return to the shell workspace for the canonical run.
+							</div>
 							<div class="mt-4 flex flex-wrap gap-3">
+								{#if shellReturnHref}
+									<a
+										class="rounded-full border border-sky-500/20 bg-sky-500/15 px-4 py-2 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20"
+										href={shellReturnHref}
+										target="_top"
+									>
+										Return to shell workspace
+									</a>
+								{/if}
 								{#if briefStatus === 'approved' && !taskGraph}
 									<button
 										type="button"
@@ -408,16 +438,16 @@
 										on:click={triggerPlanner}
 										disabled={saveState === 'saving'}
 									>
-										Launch planner manually
+										Trigger planner override
 									</button>
 								{/if}
-								{#if taskGraphShellHref}
+								{#if taskGraphShellHref && !shellReturnHref}
 									<a
 										class="rounded-full border border-sky-500/20 bg-sky-500/15 px-4 py-2 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20"
 										href={taskGraphShellHref}
 										target="_top"
 									>
-										Continue in shell
+										Open shell automation
 									</a>
 								{/if}
 								{#if projectRunHref && projectResultHref}
@@ -425,7 +455,7 @@
 										class="rounded-full border border-white/10 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-800"
 										href={projectRunHref}
 									>
-										Open run
+										Open local drill-down
 									</a>
 								{/if}
 							</div>
