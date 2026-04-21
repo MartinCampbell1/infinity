@@ -30,7 +30,7 @@ import {
   ShellSectionCard,
   ShellStatusBanner,
 } from "@/components/shell/shell-screen-primitives";
-import { RecentExecutionEventsPanel } from "@/components/execution/execution-events-workspace";
+import { RecentExecutionEventsPanel } from "@/components/execution/legacy/execution-events-workspace";
 import {
   emptyShellExecutionAgentSnapshot,
   type ShellExecutionAgentSnapshot,

@@ -14,16 +14,6 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "components/execution/execution-agent-workspace.tsx",
-    "components/execution/execution-agents-workspace.tsx",
-    "components/execution/execution-attention-cards.tsx",
-    "components/execution/execution-audit-workspace.tsx",
-    "components/execution/execution-audits-workspace.tsx",
-    "components/execution/execution-events-workspace.tsx",
-    "components/execution/execution-handoff-workspace.tsx",
-    "components/execution/execution-handoffs-workspace.tsx",
-    "components/execution/execution-intake-workspace.tsx",
-    "components/execution/execution-review-workspace.tsx",
-    "components/execution/execution-workspace.tsx"
+    "components/execution/legacy"
   ]
 }

@@ -126,6 +126,12 @@ CRITICAL_SHELL_TYPECHECK_PATHS = [
     "components/shell/shell-screen-primitives.tsx",
 ]
 
+LEGACY_EXECUTION_SURFACES_EXCLUDE = "components/execution/legacy"
+LOCAL_MODULE_SPECIFIER_PATTERN = re.compile(
+    r"""(?:import|export)\s+(?:[^;'"]*?\sfrom\s+)?["']([^"']+)["']""",
+    re.MULTILINE,
+)
+
 
 def assert_critical_shell_typecheck_scope() -> None:
     tsconfig_path = ROOT / "apps" / "shell" / "apps" / "web" / "tsconfig.json"
@@ -136,6 +142,81 @@ def assert_critical_shell_typecheck_scope() -> None:
         raise ValidationFailure(
             "Critical shell surfaces are still excluded from typecheck: "
             + ", ".join(blocked)
+        )
+
+
+def iter_typescript_files(root: Path):
+    for suffix in (".ts", ".tsx"):
+        yield from root.rglob(f"*{suffix}")
+
+
+def is_legacy_execution_path(path: Path, legacy_root: Path) -> bool:
+    try:
+        path.relative_to(legacy_root)
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_shell_module_specifier(
+    shell_root: Path, source_path: Path, specifier: str
+) -> Path | None:
+    if specifier.startswith("@/"):
+        candidate = shell_root / specifier[2:]
+    elif specifier.startswith("."):
+        candidate = (source_path.parent / specifier).resolve()
+    else:
+        return None
+
+    resolution_candidates = [
+        candidate,
+        candidate.with_suffix(".ts"),
+        candidate.with_suffix(".tsx"),
+        candidate / "index.ts",
+        candidate / "index.tsx",
+    ]
+    for resolved in resolution_candidates:
+        if resolved.exists():
+            return resolved.resolve()
+    return None
+
+
+def iter_local_module_specifiers(content: str):
+    for match in LOCAL_MODULE_SPECIFIER_PATTERN.finditer(content):
+        specifier = match.group(1).strip()
+        if specifier.startswith("@/") or specifier.startswith("."):
+            yield specifier
+
+
+def assert_legacy_execution_surfaces_are_isolated() -> None:
+    shell_root = ROOT / "apps" / "shell" / "apps" / "web"
+    legacy_root = (shell_root / "components" / "execution" / "legacy").resolve()
+    tsconfig_path = shell_root / "tsconfig.json"
+    tsconfig = json.loads(tsconfig_path.read_text(encoding="utf-8"))
+    excluded = set(tsconfig.get("exclude") or [])
+    if LEGACY_EXECUTION_SURFACES_EXCLUDE not in excluded:
+        raise ValidationFailure(
+            "Legacy execution surfaces must live behind an explicit tsconfig exclusion."
+        )
+
+    illegal_imports: list[str] = []
+    for root in (shell_root / "app", shell_root / "components", shell_root / "lib"):
+        for path in iter_typescript_files(root):
+            if is_legacy_execution_path(path.resolve(), legacy_root):
+                continue
+            content = path.read_text(encoding="utf-8")
+            for specifier in iter_local_module_specifiers(content):
+                resolved = resolve_shell_module_specifier(shell_root, path.resolve(), specifier)
+                if resolved is None or not is_legacy_execution_path(resolved, legacy_root):
+                    continue
+                illegal_imports.append(
+                    f"{path.relative_to(shell_root)} -> {specifier}"
+                )
+
+    if illegal_imports:
+        raise ValidationFailure(
+            "Live shell code imports legacy execution surfaces: "
+            + ", ".join(sorted(illegal_imports))
         )
 
 
@@ -886,6 +967,7 @@ def main() -> int:
     args = parser.parse_args()
 
     assert_critical_shell_typecheck_scope()
+    assert_legacy_execution_surfaces_are_isolated()
 
     validation_run_id = run_id()
     run_dir = HANDOFF_ROOT / validation_run_id
