@@ -320,7 +320,7 @@ describe("autonomous one-prompt orchestration", () => {
       const handoff = state.orchestration.handoffPackets[0] ?? null;
       const proof = state.orchestration.validationProofs[0] ?? null;
 
-      expect(initiative?.status).toBe("verifying");
+      expect(initiative?.status).toBe("ready");
       expect(state.orchestration.taskGraphs).toHaveLength(1);
       expect(state.orchestration.batches.length).toBeGreaterThan(0);
       expect(state.orchestration.runEvents.length).toBeGreaterThan(0);
@@ -330,14 +330,14 @@ describe("autonomous one-prompt orchestration", () => {
       ).toBe(true);
       expect(assembly?.status).toBe("assembled");
       expect(verification?.overallStatus).toBe("passed");
-      expect(delivery?.status).toBe("pending");
-      expect(delivery?.launchProofKind).toBe("synthetic_wrapper");
-      expect(run?.currentStage).toBe("preview_ready");
+      expect(delivery?.status).toBe("ready");
+      expect(delivery?.launchProofKind).toBe("runnable_result");
+      expect(run?.currentStage).toBe("handed_off");
       expect(run?.previewStatus).toBe("ready");
       expect(run?.handoffStatus).toBe("ready");
       expect(delivery?.previewUrl).toMatch(/\/api\/control\/orchestration\/previews\//);
       expect(delivery?.launchManifestPath).toMatch(/launch-manifest\.json$/);
-      expect(delivery?.launchProofUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/preview\.html$/);
+      expect(delivery?.launchProofUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/index\.html$/);
       expect(delivery?.launchProofAt).toBeTruthy();
       expect(delivery?.localOutputPath).toBeTruthy();
       expect(preview?.healthStatus).toBe("ready");
@@ -345,10 +345,10 @@ describe("autonomous one-prompt orchestration", () => {
       expect(proof?.autonomousOnePrompt).toBe(true);
       expect(proof?.manualStageProgression).toBe(false);
       expect(proof?.previewReady).toBe(true);
-      expect(proof?.launchReady).toBe(false);
+      expect(proof?.launchReady).toBe(true);
       expect(proof?.handoffReady).toBe(true);
       expect(proof?.launchManifestPath).toMatch(/launch-manifest\.json$/);
-      expect(proof?.launchProofUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/preview\.html$/);
+      expect(proof?.launchProofUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/index\.html$/);
 
       expect(existsSync(preview?.sourcePath ?? "")).toBe(true);
       expect(existsSync(path.join(delivery?.localOutputPath ?? "", "HANDOFF.md"))).toBe(true);

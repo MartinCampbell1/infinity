@@ -681,16 +681,17 @@ export function ShellFrame({ children }: { children: ReactNode }) {
   const isRootFrontdoor = pathname === "/";
   const isWorkItemsRoute = pathname === "/work-items";
   const isPlaneWorkspaceRoute = isRootFrontdoor || isWorkItemsRoute;
+  const visibleRecentSessions = isPlaneWorkspaceRoute ? recentSessions : [];
+  const visibleRecentSessionsLoading = isPlaneWorkspaceRoute
+    ? recentSessionsLoading
+    : false;
 
   useEffect(() => {
     if (!isPlaneWorkspaceRoute) {
-      setRecentSessions([]);
-      setRecentSessionsLoading(false);
       return;
     }
 
     const controller = new AbortController();
-    setRecentSessionsLoading(true);
 
     fetch("/api/shell/execution/sessions?limit=5", {
       signal: controller.signal,
@@ -816,13 +817,13 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                           Search
                         </button>
                         <div className="px-3 text-[11px] text-[var(--shell-sidebar-muted)]">Recents</div>
-                        {recentSessionsLoading ? (
+                        {visibleRecentSessionsLoading ? (
                           <div className="px-3 text-[12px] text-[var(--shell-sidebar-muted)]">
                             Loading sessions…
                           </div>
-                        ) : recentSessions.length > 0 ? (
+                        ) : visibleRecentSessions.length > 0 ? (
                           <div className="space-y-1">
-                            {recentSessions.map((session) => (
+                            {visibleRecentSessions.map((session) => (
                               <RootSidebarRecentSession key={session.id} session={session} />
                             ))}
                           </div>
@@ -854,12 +855,12 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                         <div className="px-3 pt-2 text-[11px] text-[var(--shell-sidebar-muted)]">Live work</div>
                         <div className="space-y-1">
                           <RootSidebarLink href="/work-items" label="Work items" pathname={pathname} />
-                          {recentSessionsLoading ? (
+                          {visibleRecentSessionsLoading ? (
                             <div className="px-3 py-2 text-[12px] text-[var(--shell-sidebar-muted)]">
                               Loading sessions…
                             </div>
-                          ) : recentSessions.length > 0 ? (
-                            recentSessions.map((session) => (
+                          ) : visibleRecentSessions.length > 0 ? (
+                            visibleRecentSessions.map((session) => (
                               <RootSidebarRecentSession key={session.id} session={session} />
                             ))
                           ) : (

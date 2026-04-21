@@ -19,7 +19,7 @@
     "shell:build": "npm run build --workspace @founderos/web",
     "shell:typecheck": "npm run typecheck --workspace @founderos/web",
     "shell:test": "npm run test --workspace @founderos/web",
-    "validate:full": "python3 scripts/validation/run_infinity_validation.py",
+    "validate:full": "python3 scripts/validation/run_infinity_validation.py --require-runnable-result",
     "validate:quick": "python3 scripts/validation/run_infinity_validation.py --skip-static-checks",
     "work-ui:dev": "npm run dev --workspace open-webui",
     "work-ui:dev:5050": "npm run dev:5050 --workspace open-webui",

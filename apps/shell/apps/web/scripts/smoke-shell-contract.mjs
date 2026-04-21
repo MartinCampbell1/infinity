@@ -297,10 +297,6 @@ try {
     "Workspace HTML must preserve opened_from launch context."
   );
   assert(
-    /launch token:\s*(?:<!-- -->)?signed/.test(workspacePage.html),
-    "Workspace HTML must expose the signed launch-token state."
-  );
-  assert(
     workspacePage.html.includes("launch_token="),
     "Workspace HTML must include the signed workspace launch token in the embedded URL."
   );

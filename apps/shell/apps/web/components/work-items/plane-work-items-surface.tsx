@@ -18,7 +18,6 @@ import type {
 import type {
   AutonomousAgentSessionRecord,
   AutonomousHandoffPacketRecord,
-  AutonomousPreviewTargetRecord,
   AutonomousRunRecord,
 } from "@/lib/server/control-plane/state/types";
 import type { SessionWorkspaceHostContext } from "@/lib/server/control-plane/contracts/workspace-launch";
@@ -135,7 +134,6 @@ export function PlaneWorkItemsSurface({
   currentTaskGraph,
   currentBatch,
   currentDelivery,
-  currentPreviewTarget,
   currentHandoffPacket,
   workUnits,
   agentSessions,
@@ -147,7 +145,6 @@ export function PlaneWorkItemsSurface({
   currentTaskGraph: TaskGraphRecord | null;
   currentBatch: ExecutionBatchRecord | null;
   currentDelivery: DeliveryRecord | null;
-  currentPreviewTarget: AutonomousPreviewTargetRecord | null;
   currentHandoffPacket: AutonomousHandoffPacketRecord | null;
   workUnits: WorkUnitRecord[];
   agentSessions: AutonomousAgentSessionRecord[];

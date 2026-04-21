@@ -177,6 +177,12 @@ def run_command(name: str, cmd: list[str], cwd: Path, logs_dir: Path, env: dict[
     )
 
 
+def with_node_memory(env: dict[str, str] | None, megabytes: int) -> dict[str, str]:
+    next_env = dict(env or os.environ)
+    next_env["NODE_OPTIONS"] = f"--max-old-space-size={megabytes}"
+    return next_env
+
+
 class ManagedProcess:
     def __init__(self, name: str, cmd: list[str], cwd: Path, env: dict[str, str], logs_dir: Path):
         self.name = name
@@ -537,7 +543,7 @@ def open_shell_task_graph_from_brief(page) -> str:
     return match.group(1)
 
 
-def run_happy_path(page, shell_origin: str, work_origin: str, manifest: list[ScreenshotRecord], screenshots_dir: Path) -> dict[str, Any]:
+def run_happy_path(page, shell_origin: str, work_origin: str, manifest: list[ScreenshotRecord], screenshots_dir: Path, require_runnable_result: bool = False) -> dict[str, Any]:
     session_id = "session-2026-04-11-002"
     shell_root_url = f"{shell_origin}/"
     page.goto(shell_root_url, wait_until="networkidle")
@@ -633,6 +639,12 @@ def run_happy_path(page, shell_origin: str, work_origin: str, manifest: list[Scr
     capture_screenshot(page, "workui_project_result_passed", str(screenshots_dir / "workui_project_result_passed.png"), manifest, page.url, "happy_path")
     result_stage_labels = assert_no_required_stage_labels(page, "workui_project_result_passed")
     delivery_id = str(delivery["id"]).strip()
+    launch_ready = str(delivery.get("launchProofKind") or "") == "runnable_result" and str(delivery.get("status") or "") == "ready"
+
+    if require_runnable_result and not launch_ready:
+        raise ValidationFailure(
+            f"Happy path only reached `{launch_state['launch_kind']}` proof. A green finish gate now requires a real runnable_result delivery."
+        )
 
     return {
         "initiative_id": initiative_id,
@@ -642,7 +654,7 @@ def run_happy_path(page, shell_origin: str, work_origin: str, manifest: list[Scr
         "delivery_id": delivery_id,
         "delivery_status": str(delivery.get("status") or ""),
         "preview_ready": True,
-        "launch_ready": str(delivery.get("launchProofKind") or "") == "runnable_result" and str(delivery.get("status") or "") == "ready",
+        "launch_ready": launch_ready,
         "handoff_ready": bool(handoff_path.exists()),
         "autonomous_one_prompt": True,
         "root_frontdoor": frontdoor_state,
@@ -852,6 +864,7 @@ def validate_api_exposure(shell_origin: str, evidence: dict[str, Any]) -> list[d
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-static-checks", action="store_true")
+    parser.add_argument("--require-runnable-result", action="store_true")
     args = parser.parse_args()
 
     validation_run_id = run_id()
@@ -883,12 +896,12 @@ def main() -> int:
             checks.extend(
                 [
                     run_command("shell_lint", ["npm", "run", "lint", "--workspace", "@founderos/web"], ROOT, logs_dir),
-                    run_command("shell_typecheck", ["npm", "run", "typecheck", "--workspace", "@founderos/web"], ROOT, logs_dir),
-                    run_command("shell_test", ["npm", "run", "test", "--workspace", "@founderos/web"], ROOT, logs_dir),
-                    run_command("shell_build", ["npm", "run", "build", "--workspace", "@founderos/web"], ROOT, logs_dir),
-                    run_command("work_ui_check", ["npm", "run", "check", "--workspace", "open-webui"], ROOT, logs_dir),
-                    run_command("work_ui_test", ["npm", "run", "test:frontend:ci", "--workspace", "open-webui"], ROOT, logs_dir),
-                    run_command("work_ui_build", ["npm", "run", "build", "--workspace", "open-webui"], ROOT, logs_dir),
+                    run_command("shell_typecheck", ["npm", "run", "typecheck", "--workspace", "@founderos/web"], ROOT, logs_dir, env=with_node_memory(None, 1024)),
+                    run_command("shell_test", ["npm", "run", "test", "--workspace", "@founderos/web"], ROOT, logs_dir, env=with_node_memory(None, 1024)),
+                    run_command("shell_build", ["npm", "run", "build", "--workspace", "@founderos/web"], ROOT, logs_dir, env=with_node_memory(None, 1280)),
+                    run_command("work_ui_check", ["npm", "run", "check", "--workspace", "open-webui"], ROOT, logs_dir, env=with_node_memory(None, 3072)),
+                    run_command("work_ui_test", ["npm", "run", "test:frontend:ci", "--workspace", "open-webui"], ROOT, logs_dir, env=with_node_memory(None, 1024)),
+                    run_command("work_ui_build", ["npm", "run", "build", "--workspace", "open-webui"], ROOT, logs_dir, env=with_node_memory(None, 4096)),
                 ]
             )
 
@@ -961,7 +974,14 @@ def main() -> int:
             context = browser.new_context(viewport={"width": 1440, "height": 1200})
             page = context.new_page()
 
-            happy = run_happy_path(page, shell_origin, work_origin, screenshots, screenshots_dir)
+            happy = run_happy_path(
+                page,
+                shell_origin,
+                work_origin,
+                screenshots,
+                screenshots_dir,
+                require_runnable_result=args.require_runnable_result,
+            )
             scenarios.append(CheckResult("happy_path", "passed", json.dumps(happy)))
 
             failure = run_failure_and_recovery_path(page, shell_origin, work_origin, screenshots, screenshots_dir)
@@ -1008,8 +1028,8 @@ def main() -> int:
 
             if happy.get("delivery_id"):
                 shell_delivery_url = f"{shell_origin}/execution/delivery/{happy['delivery_id']}?initiative_id={happy['initiative_id']}"
-                page.goto(shell_delivery_url, wait_until="networkidle")
-                page.wait_for_timeout(2000)
+                page.goto(shell_delivery_url, wait_until="domcontentloaded")
+                page.wait_for_selector("text=Delivery Summary", timeout=15000)
                 capture_screenshot(page, "shell_delivery_ready", str(screenshots_dir / "shell_delivery_ready.png"), screenshots, page.url, "happy_path")
 
             standalone_root_url = f"{work_origin}/"
@@ -1060,6 +1080,7 @@ def main() -> int:
             "manual_stage_labels": happy["manual_stage_labels"],
             "preview_ready": happy["preview_ready"],
             "launch_ready": happy["launch_ready"],
+            "launch_kind": happy["launch_kind"],
             "handoff_ready": happy["handoff_ready"],
             "handoff_path": happy["handoff_path"],
             "preview_url": happy["preview_url"],
@@ -1149,6 +1170,8 @@ def main() -> int:
         functional_md_lines.append(f"- root frontdoor stays on /: `{autonomous_proof['root_frontdoor']['stays_on_root_entry']}`")
         functional_md_lines.append(f"- autonomous one prompt: `{autonomous_proof['shell_first']['autonomous_one_prompt']}`")
         functional_md_lines.append(f"- preview ready: `{autonomous_proof['preview_ready']}`")
+        functional_md_lines.append(f"- launch kind: `{autonomous_proof['launch_kind']}`")
+        functional_md_lines.append(f"- launch ready: `{autonomous_proof['launch_ready']}`")
         functional_md_lines.append(f"- handoff ready: `{autonomous_proof['handoff_ready']}`")
         functional_md_lines.append(f"- failure recovery override used: `{autonomous_proof['failure_recovery_override_used']}`")
         write_text(run_dir / "functional-report.md", "\n".join(functional_md_lines) + "\n")

@@ -21,14 +21,16 @@ import {
   upsertPreviewTargetRecord,
   upsertValidationProofRecord,
 } from "./autonomous-run";
+import { readRunnableAttemptTarget } from "./attempt-artifacts";
 import { listAssemblies } from "./assembly";
 import { resolveOrchestrationDeliveriesRoot, writeDeliveryManifest } from "./artifacts";
 import { listVerifications } from "./verification";
+import { listOrchestrationWorkUnits } from "./work-units";
 import { buildOrchestrationDirectoryMeta, buildOrchestrationId, nowIso } from "./shared";
 
 const LOCALHOST_PROOF_MARKER = "Infinity Local Preview";
 const DELIVERY_LAUNCH_TIMEOUT_MS = 8_000;
-const DELIVERY_READY_URL_PATTERN = /READY\s+(http:\/\/127\.0\.0\.1:\d+\/preview\.html)/;
+const DELIVERY_READY_URL_PATTERN = /READY\s+(http:\/\/127\.0\.0\.1:\d+\S+)/;
 const DELIVERY_PYTHON_BIN = process.env.FOUNDEROS_DELIVERY_PYTHON_BIN ?? "python3";
 
 type DeliveryLaunchProof = {
@@ -90,6 +92,45 @@ async function latestVerificationForInitiative(initiativeId: string) {
   return verifications[0] ?? null;
 }
 
+async function findRunnableAttemptTarget(
+  initiativeId: string,
+  taskGraphId: string
+) {
+  const workUnits = await listOrchestrationWorkUnits({ taskGraphId });
+  const preferred = [...workUnits].sort((left, right) => {
+    const leftPriority = left.id.endsWith("final_integration")
+      ? 0
+      : left.id.endsWith("workspace_launch")
+        ? 1
+        : 2;
+    const rightPriority = right.id.endsWith("final_integration")
+      ? 0
+      : right.id.endsWith("workspace_launch")
+        ? 1
+        : 2;
+    if (leftPriority !== rightPriority) {
+      return leftPriority - rightPriority;
+    }
+    return right.updatedAt.localeCompare(left.updatedAt);
+  });
+
+  for (const workUnit of preferred) {
+    if (!workUnit.latestAttemptId) {
+      continue;
+    }
+
+    const target = readRunnableAttemptTarget({
+      initiativeId,
+      attemptId: workUnit.latestAttemptId,
+    });
+    if (target) {
+      return target;
+    }
+  }
+
+  return null;
+}
+
 function shellQuote(value: string) {
   return `'${value.split("'").join(`'"'"'`)}'`;
 }
@@ -120,9 +161,9 @@ function buildLaunchScript() {
     "from pathlib import Path",
     "",
     "parser = argparse.ArgumentParser()",
-    'parser.add_argument(\"--port\", type=int, default=0)',
-    'parser.add_argument(\"--bind\", default=\"127.0.0.1\")',
-    'parser.add_argument(\"--entry\", default=\"/preview.html\")',
+    'parser.add_argument("--port", type=int, default=0)',
+    'parser.add_argument("--bind", default="127.0.0.1")',
+    'parser.add_argument("--entry", default="/preview.html")',
     "args = parser.parse_args()",
     "",
     "directory = str(Path(__file__).resolve().parent)",
@@ -142,7 +183,10 @@ function buildLaunchScript() {
   ].join("\n");
 }
 
-async function proveLocalhostLaunch(command: string[]): Promise<DeliveryLaunchProof | null> {
+async function proveLocalhostLaunch(
+  command: string[],
+  expectedMarker: string
+): Promise<DeliveryLaunchProof | null> {
   return await new Promise((resolve) => {
     const child = spawn(command[0] ?? DELIVERY_PYTHON_BIN, command.slice(1), {
       stdio: ["ignore", "pipe", "pipe"],
@@ -175,7 +219,7 @@ async function proveLocalhostLaunch(command: string[]): Promise<DeliveryLaunchPr
       try {
         const response = await fetch(url, { cache: "no-store" });
         const body = await response.text();
-        if (!response.ok || !body.includes(LOCALHOST_PROOF_MARKER)) {
+        if (!response.ok || !body.includes(expectedMarker)) {
           finish(null);
           return;
         }
@@ -240,14 +284,18 @@ async function buildDeliveryFields(
   await mkdir(localOutputPath, { recursive: true });
   const previewPath = path.join(localOutputPath, "preview.html");
   const launchScriptPath = launchScriptLocation(localOutputPath);
-  const launchManifestPath = launchManifestLocation(localOutputPath);
+  const wrapperLaunchManifestPath = launchManifestLocation(localOutputPath);
+  const runnableTarget =
+    assembly?.taskGraphId
+      ? await findRunnableAttemptTarget(initiativeId, assembly.taskGraphId)
+      : null;
   const previewHtml = [
     "<!doctype html>",
-    "<html lang=\"en\">",
+    '<html lang="en">',
     "<head>",
-    "  <meta charset=\"utf-8\" />",
+    '  <meta charset="utf-8" />',
     `  <title>Infinity Preview ${deliveryId}</title>`,
-    "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />",
+    '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
     "  <style>",
     "    body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #f4efe6; color: #111827; }",
     "    main { max-width: 760px; margin: 48px auto; padding: 32px; background: rgba(255,255,255,0.92); border: 1px solid rgba(15,23,42,0.08); border-radius: 28px; box-shadow: 0 18px 48px rgba(15,23,42,0.08); }",
@@ -259,7 +307,7 @@ async function buildDeliveryFields(
     "</head>",
     "<body>",
     "  <main>",
-    "    <div style=\"text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #6b7280;\">Infinity Local Preview</div>",
+    '    <div style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #6b7280;">Infinity Local Preview</div>',
     `    <h1>Delivery ${deliveryId}</h1>`,
     `    <p>This local preview was generated by the shell-owned autonomous loop for <code>${initiativeId}</code>.</p>`,
     "    <ul>",
@@ -267,18 +315,31 @@ async function buildDeliveryFields(
     `      <li>Assembly: <code>${assembly?.id ?? "n/a"}</code></li>`,
     `      <li>Assembly output: <code>${assembly?.outputLocation ?? "n/a"}</code></li>`,
     "    </ul>",
-    "    <p>This bundle exposes a shell-generated evidence wrapper. It does not prove that the actual product result is runnable yet.</p>",
+    `    <p>This bundle exposes a shell-generated evidence wrapper.${runnableTarget ? ` The actual runnable target is <code>${runnableTarget.launchTargetLabel}</code>.` : " It does not prove that the actual product result is runnable yet."}</p>`,
     "  </main>",
     "</body>",
     "</html>",
   ].join("\n");
   await writeFile(previewPath, previewHtml);
   await writeFile(launchScriptPath, buildLaunchScript());
-  const launchCommand = [DELIVERY_PYTHON_BIN, launchScriptPath, "--port", "0"];
-  const launchShellCommand = `${DELIVERY_PYTHON_BIN} ${shellQuote(launchScriptPath)} --port 0`;
-  const launchProof = await proveLocalhostLaunch(launchCommand);
-  const launchProofKind: DeliveryLaunchProofKind = "synthetic_wrapper";
-  const launchTargetLabel = "Shell evidence wrapper";
+  const wrapperLaunchCommand = [DELIVERY_PYTHON_BIN, launchScriptPath, "--port", "0"];
+  const wrapperLaunchShellCommand = `${DELIVERY_PYTHON_BIN} ${shellQuote(launchScriptPath)} --port 0`;
+  const wrapperLaunchProof = await proveLocalhostLaunch(
+    wrapperLaunchCommand,
+    LOCALHOST_PROOF_MARKER
+  );
+  const launchProofKind: DeliveryLaunchProofKind =
+    runnableTarget?.launchProofKind ?? "synthetic_wrapper";
+  const launchTargetLabel =
+    runnableTarget?.launchTargetLabel ?? "Shell evidence wrapper";
+  const launchManifestPath =
+    runnableTarget?.launchManifestPath ?? wrapperLaunchManifestPath;
+  const launchCommand = runnableTarget?.command ?? wrapperLaunchCommand;
+  const launchShellCommand =
+    runnableTarget?.shellCommand ?? wrapperLaunchShellCommand;
+  const launchProof = runnableTarget
+    ? await proveLocalhostLaunch(launchCommand, runnableTarget.expectedMarker)
+    : wrapperLaunchProof;
   const launchManifest: DeliveryLaunchManifest = {
     launcher: "python_static_site",
     scriptPath: launchScriptPath,
@@ -287,13 +348,13 @@ async function buildDeliveryFields(
     expectedMarker: LOCALHOST_PROOF_MARKER,
     targetKind: launchProofKind,
     targetLabel: launchTargetLabel,
-    command: launchCommand,
-    shellCommand: launchShellCommand,
-    proof: launchProof
+    command: wrapperLaunchCommand,
+    shellCommand: wrapperLaunchShellCommand,
+    proof: wrapperLaunchProof
       ? {
           status: "passed",
-          url: launchProof.url,
-          observedAt: launchProof.observedAt,
+          url: wrapperLaunchProof.url,
+          observedAt: wrapperLaunchProof.observedAt,
         }
       : {
           status: "failed",
@@ -301,7 +362,7 @@ async function buildDeliveryFields(
           observedAt: null,
         },
   };
-  await writeFile(launchManifestPath, JSON.stringify(launchManifest, null, 2));
+  await writeFile(wrapperLaunchManifestPath, JSON.stringify(launchManifest, null, 2));
   await writeFile(
     path.join(localOutputPath, "delivery-summary.json"),
     JSON.stringify(

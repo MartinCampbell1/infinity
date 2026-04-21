@@ -50,8 +50,6 @@ const HANDSHAKE_WARN_AFTER_MS = 12000;
 type RuntimeIngestState = "idle" | "queued" | "posted" | "failed";
 type OperatorActionState = "idle" | "posting" | "posted" | "failed";
 
-type RecoveryState = ExecutionSessionSummary["recoveryState"];
-
 function isRuntimeSnapshot(value: unknown): value is WorkspaceRuntimeIngestResponse["runtimeSnapshot"] {
   if (!value || typeof value !== "object") {
     return false;
@@ -366,7 +364,7 @@ function ExecutionWorkspaceHandoffRuntime({
   const [sessionTitle, setSessionTitle] = useState(viewModel.sessionTitle);
   const [sessionStatus, setSessionStatus] = useState<string>(viewModel.status);
   const [sessionPhase, setSessionPhase] = useState<string | null>(viewModel.phase ?? null);
-  const [recoveryState, setRecoveryState] = useState<RecoveryState>("none");
+  const [, setRecoveryState] = useState<ExecutionSessionSummary["recoveryState"]>("none");
   const [lastRuntimeEvent, setLastRuntimeEvent] = useState<HostSignal | null>(null);
   const [approvalTouches, setApprovalTouches] = useState<ApprovalRequest[]>([]);
   const [recoveryTouches, setRecoveryTouches] = useState<RecoveryIncident[]>([]);
@@ -1072,12 +1070,6 @@ function ExecutionWorkspaceHandoffRuntime({
 
   const canSendInteractiveMessages =
     connectionState === "ready" && lastError === null;
-  const showAdvancedDiagnostics =
-    handshakeDelayed ||
-    Boolean(lastError) ||
-    runtimeIngestState !== "idle" ||
-    operatorActionState !== "idle" ||
-    signals.length > 1;
   const diagnosticsSummary = lastError
     ? lastError
     : handshakeDelayed

@@ -16,6 +16,7 @@ import {
   updateAutonomousRunStage,
   upsertAgentSessionRecord,
 } from "./autonomous-run";
+import { materializeAttemptArtifacts } from "./attempt-artifacts";
 import { findOrchestrationTaskGraph } from "./task-graphs";
 import { findOrchestrationWorkUnit } from "./work-units";
 import { buildOrchestrationDirectoryMeta, buildOrchestrationId, nowIso } from "./shared";
@@ -117,6 +118,14 @@ export async function performSupervisorAction(
         `Attempt ${input.attemptId} does not belong to work unit ${workUnit.id} in batch ${batch.id}.`
       );
     }
+
+    materializeAttemptArtifacts({
+      initiativeId: batch.initiativeId,
+      taskGraphId: batch.taskGraphId,
+      batchId: batch.id,
+      workUnit,
+      attemptId: input.attemptId,
+    });
 
     const completed = await kernel.completeAttempt(input.attemptId);
 

@@ -66,10 +66,6 @@ export default async function WorkItemsPage({
   const currentTaskGraphDetail = currentTaskGraphId
     ? await buildTaskGraphDetailResponse(currentTaskGraphId)
     : null;
-  const currentPreviewTarget =
-    (currentRun
-      ? state.orchestration.previewTargets.find((target) => target.runId === currentRun.id)
-      : null) ?? null;
   const currentHandoffPacket =
     (currentRun
       ? state.orchestration.handoffPackets.find((packet) => packet.runId === currentRun.id)
@@ -97,7 +93,6 @@ export default async function WorkItemsPage({
         currentTaskGraph={currentTaskGraphDetail?.taskGraph ?? null}
         currentBatch={currentBatch}
         currentDelivery={currentDelivery}
-        currentPreviewTarget={currentPreviewTarget}
         currentHandoffPacket={currentHandoffPacket}
         workUnits={currentTaskGraphDetail?.workUnits ?? []}
         agentSessions={agentSessions}
