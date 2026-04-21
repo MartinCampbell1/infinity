@@ -93,5 +93,4 @@ Post-finish hardening:
 Not release blockers:
 
 - continue shrinking the remaining legacy subtree by porting archived execution surfaces back under full typecheck one by one
-- reduce shell lint warnings related to undeclared env vars
 - decide whether any final release bundle should be copied into a curated tracked artifact outside `handoff-packets/validation/`
