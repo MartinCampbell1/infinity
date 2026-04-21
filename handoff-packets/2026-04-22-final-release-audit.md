@@ -29,7 +29,7 @@ Validated:
 
 Unverified:
 
-- no git commit has been created for the current worktree state yet
+- no remote push or PR has been created for the packaged branch yet
 - no external deployment/release beyond localhost was performed in this cycle
 
 Release gaps:
@@ -63,5 +63,5 @@ Handoff-ready:
 
 Required before honest done:
 
-1. Optional only: create a commit from the current worktree if you want a durable git checkpoint beyond the original baseline.
+1. Optional only: push `codex/infinity-step10-go` or open a PR if you want the packaged state off-machine.
 2. Optional only: reuse `/Users/martin/infinity/handoff-packets/validation/2026-04-21T23-37-59Z` as the canonical local release evidence bundle for any next-agent or operator handoff.
