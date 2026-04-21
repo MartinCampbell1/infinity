@@ -38,6 +38,14 @@ export type ExecutionKernelAvailability = {
   baseUrl: string;
   detail: string;
   generatedAt?: string | null;
+  authMode?: string | null;
+  storageKind?: string | null;
+  statePath?: string | null;
+  stateConfigured?: boolean | null;
+  runtimeState?: string | null;
+  recoveryState?: string | null;
+  restartRecoverable?: boolean | null;
+  failureState?: string | null;
 };
 
 function cloneBatch(value: ExecutionBatchRecord) {
@@ -67,8 +75,16 @@ export async function getExecutionKernelAvailability(): Promise<ExecutionKernelA
     return {
       available: true,
       baseUrl,
-      detail: `${health.service} is reachable.`,
+      detail: health.detail?.trim() || `${health.service} is reachable.`,
       generatedAt: health.generatedAt,
+      authMode: health.authMode ?? null,
+      storageKind: health.storageKind ?? null,
+      statePath: health.statePath ?? null,
+      stateConfigured: health.stateConfigured ?? null,
+      runtimeState: health.runtimeState ?? null,
+      recoveryState: health.recoveryState ?? null,
+      restartRecoverable: health.restartRecoverable ?? null,
+      failureState: health.failureState ?? null,
     };
   } catch (error) {
     const cause =
@@ -87,6 +103,14 @@ export async function getExecutionKernelAvailability(): Promise<ExecutionKernelA
       baseUrl,
       detail: message,
       generatedAt: null,
+      authMode: null,
+      storageKind: null,
+      statePath: null,
+      stateConfigured: null,
+      runtimeState: null,
+      recoveryState: null,
+      restartRecoverable: null,
+      failureState: null,
     };
   }
 }

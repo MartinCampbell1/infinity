@@ -102,6 +102,24 @@ export function ExecutionHomeSurface({
         minute: "2-digit",
       })
     : null;
+  const kernelTone = !kernelAvailability.available
+    ? "border-amber-500/20 bg-amber-500/12 text-amber-100"
+    : kernelAvailability.recoveryState === "retryable"
+      ? "border-amber-500/20 bg-amber-500/12 text-amber-100"
+    : kernelAvailability.runtimeState === "blocked" || kernelAvailability.failureState === "failed"
+      ? "border-rose-500/20 bg-rose-500/12 text-rose-100"
+      : kernelAvailability.restartRecoverable
+        ? "border-sky-500/20 bg-sky-500/12 text-sky-100"
+        : "border-emerald-500/20 bg-emerald-500/12 text-emerald-100";
+  const kernelLabel = !kernelAvailability.available
+    ? "execution-kernel offline"
+    : kernelAvailability.recoveryState === "retryable"
+      ? "execution-kernel retryable"
+    : kernelAvailability.runtimeState === "blocked"
+      ? "execution-kernel blocked"
+      : kernelAvailability.restartRecoverable
+        ? "execution-kernel restart-recoverable"
+        : "execution-kernel ready";
 
   return (
     <main className="mx-auto flex max-w-[1480px] flex-col gap-5">
@@ -233,12 +251,24 @@ export function ExecutionHomeSurface({
           <PlaneRunModule title="Runtime dependency">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-2">
-                <div className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-medium ${kernelAvailability.available ? "border-emerald-500/20 bg-emerald-500/12 text-emerald-100" : "border-amber-500/20 bg-amber-500/12 text-amber-100"}`}>
-                  {kernelAvailability.available ? "execution-kernel ready" : "execution-kernel offline"}
+                <div className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-medium ${kernelTone}`}>
+                  {kernelLabel}
                 </div>
                 <div className="text-[13px] text-white/78">{kernelAvailability.baseUrl}</div>
                 <div className="max-w-3xl text-[12px] leading-6 text-white/56">
                   {kernelAvailability.detail}
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {kernelAvailability.recoveryState === "retryable" ? (
+                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/62">
+                      retryable
+                    </span>
+                  ) : null}
+                  {kernelAvailability.restartRecoverable ? (
+                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/62">
+                      restart-recoverable
+                    </span>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2 pt-1">
                   {!kernelAvailability.available ? (

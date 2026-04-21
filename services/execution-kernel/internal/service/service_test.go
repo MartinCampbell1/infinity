@@ -69,6 +69,79 @@ func TestFileBackedServiceRestoresPersistedState(t *testing.T) {
 	}
 }
 
+func TestHealthReportsDurableAndRecoverableState(t *testing.T) {
+	t.Parallel()
+
+	statePath := filepath.Join(t.TempDir(), "execution-kernel-health.json")
+	svc, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() error = %v", err)
+	}
+
+	launch, err := svc.LaunchBatch(context.Background(), events.LaunchBatchRequest{
+		BatchID:          "batch-health-001",
+		InitiativeID:     "initiative-health-001",
+		TaskGraphID:      "task-graph-health-001",
+		ConcurrencyLimit: 1,
+		WorkUnits: []events.WorkUnit{
+			{
+				ID:                 "work-unit-health-001",
+				Title:              "Health reporting",
+				Description:        "Expose durable runtime state",
+				ExecutorType:       "codex",
+				ScopePaths:         []string{"/Users/martin/infinity/services/execution-kernel"},
+				Dependencies:       []string{},
+				AcceptanceCriteria: []string{"Health reports durable local state"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("LaunchBatch() error = %v", err)
+	}
+
+	if _, err := svc.FailAttempt(context.Background(), launch.Attempts[0].ID, events.AttemptActionRequest{
+		ErrorCode:    stringPointer("HEALTH_CHECK"),
+		ErrorSummary: stringPointer("blocked for health snapshot"),
+	}); err != nil {
+		t.Fatalf("FailAttempt() error = %v", err)
+	}
+
+	health := svc.Health(context.Background())
+	if health.Status != "degraded" {
+		t.Fatalf("expected degraded health, got %s", health.Status)
+	}
+	if health.AuthMode != "localhost_only" {
+		t.Fatalf("expected localhost_only auth mode, got %s", health.AuthMode)
+	}
+	if health.StorageKind != "file" {
+		t.Fatalf("expected file storage kind, got %s", health.StorageKind)
+	}
+	if health.StatePath != statePath {
+		t.Fatalf("expected state path %s, got %s", statePath, health.StatePath)
+	}
+	if !health.StateConfigured {
+		t.Fatalf("expected file-backed state to be configured")
+	}
+	if health.RuntimeState != "blocked" {
+		t.Fatalf("expected blocked runtime state, got %s", health.RuntimeState)
+	}
+	if health.RecoveryState != "retryable" {
+		t.Fatalf("expected retryable recovery state, got %s", health.RecoveryState)
+	}
+	if !health.RestartRecoverable {
+		t.Fatalf("expected restart-recoverable durable state signal")
+	}
+	if health.FailureState != "failed" {
+		t.Fatalf("expected failed failure state, got %s", health.FailureState)
+	}
+	if health.BatchCounts.Blocked != 1 {
+		t.Fatalf("expected one blocked batch, got %d", health.BatchCounts.Blocked)
+	}
+	if health.AttemptCounts.Failed != 1 {
+		t.Fatalf("expected one failed attempt, got %d", health.AttemptCounts.Failed)
+	}
+}
+
 func stringPointer(value string) *string {
 	return &value
 }

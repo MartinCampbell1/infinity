@@ -48,9 +48,30 @@ export type ExecutionKernelAttemptRecord = {
 };
 
 export type ExecutionKernelHealthResponse = {
-  status: "ok";
+  status: "ok" | "degraded";
   service: "execution-kernel";
   generatedAt: string;
+  authMode?: "localhost_only" | string;
+  storageKind?: "memory" | "file" | string;
+  statePath?: string | null;
+  stateConfigured?: boolean;
+  runtimeState?: "idle" | "running" | "blocked" | string;
+  recoveryState?: "none" | "retryable" | string;
+  restartRecoverable?: boolean;
+  failureState?: "none" | "failed" | string;
+  batchCounts?: {
+    total: number;
+    running: number;
+    blocked: number;
+    completed: number;
+  };
+  attemptCounts?: {
+    total: number;
+    started: number;
+    succeeded: number;
+    failed: number;
+  };
+  detail?: string;
 };
 
 export type ExecutionKernelLaunchBatchRequest = {

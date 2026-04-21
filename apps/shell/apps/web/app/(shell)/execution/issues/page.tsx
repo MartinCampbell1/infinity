@@ -63,15 +63,32 @@ export default async function ExecutionIssuesPage({
       sortAt: event.createdAt,
     }));
   const syntheticKernelItem =
-    !kernelAvailability.available && runtimeItems.length === 0
+    (
+      !kernelAvailability.available ||
+      kernelAvailability.recoveryState === "retryable" ||
+      kernelAvailability.runtimeState === "blocked" ||
+      kernelAvailability.restartRecoverable ||
+      kernelAvailability.failureState === "failed"
+    )
       ? [
           {
-            id: "runtime-kernel-offline",
-            headline: `Execution kernel unavailable at ${kernelAvailability.baseUrl}.`,
+            id: "runtime-kernel-health",
+            headline: !kernelAvailability.available
+              ? `Execution kernel unavailable at ${kernelAvailability.baseUrl}.`
+              : kernelAvailability.recoveryState === "retryable"
+                ? `Execution kernel retryable at ${kernelAvailability.baseUrl}.`
+              : `Execution kernel degraded at ${kernelAvailability.baseUrl}.`,
             detail: kernelAvailability.detail,
-            meta: ["execution-kernel", kernelAvailability.baseUrl, "blocked"],
+            meta: [
+              "execution-kernel",
+              kernelAvailability.baseUrl,
+              kernelAvailability.runtimeState ?? "blocked",
+              kernelAvailability.recoveryState,
+              kernelAvailability.restartRecoverable ? "restart-recoverable" : null,
+              kernelAvailability.failureState,
+            ],
             href: null,
-            sortAt: new Date(0).toISOString(),
+            sortAt: kernelAvailability.generatedAt ?? new Date().toISOString(),
           },
         ]
       : [];

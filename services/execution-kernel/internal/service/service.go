@@ -135,10 +135,93 @@ func nowISO() string {
 }
 
 func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
+	svc.mu.RLock()
+	defer svc.mu.RUnlock()
+
+	batchCounts := events.BatchCounts{}
+	for _, batch := range svc.batches {
+		batchCounts.Total += 1
+		switch batch.Status {
+		case "running":
+			batchCounts.Running += 1
+		case "blocked":
+			batchCounts.Blocked += 1
+		case "completed":
+			batchCounts.Completed += 1
+		}
+	}
+
+	attemptCounts := events.AttemptCounts{}
+	for _, attempt := range svc.attempts {
+		attemptCounts.Total += 1
+		switch attempt.Status {
+		case "started":
+			attemptCounts.Started += 1
+		case "succeeded":
+			attemptCounts.Succeeded += 1
+		case "failed":
+			attemptCounts.Failed += 1
+		}
+	}
+
+	storageKind := "memory"
+	stateConfigured := false
+	if svc.statePath != "" {
+		storageKind = "file"
+		stateConfigured = true
+	}
+
+	runtimeState := "idle"
+	if batchCounts.Blocked > 0 {
+		runtimeState = "blocked"
+	} else if batchCounts.Running > 0 {
+		runtimeState = "running"
+	}
+
+	failureState := "none"
+	if attemptCounts.Failed > 0 {
+		failureState = "failed"
+	}
+
+	retryable := batchCounts.Blocked > 0 || attemptCounts.Failed > 0
+	restartRecoverable := storageKind == "file" && (batchCounts.Total > 0 || attemptCounts.Total > 0)
+
+	recoveryState := "none"
+	if retryable {
+		recoveryState = "retryable"
+	}
+
+	status := "ok"
+	if runtimeState == "blocked" || failureState == "failed" {
+		status = "degraded"
+	}
+
+	detail := fmt.Sprintf(
+		"execution-kernel is reachable with localhost-only auth, %s-backed state configured=%t, runtime %s, recovery %s, restart-recoverable %t, %d blocked batch(es), and %d failed attempt(s).",
+		storageKind,
+		stateConfigured,
+		runtimeState,
+		recoveryState,
+		restartRecoverable,
+		batchCounts.Blocked,
+		attemptCounts.Failed,
+	)
+
 	return events.HealthResponse{
-		Status:      "ok",
-		Service:     "execution-kernel",
-		GeneratedAt: nowISO(),
+		Status:             status,
+		Service:            "execution-kernel",
+		GeneratedAt:        nowISO(),
+		AuthMode:           "localhost_only",
+		StorageKind:        storageKind,
+		StatePath:          svc.statePath,
+		StateConfigured:    stateConfigured,
+		RuntimeState:       runtimeState,
+		RecoveryState:      recoveryState,
+		RestartRecoverable: restartRecoverable,
+		FailureState:       failureState,
+		BatchCounts:        batchCounts,
+		AttemptCounts:      attemptCounts,
+		Detail:             detail,
 	}
 }
 

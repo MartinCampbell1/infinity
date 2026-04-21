@@ -22,6 +22,24 @@ export function PlaneAiHomeSurface({
   const workspaceHref = leadSession
     ? buildExecutionWorkspaceScopeHref(leadSession.id, routeScope)
     : null;
+  const kernelTone = !kernelAvailability.available
+    ? "border-amber-500/20 bg-amber-500/12 text-amber-100"
+    : kernelAvailability.recoveryState === "retryable"
+      ? "border-amber-500/20 bg-amber-500/12 text-amber-100"
+    : kernelAvailability.runtimeState === "blocked" || kernelAvailability.failureState === "failed"
+      ? "border-rose-500/20 bg-rose-500/12 text-rose-100"
+      : kernelAvailability.restartRecoverable
+        ? "border-sky-500/20 bg-sky-500/12 text-sky-100"
+        : "border-emerald-500/20 bg-emerald-500/12 text-emerald-100";
+  const kernelLabel = !kernelAvailability.available
+    ? "execution-kernel offline"
+    : kernelAvailability.recoveryState === "retryable"
+      ? "execution-kernel retryable"
+    : kernelAvailability.runtimeState === "blocked"
+      ? "execution-kernel blocked"
+      : kernelAvailability.restartRecoverable
+        ? "execution-kernel restart-recoverable"
+        : "execution-kernel ready";
 
   return (
     <PlaneShellSectionCard className="max-w-[1120px]">
@@ -80,13 +98,25 @@ export function PlaneAiHomeSurface({
 
           <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-5">
             <div className="flex flex-wrap items-center gap-2 text-[11px]">
-              <span className={`inline-flex items-center rounded-full border px-3 py-1 font-medium ${kernelAvailability.available ? "border-emerald-500/20 bg-emerald-500/12 text-emerald-100" : "border-amber-500/20 bg-amber-500/12 text-amber-100"}`}>
-                {kernelAvailability.available ? "execution-kernel ready" : "execution-kernel offline"}
+              <span className={`inline-flex items-center rounded-full border px-3 py-1 font-medium ${kernelTone}`}>
+                {kernelLabel}
               </span>
               <span className="text-white/52">{kernelAvailability.baseUrl}</span>
             </div>
             <div className="mt-2 text-[12px] leading-6 text-white/48">
               {kernelAvailability.detail}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-white/62">
+              {kernelAvailability.recoveryState === "retryable" ? (
+                <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1">
+                  retryable
+                </span>
+              ) : null}
+              {kernelAvailability.restartRecoverable ? (
+                <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1">
+                  restart-recoverable
+                </span>
+              ) : null}
             </div>
           </div>
         </div>

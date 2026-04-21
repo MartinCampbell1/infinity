@@ -15,9 +15,14 @@ vi.mock("@/components/execution/autonomous-record-board", () => ({
     <section data-issues-board="true">
       <h1>{title}</h1>
       <p>{description}</p>
-      <div>{items[0]?.headline ?? "No items"}</div>
-      <div>{items[0]?.detail ?? "No detail"}</div>
-      <div>{items[0]?.href ?? "No href"}</div>
+      {items.length === 0 ? <div>No items</div> : null}
+      {items.map((item) => (
+        <article key={item.headline}>
+          <div>{item.headline}</div>
+          <div>{item.detail ?? "No detail"}</div>
+          <div>{item.href ?? "No href"}</div>
+        </article>
+      ))}
     </section>
   ),
 }));
@@ -120,5 +125,57 @@ describe("execution issues route", () => {
     expect(markup).toContain("Execution kernel unavailable");
     expect(markup).toContain("./services/execution-kernel/scripts/run-local.sh");
     expect(markup).toContain("No href");
+  });
+
+  test("surfaces a degraded kernel issue even when healthz is reachable", async () => {
+    vi.mocked(readControlPlaneState).mockResolvedValueOnce({
+      orchestration: {
+        runs: [],
+        secretPauses: [],
+        runEvents: [],
+      },
+    } as unknown as Awaited<ReturnType<typeof readControlPlaneState>>);
+    vi.mocked(getExecutionKernelAvailability).mockResolvedValueOnce({
+      available: true,
+      baseUrl: "http://127.0.0.1:8787",
+      detail:
+        "execution-kernel is reachable with localhost-only auth, file-backed state configured=true, runtime blocked, recovery retryable, restart-recoverable true, 1 blocked batch(es), and 1 failed attempt(s).",
+      generatedAt: "2026-04-21T00:00:00.000Z",
+      runtimeState: "blocked",
+      recoveryState: "retryable",
+      restartRecoverable: true,
+      failureState: "failed",
+      authMode: "localhost_only",
+      storageKind: "file",
+      statePath: "/tmp/execution-kernel/state.json",
+    });
+
+    const markup = renderToStaticMarkup(await Page({}));
+
+    expect(markup).toContain("Execution kernel retryable");
+    expect(markup).toContain("runtime blocked");
+    expect(markup).toContain("restart-recoverable");
+  });
+
+  test("does not hide live retryable kernel health behind stale runtime events", async () => {
+    vi.mocked(getExecutionKernelAvailability).mockResolvedValueOnce({
+      available: true,
+      baseUrl: "http://127.0.0.1:8787",
+      detail:
+        "execution-kernel is reachable with localhost-only auth, file-backed state configured=true, runtime blocked, recovery retryable, restart-recoverable true, 1 blocked batch(es), and 1 failed attempt(s).",
+      generatedAt: "2026-04-21T00:00:00.000Z",
+      runtimeState: "blocked",
+      recoveryState: "retryable",
+      restartRecoverable: true,
+      failureState: "failed",
+      authMode: "localhost_only",
+      storageKind: "file",
+      statePath: "/tmp/execution-kernel/state.json",
+    });
+
+    const markup = renderToStaticMarkup(await Page({}));
+
+    expect(markup).toContain("Execution kernel unavailable");
+    expect(markup).toContain("Execution kernel retryable");
   });
 });

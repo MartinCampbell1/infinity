@@ -62,8 +62,33 @@ type AttemptActionEnvelope struct {
 	Attempt AttemptRecord `json:"attempt"`
 }
 
+type BatchCounts struct {
+	Total     int `json:"total"`
+	Running   int `json:"running"`
+	Blocked   int `json:"blocked"`
+	Completed int `json:"completed"`
+}
+
+type AttemptCounts struct {
+	Total     int `json:"total"`
+	Started   int `json:"started"`
+	Succeeded int `json:"succeeded"`
+	Failed    int `json:"failed"`
+}
+
 type HealthResponse struct {
-	Status      string `json:"status"`
-	Service     string `json:"service"`
-	GeneratedAt string `json:"generatedAt"`
+	Status             string        `json:"status"`
+	Service            string        `json:"service"`
+	GeneratedAt        string        `json:"generatedAt"`
+	AuthMode           string        `json:"authMode"`
+	StorageKind        string        `json:"storageKind"`
+	StatePath          string        `json:"statePath,omitempty"`
+	StateConfigured    bool          `json:"stateConfigured"`
+	RuntimeState       string        `json:"runtimeState"`
+	RecoveryState      string        `json:"recoveryState"`
+	RestartRecoverable bool          `json:"restartRecoverable"`
+	FailureState       string        `json:"failureState"`
+	BatchCounts        BatchCounts   `json:"batchCounts"`
+	AttemptCounts      AttemptCounts `json:"attemptCounts"`
+	Detail             string        `json:"detail"`
 }

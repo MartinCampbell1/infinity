@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -109,7 +108,7 @@ func (handler *HTTPHandler) attemptDetail(response http.ResponseWriter, request 
 		return
 	}
 
-	result, err := handler.service.AttemptDetail(context.Background(), attemptID)
+	result, err := handler.service.AttemptDetail(request.Context(), attemptID)
 	if err != nil {
 		if errors.Is(err, service.ErrNotFound) {
 			writeError(response, http.StatusNotFound, "attempt not found")

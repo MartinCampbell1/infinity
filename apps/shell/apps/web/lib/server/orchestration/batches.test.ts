@@ -44,6 +44,14 @@ describe("getExecutionKernelAvailability", () => {
         baseUrl: `http://127.0.0.1:${address.port}`,
         detail: "execution-kernel is reachable.",
         generatedAt: "2026-04-20T12:00:00.000Z",
+        authMode: null,
+        storageKind: null,
+        statePath: null,
+        stateConfigured: null,
+        runtimeState: null,
+        recoveryState: null,
+        restartRecoverable: null,
+        failureState: null,
       });
     } finally {
       await new Promise<void>((resolve, reject) =>
@@ -62,5 +70,56 @@ describe("getExecutionKernelAvailability", () => {
     expect(availability.detail).toContain("Kernel is offline");
     expect(availability.detail).toContain("./services/execution-kernel/scripts/run-local.sh");
     expect(availability.generatedAt).toBeNull();
+    expect(availability.runtimeState).toBeNull();
+    expect(availability.restartRecoverable).toBeNull();
+  });
+
+  test("surfaces degraded kernel state from healthz when runtime is reachable", async () => {
+    const kernelServer = createServer(
+      (_request: IncomingMessage, response: ServerResponse) => {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            status: "degraded",
+            service: "execution-kernel",
+            generatedAt: "2026-04-20T12:00:00.000Z",
+            authMode: "localhost_only",
+            storageKind: "file",
+            statePath: "/tmp/execution-kernel/state.json",
+            stateConfigured: true,
+            runtimeState: "blocked",
+            recoveryState: "retryable",
+            restartRecoverable: true,
+            failureState: "failed",
+            detail:
+              "execution-kernel is reachable with localhost-only auth, file-backed state configured=true, runtime blocked, recovery retryable, restart-recoverable true, 1 blocked batch(es), and 1 failed attempt(s).",
+          })
+        );
+      }
+    );
+
+    await new Promise<void>((resolve) => kernelServer.listen(0, "127.0.0.1", resolve));
+    const address = kernelServer.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Kernel health test server did not bind to an ephemeral port.");
+    }
+    process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const availability = await getExecutionKernelAvailability();
+
+      expect(availability.available).toBe(true);
+      expect(availability.runtimeState).toBe("blocked");
+      expect(availability.recoveryState).toBe("retryable");
+      expect(availability.restartRecoverable).toBe(true);
+      expect(availability.failureState).toBe("failed");
+      expect(availability.detail).toContain("runtime blocked");
+      expect(availability.detail).toContain("recovery retryable");
+      expect(availability.detail).toContain("restart-recoverable true");
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        kernelServer.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
   });
 });
