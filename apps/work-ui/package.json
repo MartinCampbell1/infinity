@@ -3,8 +3,7 @@
 	"version": "0.8.12",
 	"private": true,
 	"scripts": {
-		"dev": "npm run pyodide:fetch:optional && vite dev --host",
-		"dev:5050": "npm run pyodide:fetch:optional && vite dev --port 5050",
+		"dev": "sh -c 'npm run pyodide:fetch:optional && vite dev --host ${WORK_UI_HOST:-127.0.0.1} --port ${WORK_UI_PORT:-3101}'",
 		"build": "npm run pyodide:fetch:optional && vite build",
 		"build:watch": "npm run pyodide:fetch:optional && vite build --watch",
 		"preview": "vite preview",

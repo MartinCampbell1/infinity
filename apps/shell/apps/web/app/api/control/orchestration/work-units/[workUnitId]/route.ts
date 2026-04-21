@@ -4,7 +4,7 @@ import {
   buildWorkUnitDetailResponse,
   updateOrchestrationWorkUnit,
 } from "../../../../../../lib/server/orchestration/work-units";
-import { runAutonomousLoopSafely } from "../../../../../../lib/server/orchestration/autonomy";
+import { triggerAutonomousLoopSafely } from "../../../../../../lib/server/orchestration/autonomy";
 import { isUpdateWorkUnitRequest } from "../../../../../../lib/server/control-plane/contracts/orchestration";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export async function GET(
     );
   }
 
-  await runAutonomousLoopSafely(response.taskGraph?.initiativeId ?? null);
+  await triggerAutonomousLoopSafely(response.taskGraph?.initiativeId ?? null);
 
   return NextResponse.json(response);
 }

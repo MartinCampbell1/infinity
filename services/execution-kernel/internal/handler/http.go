@@ -39,6 +39,10 @@ func (handler *HTTPHandler) ServeHTTP(response http.ResponseWriter, request *htt
 		handler.launchBatch(response, request)
 		return
 
+	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/resume") && strings.HasPrefix(request.URL.Path, "/api/v1/batches/"):
+		handler.batchAction(response, request)
+		return
+
 	case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/v1/batches/"):
 		handler.batchDetail(response, request)
 		return
@@ -54,6 +58,15 @@ func (handler *HTTPHandler) ServeHTTP(response http.ResponseWriter, request *htt
 	default:
 		writeError(response, http.StatusNotFound, "route not found")
 	}
+}
+
+func batchIDFromPath(path string) string {
+	trimmed := strings.TrimPrefix(path, "/api/v1/batches/")
+	parts := strings.Split(trimmed, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[0]
 }
 
 func attemptIDFromPath(path string) string {
@@ -82,7 +95,7 @@ func (handler *HTTPHandler) launchBatch(response http.ResponseWriter, request *h
 }
 
 func (handler *HTTPHandler) batchDetail(response http.ResponseWriter, request *http.Request) {
-	batchID := strings.TrimPrefix(request.URL.Path, "/api/v1/batches/")
+	batchID := batchIDFromPath(request.URL.Path)
 	if batchID == "" {
 		writeError(response, http.StatusBadRequest, "batch id is required")
 		return
@@ -99,6 +112,31 @@ func (handler *HTTPHandler) batchDetail(response http.ResponseWriter, request *h
 	}
 
 	writeJSON(response, http.StatusOK, result)
+}
+
+func (handler *HTTPHandler) batchAction(response http.ResponseWriter, request *http.Request) {
+	batchID := batchIDFromPath(request.URL.Path)
+	if batchID == "" {
+		writeError(response, http.StatusBadRequest, "batch id is required")
+		return
+	}
+
+	switch {
+	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/resume"):
+		result, err := handler.service.ResumeBatch(request.Context(), batchID)
+		if err != nil {
+			if errors.Is(err, service.ErrNotFound) {
+				writeError(response, http.StatusNotFound, "batch not found")
+				return
+			}
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, result)
+		return
+	default:
+		writeError(response, http.StatusNotFound, "route not found")
+	}
 }
 
 func (handler *HTTPHandler) attemptDetail(response http.ResponseWriter, request *http.Request) {

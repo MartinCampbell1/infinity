@@ -5,7 +5,7 @@ import {
   buildProjectBriefsDirectoryResponse,
   createOrchestrationBrief,
 } from "../../../../../lib/server/orchestration/briefs";
-import { runAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
+import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateProjectBriefRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     );
   }
 
-  await runAutonomousLoopSafely(result.brief.initiativeId);
+  await triggerAutonomousLoopSafely(result.brief.initiativeId);
 
   return NextResponse.json(await buildProjectBriefMutationResponse(result.brief.id), {
     status: 201,

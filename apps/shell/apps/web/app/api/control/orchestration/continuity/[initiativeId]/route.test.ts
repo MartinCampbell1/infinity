@@ -332,8 +332,8 @@ describe("/api/control/orchestration/continuity/[initiativeId]", () => {
     expect(body.batches.length).toBeGreaterThanOrEqual(1);
     expect(body.assembly?.status).toBe("assembled");
     expect(body.verification?.overallStatus).toBe("passed");
-    expect(body.delivery?.status).toBe("pending");
-    expect(body.delivery?.launchProofKind).toBe("synthetic_wrapper");
+    expect(body.delivery?.status).toBe("ready");
+    expect(body.delivery?.launchProofKind).toBe("runnable_result");
     expect(body.relatedApprovals).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

@@ -44,6 +44,18 @@ function defaultValidationCommands(): ValidationCommandSpec[] {
       command: ["npm", "run", "work-ui:check"],
     },
     {
+      name: "shell:test:orchestration-readiness",
+      bucket: "test",
+      cwd: "/Users/martin/infinity",
+      command: [
+        "npm",
+        "run",
+        "test:orchestration-readiness",
+        "--workspace",
+        "@founderos/web",
+      ],
+    },
+    {
       name: "kernel:test",
       bucket: "test",
       cwd: "/Users/martin/infinity/services/execution-kernel",

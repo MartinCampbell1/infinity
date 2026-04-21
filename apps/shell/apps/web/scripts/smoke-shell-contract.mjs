@@ -156,13 +156,10 @@ try {
     "Root entry must expose the run composer."
   );
   assert(
-    rootPageFolded.includes("new chat") && rootPageFolded.includes("search"),
-    "Root entry must expose the stable shell anchor."
-  );
-  assert(
-    rootPageFolded.includes("open work items") ||
-      rootPageFolded.includes("open workspace"),
-    "Root entry must expose secondary shell/workspace actions."
+    rootPageFolded.includes("search runs, tasks, agents") &&
+      rootPageFolded.includes("suggested prompts") &&
+      rootPageFolded.includes("recent runs"),
+    "Root entry must expose the accepted shell frontdoor anchors."
   );
 
   await waitForServer(`${baseUrl}${contract.liveRoutes.sessionsPage}`);

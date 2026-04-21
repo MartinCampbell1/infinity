@@ -4,7 +4,7 @@ import {
   buildSupervisorActionsDirectoryResponse,
   performSupervisorAction,
 } from "../../../../../../lib/server/orchestration/supervisor";
-import { runAutonomousLoopSafely } from "../../../../../../lib/server/orchestration/autonomy";
+import { triggerAutonomousLoopSafely } from "../../../../../../lib/server/orchestration/autonomy";
 import { isSupervisorActionRequest } from "../../../../../../lib/server/control-plane/contracts/orchestration";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     );
   }
 
-  await runAutonomousLoopSafely(response.batch.initiativeId);
+  await triggerAutonomousLoopSafely(response.batch.initiativeId);
 
   return NextResponse.json(response);
 }
