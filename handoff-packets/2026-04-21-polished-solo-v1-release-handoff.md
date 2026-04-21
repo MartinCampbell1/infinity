@@ -24,6 +24,8 @@ Post-finish hardening also landed:
 - primary execution routes pinned to live surfaces
 - legacy import scanning hardened for static imports, re-exports, `import()`, and `require()`
 - generated validation bundles ignored in Git so the worktree stays operationally clean
+- validation workflow can now finalize external critic output via helper script or inline `--critic-json`
+- tracked Python bytecode was removed and ignored
 
 ## Final Release Evidence
 
@@ -73,12 +75,18 @@ Post-finish hardening:
 - `89461b7` `test: pin primary execution routes to live surfaces`
 - `8f0ebf9` `test: harden legacy import scanning`
 - `2a1e71a` `chore: ignore generated validation bundles`
+- `304e91d` `docs: add polished solo v1 release handoff`
+- `d6876a5` `tools: codify validation critic finalization`
+- `74cb2bb` `chore: drop tracked python bytecode`
+- `433359c` `tools: support inline critic finalization`
 
 ## Current Repo State
 
 - `git status` is clean
 - validation evidence remains on disk under `handoff-packets/validation/`
 - validation evidence is now ignored by Git
+- Python bytecode is no longer tracked
+- validation runs can now finish with completed critic artifacts in one command when a critic JSON is already available
 
 ## Optional Follow-Up
 
