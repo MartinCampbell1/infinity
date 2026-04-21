@@ -4,7 +4,7 @@ import {
   buildExecutionBatchesDirectoryResponse,
   createExecutionBatch,
 } from "../../../../../lib/server/orchestration/batches";
-import { runAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
+import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateExecutionBatchRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
 
 export const dynamic = "force-dynamic";
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     );
   }
 
-  await runAutonomousLoopSafely(response.batch.initiativeId);
+  await triggerAutonomousLoopSafely(response.batch.initiativeId);
 
   return NextResponse.json(response, { status: 201 });
 }

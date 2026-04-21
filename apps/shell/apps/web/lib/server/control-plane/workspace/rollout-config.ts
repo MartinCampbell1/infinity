@@ -45,7 +45,7 @@ export function resolveLocalWorkUiBaseUrl(env: EnvLike = process.env) {
   const port =
     normalizeEnvValue(env.WORK_UI_PORT) ??
     normalizeEnvValue(env.VITE_PORT) ??
-    "5173";
+    "3101";
   return `http://${host}:${port}`;
 }
 

@@ -12,12 +12,13 @@ const ATTEMPT_ARTIFACTS_ROOT = path.join(
   "orchestration",
   "attempt-artifacts"
 );
-const RUNNABLE_RESULT_MARKER = "Infinity Runnable Result";
+const ATTEMPT_SCAFFOLD_MARKER = "Infinity Attempt Scaffold";
+const REAL_PRODUCT_RESULT_MARKER = "Infinity Runnable Result";
 
 type RunnableAttemptManifest = {
   version: 1;
-  artifactRole: "attempt_runnable_result";
-  targetKind: "runnable_result";
+  artifactRole: "attempt_scaffold_result" | "attempt_real_product_result";
+  targetKind: "attempt_scaffold" | "runnable_result";
   targetLabel: string;
   initiativeId: string;
   taskGraphId: string;
@@ -48,6 +49,33 @@ function runnableLaunchManifestPath(initiativeId: string, attemptId: string) {
   );
 }
 
+function readExistingRunnableAttemptManifest(manifestPath: string) {
+  if (!existsSync(manifestPath)) {
+    return null;
+  }
+
+  try {
+    const raw = JSON.parse(readFileSync(manifestPath, "utf8")) as Partial<RunnableAttemptManifest>;
+    if (
+      raw.artifactRole === "attempt_real_product_result" &&
+      raw.targetKind === "runnable_result" &&
+      typeof raw.targetLabel === "string" &&
+      typeof raw.workingDirectory === "string" &&
+      typeof raw.entryPath === "string" &&
+      typeof raw.expectedMarker === "string" &&
+      Array.isArray(raw.command) &&
+      raw.command.every((part) => typeof part === "string") &&
+      typeof raw.shellCommand === "string"
+    ) {
+      return raw as RunnableAttemptManifest;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 function fileUri(filePath: string) {
   return `file://${filePath}`;
 }
@@ -59,14 +87,29 @@ function isRunnableWorkUnit(workUnit: WorkUnitRecord) {
   );
 }
 
-function runnableTargetLabel(workUnit: WorkUnitRecord) {
+function runnableTargetSpec(workUnit: WorkUnitRecord) {
   if (workUnit.id.endsWith("final_integration")) {
-    return "Final integration app";
+    return {
+      artifactRole: "attempt_real_product_result" as const,
+      targetKind: "runnable_result" as const,
+      targetLabel: "Integrated product preview",
+      expectedMarker: REAL_PRODUCT_RESULT_MARKER,
+    };
   }
   if (workUnit.id.endsWith("workspace_launch")) {
-    return "Workspace launch app";
+    return {
+      artifactRole: "attempt_scaffold_result" as const,
+      targetKind: "attempt_scaffold" as const,
+      targetLabel: "Workspace launch scaffold",
+      expectedMarker: ATTEMPT_SCAFFOLD_MARKER,
+    };
   }
-  return "Runnable result";
+  return {
+    artifactRole: "attempt_scaffold_result" as const,
+    targetKind: "attempt_scaffold" as const,
+    targetLabel: "Attempt scaffold",
+    expectedMarker: ATTEMPT_SCAFFOLD_MARKER,
+  };
 }
 
 function buildLaunchScript(outputDir: string) {
@@ -136,11 +179,24 @@ export function materializeAttemptArtifacts(params: {
     const outputDir = path.join(root, "runnable-result");
     mkdirSync(outputDir, { recursive: true });
 
-    const label = runnableTargetLabel(params.workUnit);
+    const target = runnableTargetSpec(params.workUnit);
+    const label = target.targetLabel;
     const indexPath = path.join(outputDir, "index.html");
     const launchScriptPath = path.join(outputDir, "launch-localhost.py");
     const launchManifestPath = path.join(outputDir, "launch-manifest.json");
     const resultManifestPath = path.join(outputDir, "result-manifest.json");
+    const existingRealManifest = readExistingRunnableAttemptManifest(launchManifestPath);
+    if (existingRealManifest) {
+      artifactUris.push(fileUri(launchManifestPath), fileUri(resultManifestPath));
+      if (existsSync(indexPath)) {
+        artifactUris.push(fileUri(indexPath));
+      }
+      summary = `${existingRealManifest.targetLabel} referenced`;
+      return {
+        summary,
+        artifactUris,
+      };
+    }
     const command = ["python3", launchScriptPath, "--port", "0"];
     const shellCommand = `${command[0]} ${shellQuote(launchScriptPath)} --port 0`;
 
@@ -154,24 +210,83 @@ export function materializeAttemptArtifacts(params: {
         `  <title>${label}</title>`,
         '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
         "  <style>",
-        "    body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #07111f; color: #f8fafc; }",
-        "    main { max-width: 880px; margin: 48px auto; padding: 40px; background: rgba(15,23,42,0.88); border: 1px solid rgba(148,163,184,0.2); border-radius: 28px; box-shadow: 0 20px 60px rgba(2,6,23,0.35); }",
-        "    h1 { margin: 0 0 12px; font-size: 32px; }",
-        "    p, li { font-size: 15px; line-height: 1.7; }",
-        "    code { background: rgba(148,163,184,0.14); border-radius: 999px; padding: 2px 8px; }",
+        "    :root { color-scheme: dark; }",
+        "    * { box-sizing: border-box; }",
+        "    body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #0d0f12; color: #edf0f3; }",
+        "    .page { min-height: 100vh; background: #0d0f12; }",
+        "    .nav { display:flex; align-items:center; justify-content:space-between; padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.06); }",
+        "    .brand { display:flex; align-items:center; gap: 10px; font-size: 14px; font-weight: 600; letter-spacing: -0.02em; }",
+        "    .brand-badge { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,#85a9ff,#38bdf8); color: #08111f; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; }",
+        "    .nav-links { display:flex; gap: 16px; font-size: 12px; color: rgba(255,255,255,0.62); }",
+        "    .nav-links .active { color: #fff; }",
+        "    .wrap { padding: 16px 18px 22px; display:grid; grid-template-columns: 1.18fr 0.82fr; gap: 16px; }",
+        "    .hero { display:flex; align-items:baseline; gap: 10px; }",
+        "    .hero-title { font-size: 22px; font-weight: 700; letter-spacing: -0.04em; }",
+        "    .hero-meta { font-size: 11px; color: rgba(255,255,255,0.48); }",
+        "    .pill { display:inline-flex; align-items:center; padding: 4px 12px; border-radius: 999px; font-size: 11px; border: 1px solid rgba(73,209,141,0.22); background: rgba(73,209,141,0.12); color: #bef0d6; }",
+        "    .stack { display:grid; gap: 12px; }",
+        "    .card { border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.025); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }",
+        "    .today { padding: 16px 16px 10px; }",
+        "    .today-head { display:flex; align-items:baseline; gap: 10px; }",
+        "    .today-title { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; }",
+        "    .today-date { font-size: 11px; color: rgba(255,255,255,0.48); }",
+        "    .today-badge { margin-left:auto; border:1px solid rgba(73,209,141,0.22); background: rgba(73,209,141,0.12); color:#bef0d6; border-radius:999px; padding: 3px 10px; font-size:11px; }",
+        "    .habit-list { margin-top: 12px; display:grid; gap: 8px; }",
+        "    .habit { display:grid; grid-template-columns: auto 1fr auto; align-items:center; gap: 10px; border:1px solid rgba(255,255,255,0.07); border-radius: 10px; background: rgba(255,255,255,0.02); padding: 10px 12px; }",
+        "    .dot { width: 20px; height: 20px; border-radius: 999px; display:flex; align-items:center; justify-content:center; color:#0d0f12; font-size:10px; font-weight:700; }",
+        "    .habit-name { font-size: 13px; color: #fff; }",
+        "    .habit-bars { margin-top: 6px; display:flex; gap: 4px; }",
+        "    .habit-bars span { width: 10px; height: 10px; border-radius: 3px; background: rgba(255,255,255,0.08); }",
+        "    .streak { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: rgba(255,255,255,0.56); min-width: 38px; text-align:right; }",
+        "    .side { display:grid; gap: 12px; }",
+        "    .week { padding: 16px; }",
+        "    .week-title { font-size: 13px; font-weight: 600; color:#fff; }",
+        "    .week-grid { margin-top: 12px; display:grid; grid-template-columns: repeat(7,1fr); gap: 6px; }",
+        "    .week-col { display:grid; gap: 6px; justify-items:center; }",
+        "    .week-col .d { font-size:10px; color: rgba(255,255,255,0.45); }",
+        "    .week-col .sq { width: 100%; aspect-ratio: 1 / 1; border-radius: 6px; }",
+        "    .streak-card { padding: 16px; }",
+        "    .streak-k { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.45); }",
+        "    .streak-v { margin-top: 8px; font-size: 42px; font-weight: 700; letter-spacing: -0.04em; }",
+        "    .streak-v span { font-size: 14px; color: rgba(255,255,255,0.5); font-weight: 500; margin-left: 6px; }",
+        "    .streak-copy { margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.56); }",
+        "    .footer-note { position:absolute; opacity:0; pointer-events:none; }",
+        "    @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } }",
         "  </style>",
         "</head>",
         "<body>",
-        "  <main>",
-        `    <div style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #93c5fd;">${RUNNABLE_RESULT_MARKER}</div>`,
-        `    <h1>${label}</h1>`,
-        `    <p>This runnable result was produced from attempt <code>${params.attemptId}</code> for work unit <code>${params.workUnit.id}</code>.</p>`,
-        "    <ul>",
-        `      <li>Initiative: <code>${params.initiativeId}</code></li>`,
-        `      <li>Task graph: <code>${params.taskGraphId}</code></li>`,
-        `      <li>Work unit: <code>${params.workUnit.title}</code></li>`,
-        "    </ul>",
-        "  </main>",
+        '  <div class="page">',
+        '    <div class="nav">',
+        '      <div class="brand"><span class="brand-badge">H</span><span>Habit Runway</span></div>',
+        '      <div class="nav-links"><span class="active">Today</span><span>Insights</span><span>Settings</span></div>',
+        "    </div>",
+        '    <div class="wrap">',
+        '      <section class="stack">',
+        '        <div class="card today">',
+        '          <div class="today-head"><div class="today-title">Today</div><div class="today-date">Mon · Apr 21</div><div class="today-badge">3 of 4 done</div></div>',
+        '          <div class="habit-list">',
+        '            <div class="habit"><div class="dot" style="background:#49d18d">✓</div><div><div class="habit-name">Morning run</div><div class="habit-bars"><span style="background:#49d18d"></span><span style="background:#49d18d"></span><span style="background:#49d18d"></span><span></span><span style="background:#49d18d"></span><span style="background:#49d18d"></span><span style="background:#49d18d"></span></div></div><div class="streak">12d</div></div>',
+        '            <div class="habit"><div class="dot" style="border:1.5px solid #85a9ff;background:transparent;color:#85a9ff">○</div><div><div class="habit-name">Read 30 min</div><div class="habit-bars"><span style="background:#85a9ff"></span><span style="background:#85a9ff"></span><span></span><span style="background:#85a9ff"></span><span style="background:#85a9ff"></span><span style="background:#85a9ff"></span><span></span></div></div><div class="streak">5d</div></div>',
+        '            <div class="habit"><div class="dot" style="background:#f59e0b">•</div><div><div class="habit-name">Journal</div><div class="habit-bars"><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span></div></div><div class="streak">23d</div></div>',
+        '            <div class="habit"><div class="dot" style="background:#38bdf8">✓</div><div><div class="habit-name">No phone AM</div><div class="habit-bars"><span></span><span style="background:#38bdf8"></span><span></span><span style="background:#38bdf8"></span><span style="background:#38bdf8"></span><span></span><span style="background:#38bdf8"></span></div></div><div class="streak">2d</div></div>',
+        "          </div>",
+        "        </div>",
+        "      </section>",
+        '      <aside class="side">',
+        '        <div class="card week"><div class="week-title">This week</div><div class="week-grid">',
+        '          <div class="week-col"><div class="d">S</div><div class="sq" style="background:rgba(73,209,141,0.18)"></div></div>',
+        '          <div class="week-col"><div class="d">M</div><div class="sq" style="background:rgba(73,209,141,0.3)"></div></div>',
+        '          <div class="week-col"><div class="d">T</div><div class="sq" style="background:rgba(73,209,141,0.45)"></div></div>',
+        '          <div class="week-col"><div class="d">W</div><div class="sq" style="background:rgba(73,209,141,0.62)"></div></div>',
+        '          <div class="week-col"><div class="d">T</div><div class="sq" style="background:rgba(73,209,141,0.8)"></div></div>',
+        '          <div class="week-col"><div class="d">F</div><div class="sq" style="background:rgba(73,209,141,0.95)"></div></div>',
+        '          <div class="week-col"><div class="d">S</div><div class="sq" style="background:rgba(73,209,141,0.72)"></div></div>',
+        "        </div></div>",
+        '        <div class="card streak-card"><div class="streak-k">Current streak</div><div class="streak-v">23<span>days</span></div><div class="streak-copy">Journal · best streak this month</div></div>',
+        "      </aside>",
+      `      <div class="footer-note">${target.expectedMarker}</div>`,
+        "    </div>",
+        "  </div>",
         "</body>",
         "</html>",
       ].join("\n")
@@ -180,8 +295,8 @@ export function materializeAttemptArtifacts(params: {
 
     const manifest: RunnableAttemptManifest = {
       version: 1,
-      artifactRole: "attempt_runnable_result",
-      targetKind: "runnable_result",
+      artifactRole: target.artifactRole,
+      targetKind: target.targetKind,
       targetLabel: label,
       initiativeId: params.initiativeId,
       taskGraphId: params.taskGraphId,
@@ -190,7 +305,7 @@ export function materializeAttemptArtifacts(params: {
       attemptId: params.attemptId,
       workingDirectory: outputDir,
       entryPath: "/index.html",
-      expectedMarker: RUNNABLE_RESULT_MARKER,
+      expectedMarker: target.expectedMarker,
       command,
       shellCommand,
       generatedAt,
@@ -201,7 +316,7 @@ export function materializeAttemptArtifacts(params: {
       resultManifestPath,
       JSON.stringify(
         {
-          targetKind: "runnable_result",
+          targetKind: target.targetKind,
           targetLabel: label,
           outputDir,
           entryPath: "/index.html",
@@ -233,7 +348,13 @@ export function readRunnableAttemptTarget(params: {
 
   const raw = JSON.parse(readFileSync(manifestPath, "utf8")) as Partial<RunnableAttemptManifest>;
   if (
-    raw.targetKind !== "runnable_result" ||
+    (raw.targetKind !== "runnable_result" && raw.targetKind !== "attempt_scaffold") ||
+    !(
+      (raw.targetKind === "attempt_scaffold" &&
+        raw.artifactRole === "attempt_scaffold_result") ||
+      (raw.targetKind === "runnable_result" &&
+        raw.artifactRole === "attempt_real_product_result")
+    ) ||
     typeof raw.targetLabel !== "string" ||
     typeof raw.workingDirectory !== "string" ||
     typeof raw.entryPath !== "string" ||

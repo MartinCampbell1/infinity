@@ -202,9 +202,9 @@ describe("/api/control/orchestration/delivery", () => {
       expect.objectContaining({
         initiativeId,
         taskGraphId,
-        status: "pending",
-        launchProofKind: "synthetic_wrapper",
-        launchTargetLabel: "Shell evidence wrapper",
+        status: "ready",
+        launchProofKind: "runnable_result",
+        launchTargetLabel: "Integrated product preview",
       })
     );
     expect(deliveryBody.delivery.localOutputPath).toMatch(
@@ -214,10 +214,10 @@ describe("/api/control/orchestration/delivery", () => {
     expect(deliveryBody.delivery.command).toMatch(/launch-localhost\.py' --port 0$/);
     expect(deliveryBody.delivery.launchManifestPath).toMatch(/launch-manifest\.json$/);
     expect(deliveryBody.delivery.launchProofUrl).toMatch(
-      /^http:\/\/127\.0\.0\.1:\d+\/preview\.html$/
+      /^http:\/\/127\.0\.0\.1:\d+\/index\.html$/
     );
     expect(deliveryBody.delivery.launchProofAt).toBeTruthy();
-    expect(deliveryBody.delivery.resultSummary).toMatch(/actual runnable result is still unproven/i);
+    expect(deliveryBody.delivery.resultSummary).toMatch(/runnable localhost delivery bundle backed by verified assembly evidence/i);
 
     const listResponse = await getDelivery(
       new Request(
@@ -230,14 +230,14 @@ describe("/api/control/orchestration/delivery", () => {
     expect(listBody.deliveries).toEqual([
       expect.objectContaining({
         id: deliveryBody.delivery.id,
-        status: "pending",
+        status: "ready",
       }),
     ]);
 
     const state = await readControlPlaneState();
     expect(
       state.orchestration.initiatives.find((initiative) => initiative.id === initiativeId)?.status
-    ).toBe("verifying");
+    ).toBe("ready");
   });
 
   test("failed verification blocks delivery creation", async () => {
@@ -343,7 +343,7 @@ describe("/api/control/orchestration/delivery", () => {
     const deliveryBody = await deliveryResponse.json();
 
     expect(deliveryResponse.status).toBe(201);
-    expect(deliveryBody.delivery.resultSummary).toMatch(/actual runnable result is still unproven/i);
+    expect(deliveryBody.delivery.resultSummary).toMatch(/runnable localhost delivery bundle backed by verified assembly evidence/i);
     expect(deliveryBody.delivery.localOutputPath).toMatch(
       /\.local-state\/orchestration\/deliveries/
     );

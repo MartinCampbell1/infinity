@@ -78,7 +78,15 @@ export default async function ExecutionIssuesPage({
               : kernelAvailability.recoveryState === "retryable"
                 ? `Execution kernel retryable at ${kernelAvailability.baseUrl}.`
               : `Execution kernel degraded at ${kernelAvailability.baseUrl}.`,
-            detail: kernelAvailability.detail,
+            detail: [
+              kernelAvailability.detail,
+              kernelAvailability.recoveryHint,
+              kernelAvailability.latestFailure?.errorSummary
+                ? `Latest failure: ${kernelAvailability.latestFailure.errorSummary}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" "),
             meta: [
               "execution-kernel",
               kernelAvailability.baseUrl,
@@ -86,6 +94,12 @@ export default async function ExecutionIssuesPage({
               kernelAvailability.recoveryState,
               kernelAvailability.restartRecoverable ? "restart-recoverable" : null,
               kernelAvailability.failureState,
+              kernelAvailability.blockedBatchIds?.length
+                ? `blocked batches ${kernelAvailability.blockedBatchIds.join(", ")}`
+                : null,
+              kernelAvailability.latestFailure?.attemptId
+                ? `latest failure ${kernelAvailability.latestFailure.attemptId}`
+                : null,
             ],
             href: null,
             sortAt: kernelAvailability.generatedAt ?? new Date().toISOString(),

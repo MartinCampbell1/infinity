@@ -248,7 +248,11 @@
 		}
 	};
 
-	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
+	const getWorkspaceAuthToken = () =>
+		resolveFounderosEmbeddedAccessToken({
+			allowLegacyToken:
+				!$founderosLaunchContext.enabled || !founderosLaunchShellSessionMode
+		});
 
 	const checkLocalDBChats = async () => {
 		try {

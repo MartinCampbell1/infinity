@@ -12,7 +12,7 @@ import type {
   ControlPlaneStorageKind,
 } from "./control-plane-meta";
 
-export const DEFAULT_LOCAL_WORK_UI_BASE_URL = "http://127.0.0.1:5173";
+export const DEFAULT_LOCAL_WORK_UI_BASE_URL = "http://127.0.0.1:3101";
 
 export const WORK_UI_BASE_URL_ENV_KEYS = [
   "FOUNDEROS_WORK_UI_BASE_URL",

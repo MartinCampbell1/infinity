@@ -4,7 +4,7 @@ import {
   buildTaskGraphsDirectoryResponse,
   createTaskGraphFromBrief,
 } from "../../../../../lib/server/orchestration/task-graphs";
-import { runAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
+import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateTaskGraphRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     );
   }
 
-  await runAutonomousLoopSafely(response.taskGraph.initiativeId);
+  await triggerAutonomousLoopSafely(response.taskGraph.initiativeId);
 
   return NextResponse.json(response, { status: 201 });
 }

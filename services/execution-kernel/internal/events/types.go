@@ -76,6 +76,15 @@ type AttemptCounts struct {
 	Failed    int `json:"failed"`
 }
 
+type FailureSummary struct {
+	AttemptID    string  `json:"attemptId"`
+	BatchID      *string `json:"batchId,omitempty"`
+	WorkUnitID   string  `json:"workUnitId"`
+	ErrorCode    *string `json:"errorCode,omitempty"`
+	ErrorSummary *string `json:"errorSummary,omitempty"`
+	FinishedAt   *string `json:"finishedAt,omitempty"`
+}
+
 type HealthResponse struct {
 	Status             string        `json:"status"`
 	Service            string        `json:"service"`
@@ -90,5 +99,10 @@ type HealthResponse struct {
 	FailureState       string        `json:"failureState"`
 	BatchCounts        BatchCounts   `json:"batchCounts"`
 	AttemptCounts      AttemptCounts `json:"attemptCounts"`
+	BlockedBatchIDs    []string        `json:"blockedBatchIds"`
+	FailedAttemptIDs   []string        `json:"failedAttemptIds"`
+	ResumableBatchIDs  []string        `json:"resumableBatchIds"`
+	LatestFailure      *FailureSummary `json:"latestFailure"`
+	RecoveryHint       string        `json:"recoveryHint,omitempty"`
 	Detail             string        `json:"detail"`
 }

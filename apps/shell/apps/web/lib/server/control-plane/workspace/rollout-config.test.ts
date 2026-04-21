@@ -19,7 +19,7 @@ import {
 
 describe("workspace rollout config", () => {
   test("keeps localhost defaults outside strict rollout mode", () => {
-    expect(resolveWorkUiBaseUrlForLaunch({})).toBe("http://127.0.0.1:5173");
+    expect(resolveWorkUiBaseUrlForLaunch({})).toBe("http://127.0.0.1:3101");
     expect(resolveShellPublicOriginForLaunch({})).toBe("http://127.0.0.1:3737");
     expect(resolveWorkspaceLaunchSecret({})).toBeNull();
     expect(resolveWorkspaceSessionGrantSecret({})).toBeNull();

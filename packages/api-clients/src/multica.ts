@@ -78,6 +78,15 @@ export function createExecutionKernelClient(options: ExecutionKernelClientOption
       );
     },
 
+    resumeBatch(batchId: string) {
+      return requestKernel<ExecutionKernelBatchEnvelope>(
+        baseUrl,
+        `/api/v1/batches/${encodeURIComponent(batchId)}/resume`,
+        { method: "POST" },
+        fetchImpl
+      );
+    },
+
     getAttempt(attemptId: string) {
       return requestKernel<ExecutionKernelAttemptEnvelope>(
         baseUrl,

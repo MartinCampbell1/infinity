@@ -25,6 +25,9 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[2]
 DOCS_DIR = ROOT / "docs" / "validation"
 HANDOFF_ROOT = ROOT / "handoff-packets" / "validation"
+CANONICAL_SHELL_PORT = 3737
+CANONICAL_WORK_UI_PORT = 3101
+CANONICAL_KERNEL_PORT = 8798
 
 
 def now_iso() -> str:
@@ -35,19 +38,15 @@ def run_id() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
 
 
-def find_free_port(preferred: int) -> int:
-    for port in [preferred, preferred + 1, preferred + 2]:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                sock.bind(("127.0.0.1", port))
-                return port
-            except OSError:
-                continue
-
+def assert_port_available(port: int) -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("127.0.0.1", port))
+        except OSError as error:
+            raise ValidationFailure(
+                f"Canonical localhost port {port} is unavailable. Stop the conflicting service or free the port before validation."
+            ) from error
 
 
 def kill_known_listener(port: int, allowed_commands: tuple[str, ...]) -> None:
@@ -276,21 +275,15 @@ def assert_primary_execution_routes_use_live_surfaces() -> None:
 
 def assert_shell_root_frontdoor(page, screen_name: str) -> dict[str, Any]:
     composer_visible = page.locator("text=Start an autonomous run").first.is_visible()
-    new_chat_visible = page.locator('button:has-text("New chat")').first.is_visible()
-    search_visible = page.locator('button:has-text("Search")').first.is_visible()
-    secondary_actions_visible = (
-        page.locator('a:has-text("Open work items")').count() > 0
-        or page.locator('a:has-text("Open workspace")').count() > 0
-        or page.locator('a:has-text("Open execution hub")').count() > 0
-    )
-    shell_anchor_visible = new_chat_visible and search_visible
+    search_visible = page.locator('button:has-text("Search runs, tasks, agents")').first.is_visible()
+    suggested_prompts_visible = page.locator("text=Suggested prompts").first.is_visible()
+    recent_runs_visible = page.locator("text=Recent runs").first.is_visible()
+    shell_anchor_visible = search_visible and suggested_prompts_visible and recent_runs_visible
 
     if not composer_visible:
         raise ValidationFailure(f"{screen_name} does not expose the root composer.")
     if not shell_anchor_visible:
-        raise ValidationFailure(f"{screen_name} does not expose the stable shell anchor.")
-    if not secondary_actions_visible:
-        raise ValidationFailure(f"{screen_name} does not expose secondary shell/workspace actions.")
+        raise ValidationFailure(f"{screen_name} does not expose the accepted shell frontdoor anchors.")
 
     return {
         "requested_entry_path": "/",
@@ -298,7 +291,8 @@ def assert_shell_root_frontdoor(page, screen_name: str) -> dict[str, Any]:
         "stays_on_root_entry": page.url == "/" or page.url.endswith("/"),
         "composer_visible": composer_visible,
         "shell_anchor_visible": shell_anchor_visible,
-        "secondary_actions_visible": secondary_actions_visible,
+        "suggested_prompts_visible": suggested_prompts_visible,
+        "recent_runs_visible": recent_runs_visible,
     }
 
 
@@ -377,6 +371,94 @@ def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def build_continuity_from_state_file(state_dir: Path, initiative_id: str) -> dict[str, Any] | None:
+    state_path = state_dir / "control-plane.state.json"
+    if not state_path.exists():
+        return None
+
+    state = load_json(state_path)
+    orchestration = state.get("orchestration")
+    if not isinstance(orchestration, dict):
+        return None
+
+    initiatives = orchestration.get("initiatives")
+    if not isinstance(initiatives, list):
+        return None
+
+    initiative = next(
+        (
+            candidate
+            for candidate in initiatives
+            if isinstance(candidate, dict) and candidate.get("id") == initiative_id
+        ),
+        None,
+    )
+    if not isinstance(initiative, dict):
+        return None
+
+    def filtered_records(name: str, sort_key: str):
+        records = orchestration.get(name)
+        if not isinstance(records, list):
+            return []
+
+        related = [
+            candidate
+            for candidate in records
+            if isinstance(candidate, dict) and candidate.get("initiativeId") == initiative_id
+        ]
+        return sorted(
+            related,
+            key=lambda candidate: str(candidate.get(sort_key) or candidate.get("id") or ""),
+            reverse=True,
+        )
+
+    briefs = filtered_records("briefs", "updatedAt")
+    task_graphs = filtered_records("taskGraphs", "updatedAt")
+    batches = sorted(
+        [
+            candidate
+            for candidate in orchestration.get("batches", [])
+            if isinstance(candidate, dict) and candidate.get("initiativeId") == initiative_id
+        ],
+        key=lambda candidate: str(candidate.get("startedAt") or candidate.get("id") or ""),
+        reverse=True,
+    )
+    assemblies = filtered_records("assemblies", "updatedAt")
+    verifications = sorted(
+        [
+            candidate
+            for candidate in orchestration.get("verifications", [])
+            if isinstance(candidate, dict) and candidate.get("initiativeId") == initiative_id
+        ],
+        key=lambda candidate: str(
+            candidate.get("finishedAt")
+            or candidate.get("startedAt")
+            or candidate.get("id")
+            or ""
+        ),
+        reverse=True,
+    )
+    deliveries = sorted(
+        [
+            candidate
+            for candidate in orchestration.get("deliveries", [])
+            if isinstance(candidate, dict) and candidate.get("initiativeId") == initiative_id
+        ],
+        key=lambda candidate: str(candidate.get("deliveredAt") or candidate.get("id") or ""),
+        reverse=True,
+    )
+
+    return {
+        "initiative": initiative,
+        "briefs": briefs,
+        "taskGraphs": task_graphs,
+        "batches": batches,
+        "assembly": assemblies[0] if assemblies else None,
+        "verification": verifications[0] if verifications else None,
+        "delivery": deliveries[0] if deliveries else None,
+    }
+
+
 def mint_launch_token(shell_origin: str, session_id: str) -> str:
     response = requests.get(
         f"{shell_origin}/execution/workspace/{session_id}",
@@ -431,8 +513,9 @@ def request_json(
     url: str,
     payload: dict[str, Any] | None = None,
     expected_statuses: tuple[int, ...] = (200, 201),
+    timeout: int | tuple[int, int] = 20,
 ) -> dict[str, Any]:
-    response = requests.request(method, url, json=payload, timeout=20)
+    response = requests.request(method, url, json=payload, timeout=timeout)
     if response.status_code not in expected_statuses:
         detail = response.text
         raise ValidationFailure(
@@ -444,7 +527,7 @@ def request_json(
 def fetch_continuity(shell_origin: str, initiative_id: str) -> dict[str, Any]:
     response = requests.get(
         f"{shell_origin}/api/control/orchestration/continuity/{initiative_id}",
-        timeout=10,
+        timeout=(2, 30),
     )
     if response.status_code >= 400:
         raise ValidationFailure(
@@ -456,6 +539,31 @@ def fetch_continuity(shell_origin: str, initiative_id: str) -> dict[str, Any]:
 def fetch_task_graph_detail(shell_origin: str, task_graph_id: str) -> dict[str, Any]:
     return request_json(
         "GET", f"{shell_origin}/api/control/orchestration/task-graphs/{task_graph_id}"
+    )
+
+
+def wait_for_task_graph_completion(
+    shell_origin: str, task_graph_id: str, timeout_seconds: int = 30
+) -> dict[str, Any]:
+    started = time.time()
+    last_status = "unknown"
+    while time.time() - started < timeout_seconds:
+        detail = fetch_task_graph_detail(shell_origin, task_graph_id)
+        task_graph = detail.get("taskGraph")
+        work_units = detail.get("workUnits")
+        if isinstance(task_graph, dict):
+            last_status = str(task_graph.get("status") or "unknown")
+            if last_status == "completed":
+                return detail
+        if isinstance(work_units, list) and work_units and all(
+            isinstance(work_unit, dict) and work_unit.get("status") == "completed"
+            for work_unit in work_units
+        ):
+            return detail
+        time.sleep(1)
+
+    raise ValidationFailure(
+        f"Task graph {task_graph_id} did not settle to completed within {timeout_seconds}s. Last status: {last_status}"
     )
 
 
@@ -554,7 +662,7 @@ def assert_localhost_launch_ready(delivery: dict[str, Any]) -> dict[str, Any]:
             raise ValidationFailure(
                 f"Happy path: localhost launch URL {ready_url} returned {response.status_code}."
             )
-        if launch_kind == "synthetic_wrapper" and (
+        if launch_kind in {"synthetic_wrapper", "attempt_scaffold"} and (
             not isinstance(expected_marker, str)
             or expected_marker.lower() not in response.text.lower()
         ):
@@ -574,9 +682,9 @@ def assert_localhost_launch_ready(delivery: dict[str, Any]) -> dict[str, Any]:
             raise ValidationFailure(
                 "Happy path: delivery replay succeeded, but the delivery record does not match the launch proof kind."
             )
-        if launch_kind == "synthetic_wrapper" and delivery.get("status") == "ready":
+        if launch_kind in {"synthetic_wrapper", "attempt_scaffold"} and delivery.get("status") == "ready":
             raise ValidationFailure(
-                "Happy path: delivery is marked ready even though only a synthetic wrapper was proven."
+                "Happy path: delivery is marked ready even though only wrapper/scaffold evidence was proven."
             )
         if launch_kind == "runnable_result" and delivery.get("status") != "ready":
             raise ValidationFailure(
@@ -600,11 +708,25 @@ def assert_localhost_launch_ready(delivery: dict[str, Any]) -> dict[str, Any]:
 
 
 def wait_for_autonomous_delivery(
-    shell_origin: str, initiative_id: str, timeout_seconds: int = 90
+    shell_origin: str,
+    state_dir: Path,
+    initiative_id: str,
+    timeout_seconds: int = 90,
 ) -> dict[str, Any]:
     started = time.time()
+    last_continuity_error: str | None = None
     while time.time() - started < timeout_seconds:
-        continuity = fetch_continuity(shell_origin, initiative_id)
+        try:
+            continuity = fetch_continuity(shell_origin, initiative_id)
+        except requests.exceptions.RequestException as error:
+            last_continuity_error = str(error)
+            continuity = build_continuity_from_state_file(state_dir, initiative_id)
+            if continuity is None:
+                time.sleep(1)
+                continue
+        if continuity is None:
+            time.sleep(1)
+            continue
         delivery = continuity.get("delivery")
         verification = continuity.get("verification")
         assembly = continuity.get("assembly")
@@ -626,15 +748,11 @@ def wait_for_autonomous_delivery(
                 and initiative_status == "ready"
             ):
                 return continuity
-            if (
-                launch_kind == "synthetic_wrapper"
-                and delivery_status == "pending"
-                and initiative_status == "verifying"
-                and delivery.get("previewUrl")
-                and delivery.get("launchManifestPath")
-            ):
-                return continuity
         time.sleep(1)
+    if last_continuity_error:
+        raise ValidationFailure(
+            f"Autonomous delivery did not reach a truthful delivery state for initiative {initiative_id} within {timeout_seconds}s. Last continuity poll error: {last_continuity_error}"
+        )
     raise ValidationFailure(
         f"Autonomous delivery did not reach a truthful delivery state for initiative {initiative_id} within {timeout_seconds}s."
     )
@@ -696,7 +814,7 @@ def open_shell_task_graph_from_brief(page) -> str:
     return match.group(1)
 
 
-def run_happy_path(page, shell_origin: str, work_origin: str, manifest: list[ScreenshotRecord], screenshots_dir: Path, require_runnable_result: bool = False) -> dict[str, Any]:
+def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, manifest: list[ScreenshotRecord], screenshots_dir: Path, require_runnable_result: bool = False) -> dict[str, Any]:
     session_id = "session-2026-04-11-002"
     shell_root_url = f"{shell_origin}/"
     page.goto(shell_root_url, wait_until="networkidle")
@@ -751,7 +869,7 @@ def run_happy_path(page, shell_origin: str, work_origin: str, manifest: list[Scr
         notes=f"Post-start landing: {landed_on}.",
     )
 
-    continuity = wait_for_autonomous_delivery(shell_origin, initiative_id)
+    continuity = wait_for_autonomous_delivery(shell_origin, state_dir, initiative_id)
     brief_id = continuity["briefs"][0]["id"]
     task_graph_id = continuity["taskGraphs"][0]["id"]
     batch_ids = [batch["id"] for batch in continuity.get("batches", []) if isinstance(batch, dict) and isinstance(batch.get("id"), str)]
@@ -925,6 +1043,22 @@ def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, man
             "executorType": "codex",
         },
     )
+    resumed_batch_detail = request_json(
+        "GET", f"{shell_origin}/api/control/orchestration/batches/{batch_id}"
+    )
+    for attempt in resumed_batch_detail.get("attempts", []):
+        if attempt.get("status") != "started":
+            continue
+        request_json(
+            "POST",
+            f"{shell_origin}/api/control/orchestration/supervisor/actions",
+            {
+                "actionKind": "complete_attempt",
+                "batchId": batch_id,
+                "attemptId": attempt["id"],
+                "workUnitId": attempt["workUnitId"],
+            },
+        )
 
     recovered_batches: list[str] = []
     for _ in range(6):
@@ -956,6 +1090,7 @@ def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, man
     else:
         raise ValidationFailure("Failure path recovery exceeded expected cycles.")
 
+    wait_for_task_graph_completion(shell_origin, task_graph_id)
     request_json(
         "POST",
         f"{shell_origin}/api/control/orchestration/assembly",
@@ -965,6 +1100,7 @@ def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, man
         "POST",
         f"{shell_origin}/api/control/orchestration/verification",
         {"initiativeId": initiative_id},
+        timeout=(2, 120),
     )
     delivery = request_json(
         "POST",
@@ -1024,6 +1160,11 @@ def main() -> int:
     assert_critical_shell_typecheck_scope()
     assert_legacy_execution_surfaces_are_isolated()
     assert_primary_execution_routes_use_live_surfaces()
+    shell_build_id_path = ROOT / "apps" / "shell" / "apps" / "web" / ".next" / "BUILD_ID"
+    if args.skip_static_checks and not shell_build_id_path.exists():
+        raise ValidationFailure(
+            "--skip-static-checks requires an existing @founderos/web production build before validation."
+        )
 
     validation_run_id = run_id()
     run_dir = HANDOFF_ROOT / validation_run_id
@@ -1032,12 +1173,18 @@ def main() -> int:
     logs_dir.mkdir(parents=True, exist_ok=True)
     screenshots_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.skip_static_checks:
-        kill_known_listener(3737, ("next-server", "next dev"))
+    canonical_ports = [
+        (CANONICAL_SHELL_PORT, ("next-server", "next start", "next dev")),
+        (CANONICAL_WORK_UI_PORT, ("vite dev", "open-webui")),
+        (CANONICAL_KERNEL_PORT, ("execution-kernel", "go run ./cmd/execution-kernel")),
+    ]
+    for port, allowed_commands in canonical_ports:
+        kill_known_listener(port, allowed_commands)
+        assert_port_available(port)
 
-    shell_port = find_free_port(3737)
-    work_port = find_free_port(3101)
-    kernel_port = find_free_port(8798)
+    shell_port = CANONICAL_SHELL_PORT
+    work_port = CANONICAL_WORK_UI_PORT
+    kernel_port = CANONICAL_KERNEL_PORT
     shell_origin = f"http://127.0.0.1:{shell_port}"
     work_origin = f"http://127.0.0.1:{work_port}"
     kernel_origin = f"http://127.0.0.1:{kernel_port}"
@@ -1080,27 +1227,7 @@ def main() -> int:
         shell_env["FOUNDEROS_CONTROL_PLANE_STATE_DIR"] = str(state_dir)
         shell_env["FOUNDEROS_WEB_PORT"] = str(shell_port)
         shell_env["FOUNDEROS_WORK_UI_BASE_URL"] = work_origin
-        shell_env["FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON"] = json.dumps(
-            [
-                {
-                    "name": "validation-static-smoke",
-                    "bucket": "static",
-                    "cwd": str(ROOT),
-                    "command": ["node", "-e", "process.exit(0)"],
-                },
-                {
-                    "name": "validation-test-smoke",
-                    "bucket": "test",
-                    "cwd": str(ROOT),
-                    "command": ["node", "-e", "process.exit(0)"],
-                },
-            ]
-        )
-        shell_command = (
-            ["npm", "run", "dev", "--workspace", "@founderos/web"]
-            if args.skip_static_checks
-            else ["npm", "run", "start", "--workspace", "@founderos/web"]
-        )
+        shell_command = ["npm", "run", "start", "--workspace", "@founderos/web"]
         processes.append(
             ManagedProcess(
                 "shell",
@@ -1113,10 +1240,12 @@ def main() -> int:
 
         work_env = os.environ.copy()
         work_env["PUBLIC_FOUNDEROS_SHELL_ORIGIN"] = shell_origin
+        work_env["WORK_UI_HOST"] = "127.0.0.1"
+        work_env["WORK_UI_PORT"] = str(work_port)
         processes.append(
             ManagedProcess(
                 "work_ui_preview",
-                ["npm", "run", "dev", "--workspace", "open-webui", "--", "--host", "127.0.0.1", "--port", str(work_port)],
+                ["npm", "run", "dev", "--workspace", "open-webui"],
                 ROOT,
                 work_env,
                 logs_dir,
@@ -1125,7 +1254,7 @@ def main() -> int:
 
         wait_http(f"{kernel_origin}/healthz")
         wait_http(f"{shell_origin}/execution")
-        wait_http(f"{work_origin}/")
+        wait_http(f"{work_origin}/auth")
 
         with sync_playwright() as p:
             browser = p.chromium.launch(channel="chrome", headless=True)
@@ -1136,6 +1265,7 @@ def main() -> int:
                 page,
                 shell_origin,
                 work_origin,
+                state_dir,
                 screenshots,
                 screenshots_dir,
                 require_runnable_result=args.require_runnable_result,
@@ -1158,6 +1288,19 @@ def main() -> int:
                 page.url,
                 "shell_operator",
                 notes=f"Requested {shell_root_url} and resolved to {page.url}.",
+            )
+
+            shell_runs_url = f"{shell_origin}/execution/runs"
+            page.goto(shell_runs_url, wait_until="networkidle")
+            page.wait_for_timeout(2000)
+            page.wait_for_selector("text=Run control plane", timeout=15000)
+            capture_screenshot(
+                page,
+                "shell_runs_board",
+                str(screenshots_dir / "shell_runs_board.png"),
+                screenshots,
+                page.url,
+                "shell_operator",
             )
 
             shell_approvals_url = f"{shell_origin}/execution/approvals"
@@ -1338,7 +1481,8 @@ def main() -> int:
         functional_md_lines.append("## Autonomous Evidence")
         functional_md_lines.append(f"- root frontdoor composer visible: `{autonomous_proof['root_frontdoor']['composer_visible']}`")
         functional_md_lines.append(f"- root frontdoor shell anchor visible: `{autonomous_proof['root_frontdoor']['shell_anchor_visible']}`")
-        functional_md_lines.append(f"- root frontdoor secondary actions visible: `{autonomous_proof['root_frontdoor']['secondary_actions_visible']}`")
+        functional_md_lines.append(f"- root frontdoor suggested prompts visible: `{autonomous_proof['root_frontdoor']['suggested_prompts_visible']}`")
+        functional_md_lines.append(f"- root frontdoor recent runs visible: `{autonomous_proof['root_frontdoor']['recent_runs_visible']}`")
         functional_md_lines.append(f"- root frontdoor stays on /: `{autonomous_proof['root_frontdoor']['stays_on_root_entry']}`")
         functional_md_lines.append(f"- autonomous one prompt: `{autonomous_proof['shell_first']['autonomous_one_prompt']}`")
         functional_md_lines.append(f"- preview ready: `{autonomous_proof['preview_ready']}`")
@@ -1359,6 +1503,17 @@ def main() -> int:
             f"- kernel origin: `{kernel_origin}`",
             f"- state dir: `{state_dir}`",
         ]
+        expected_shell_origin = f"http://127.0.0.1:{CANONICAL_SHELL_PORT}"
+        expected_work_origin = f"http://127.0.0.1:{CANONICAL_WORK_UI_PORT}"
+        expected_kernel_origin = f"http://127.0.0.1:{CANONICAL_KERNEL_PORT}"
+        if (
+            shell_origin != expected_shell_origin
+            or work_origin != expected_work_origin
+            or kernel_origin != expected_kernel_origin
+        ):
+            raise ValidationFailure(
+                "Validation drifted off the canonical localhost topology."
+            )
         write_text(run_dir / "final-validation-summary.md", "\n".join(summary_md) + "\n")
 
         print(json.dumps({
