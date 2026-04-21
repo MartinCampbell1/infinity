@@ -12,7 +12,6 @@ import { useCallback, useMemo, useState } from "react";
 
 import {
   ShellActionLink,
-  ShellDetailCard,
   ShellEmptyState,
   ShellHero,
   ShellHeroSearchField,
