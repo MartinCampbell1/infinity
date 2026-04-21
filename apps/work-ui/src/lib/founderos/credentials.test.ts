@@ -4,7 +4,9 @@ import {
 	clearFounderosEmbeddedCredentials,
 	getFounderosEmbeddedSessionAuthHeaders,
 	persistFounderosEmbeddedCredentials,
-	readFounderosEmbeddedSessionGrant
+	readFounderosEmbeddedSessionGrant,
+	readFounderosEmbeddedSessionToken,
+	resolveFounderosEmbeddedAccessToken
 } from '$lib/founderos/credentials';
 
 describe('founderos embedded credentials', () => {
@@ -42,9 +44,34 @@ describe('founderos embedded credentials', () => {
 			issuedAt: '2026-04-12T00:00:00.000Z',
 			expiresAt: '2026-04-12T00:30:00.000Z'
 		});
+		expect(readFounderosEmbeddedSessionToken()).toBe('bearer.session.token');
 		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({
 			authorization: 'Bearer bearer.session.token',
 			'x-founderos-workspace-session-grant': 'grant.token'
+		});
+	});
+
+	test('prefers the embedded session token over a legacy localStorage token', () => {
+		localStorage.token = 'legacy.browser.token';
+
+		persistFounderosEmbeddedCredentials({
+			token: 'bearer.session.token',
+			sessionGrant: null
+		});
+
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('bearer.session.token');
+		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({
+			authorization: 'Bearer bearer.session.token'
+		});
+	});
+
+	test('falls back to the legacy localStorage token when no embedded token exists', () => {
+		localStorage.token = 'legacy.browser.token';
+
+		expect(readFounderosEmbeddedSessionToken()).toBeNull();
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('legacy.browser.token');
+		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({
+			authorization: 'Bearer legacy.browser.token'
 		});
 	});
 

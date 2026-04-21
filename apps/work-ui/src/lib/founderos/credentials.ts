@@ -4,6 +4,7 @@ export interface FounderosEmbeddedSessionGrant {
 	expiresAt: string;
 }
 
+const SESSION_TOKEN_STORAGE_KEY = 'founderos.workspace.sessionToken';
 const SESSION_GRANT_STORAGE_KEY = 'founderos.workspace.sessionGrant';
 const PREVIOUS_TOKEN_STORAGE_KEY = 'founderos.workspace.previousToken';
 
@@ -41,6 +42,34 @@ export const readFounderosEmbeddedSessionGrant = (): FounderosEmbeddedSessionGra
 	}
 };
 
+export const readFounderosEmbeddedSessionToken = (): string | null => {
+	if (typeof localStorage === 'undefined') {
+		return null;
+	}
+
+	const raw = localStorage.getItem(SESSION_TOKEN_STORAGE_KEY);
+	return typeof raw === 'string' && raw.trim().length > 0 ? raw : null;
+};
+
+export const resolveFounderosEmbeddedAccessToken = (
+	fallbackToken: string | null = null
+): string => {
+	const embeddedToken = readFounderosEmbeddedSessionToken();
+	if (embeddedToken) {
+		return embeddedToken;
+	}
+
+	const normalizedFallback =
+		typeof fallbackToken === 'string' && fallbackToken.trim().length > 0 ? fallbackToken : '';
+	if (normalizedFallback) {
+		return normalizedFallback;
+	}
+
+	return typeof localStorage !== 'undefined' && typeof localStorage.token === 'string'
+		? String(localStorage.token)
+		: '';
+};
+
 export const persistFounderosEmbeddedCredentials = (params: {
 	token?: string | null;
 	sessionGrant?: FounderosEmbeddedSessionGrant | null;
@@ -51,7 +80,9 @@ export const persistFounderosEmbeddedCredentials = (params: {
 
 	if (params.token) {
 		const nextToken = String(params.token);
-		const currentToken = typeof localStorage.token === 'string' ? String(localStorage.token) : '';
+		localStorage.setItem(SESSION_TOKEN_STORAGE_KEY, nextToken);
+		const currentToken =
+			typeof localStorage.token === 'string' ? String(localStorage.token) : '';
 
 		if (currentToken && currentToken !== nextToken) {
 			localStorage.setItem(PREVIOUS_TOKEN_STORAGE_KEY, currentToken);
@@ -60,6 +91,8 @@ export const persistFounderosEmbeddedCredentials = (params: {
 		}
 
 		localStorage.token = nextToken;
+	} else if (params.token === null) {
+		localStorage.removeItem(SESSION_TOKEN_STORAGE_KEY);
 	}
 
 	if (params.sessionGrant) {
@@ -82,15 +115,13 @@ export const clearFounderosEmbeddedCredentials = () => {
 		localStorage.token = '';
 	}
 	localStorage.removeItem(PREVIOUS_TOKEN_STORAGE_KEY);
+	localStorage.removeItem(SESSION_TOKEN_STORAGE_KEY);
 	localStorage.removeItem(SESSION_GRANT_STORAGE_KEY);
 };
 
 export const getFounderosEmbeddedSessionAuthHeaders = () => {
 	const grant = readFounderosEmbeddedSessionGrant();
-	const token =
-		typeof localStorage !== 'undefined' && typeof localStorage.token === 'string'
-			? String(localStorage.token)
-			: '';
+	const token = resolveFounderosEmbeddedAccessToken();
 
 	return {
 		...(token ? { authorization: `Bearer ${token}` } : {}),
