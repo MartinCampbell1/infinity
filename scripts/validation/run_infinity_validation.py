@@ -1013,6 +1013,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-static-checks", action="store_true")
     parser.add_argument("--require-runnable-result", action="store_true")
+    parser.add_argument("--critic-json")
     args = parser.parse_args()
 
     assert_critical_shell_typecheck_scope()
@@ -1266,6 +1267,20 @@ def main() -> int:
             run_dir / "fix-log-iteration-0.md",
             "# Fix Log Iteration 0\n\nNo critic findings have been applied yet.\n",
         )
+
+        if args.critic_json:
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(Path(__file__).with_name("finalize_critic_report.py")),
+                    "--run-dir",
+                    str(run_dir),
+                    "--critic-json",
+                    args.critic_json,
+                ],
+                cwd=str(ROOT),
+                check=True,
+            )
 
         status = "passed"
         for result in checks + scenarios:

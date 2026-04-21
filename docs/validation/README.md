@@ -37,6 +37,14 @@ From the repo root:
 npm run validate:full
 ```
 
+Or, if the external screenshot critic JSON is already available:
+
+```bash
+python3 scripts/validation/run_infinity_validation.py \
+  --require-runnable-result \
+  --critic-json /path/to/critic-output.json
+```
+
 This produces a new validation packet under:
 
 ```text
