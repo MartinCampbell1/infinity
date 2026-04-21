@@ -23,12 +23,14 @@ export default async function ExecutionDeliveriesPage({
       id: delivery.id,
       headline: delivery.resultSummary,
       detail:
-        delivery.launchProofUrl ??
+        (delivery.launchTargetLabel ? `${delivery.launchTargetLabel} · ` : "") +
+        (delivery.launchProofUrl ??
         delivery.previewUrl ??
         delivery.localOutputPath ??
-        "Delivery output unavailable",
+        "Delivery output unavailable"),
       meta: [
         `status ${delivery.status}`,
+        delivery.launchProofKind ? `proof ${delivery.launchProofKind}` : null,
         delivery.launchManifestPath ? "localhost manifest" : null,
         delivery.localOutputPath,
       ],

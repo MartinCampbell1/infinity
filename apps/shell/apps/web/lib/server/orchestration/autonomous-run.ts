@@ -639,7 +639,9 @@ export function buildAutonomousValidationProof(
 
   return {
     previewReady: preview?.healthStatus === "ready",
-    launchReady: Boolean(delivery.launchProofAt && delivery.launchManifestPath),
+    launchReady:
+      delivery.launchProofKind === "runnable_result" &&
+      Boolean(delivery.launchProofAt && delivery.launchManifestPath),
     handoffReady: handoff.status === "ready",
     launchManifestPath: delivery.launchManifestPath ?? null,
     launchProofUrl: delivery.launchProofUrl ?? null,

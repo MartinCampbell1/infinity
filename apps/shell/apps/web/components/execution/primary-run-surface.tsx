@@ -125,8 +125,14 @@ function formatLaunchState(
   previewTarget: AutonomousPreviewTargetRecord | null,
   delivery: DeliveryRecord | null
 ) {
-  if (delivery?.launchProofAt) {
+  if (
+    delivery?.launchProofKind === "runnable_result" &&
+    delivery.launchProofAt
+  ) {
     return "Runnable";
+  }
+  if (delivery?.launchProofKind === "synthetic_wrapper") {
+    return "Synthetic wrapper";
   }
   if (previewTarget?.healthStatus) {
     return titleCase(previewTarget.healthStatus);
@@ -141,11 +147,24 @@ function formatResultReadiness(
   delivery: DeliveryRecord | null,
   handoffPacket: AutonomousHandoffPacketRecord | null
 ) {
-  if (delivery?.launchProofAt && handoffPacket?.status === "ready") {
-    return "Evidence ready";
+  if (
+    delivery?.launchProofKind === "runnable_result" &&
+    delivery.launchProofAt &&
+    handoffPacket?.status === "ready"
+  ) {
+    return "Runnable + handoff ready";
   }
-  if (delivery?.launchProofAt) {
+  if (
+    delivery?.launchProofKind === "runnable_result" &&
+    delivery.launchProofAt
+  ) {
     return "Runnable";
+  }
+  if (delivery?.launchProofKind === "synthetic_wrapper" && handoffPacket?.status === "ready") {
+    return "Wrapper + handoff ready";
+  }
+  if (delivery?.launchProofKind === "synthetic_wrapper") {
+    return "Wrapper only";
   }
   if (delivery?.localOutputPath || handoffPacket) {
     return "Partial";
@@ -500,22 +519,45 @@ export function PrimaryRunSurface({
             <div className="grid gap-4 px-5 py-4 text-[12px] text-white/62">
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Artifact bundle</div>
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Evidence wrapper</div>
                   <div className="mt-2 text-[14px] text-white">
-                    {currentDelivery?.localOutputPath ? "Materialized" : "Not ready"}
+                    {currentDelivery?.previewUrl ? "Available" : "Pending"}
                   </div>
                   <div className="mt-2 break-all text-[11px] leading-5 text-white/68">
-                    {currentDelivery?.localOutputPath ?? "No artifact bundle emitted yet"}
+                    {currentDelivery?.previewUrl ??
+                      currentPreviewTarget?.sourcePath ??
+                      "No shell evidence wrapper emitted yet"}
                   </div>
                   <div className="mt-3 break-all text-[11px] leading-5 text-white/48">
+                    local bundle {currentDelivery?.localOutputPath ?? "pending"}
+                  </div>
+                  <div className="mt-1 break-all text-[11px] leading-5 text-white/48">
                     manifest {currentDelivery?.manifestPath ?? "pending"}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {currentDelivery?.previewUrl ? (
+                      <Link
+                        href={currentDelivery.previewUrl}
+                        className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/82"
+                      >
+                        Open evidence wrapper
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
 
                 <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Runnable localhost result</div>
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Runnable result</div>
                   <div className="mt-2 text-[14px] text-white">
                     {formatLaunchState(currentPreviewTarget, currentDelivery)}
+                  </div>
+                  <div className="mt-2 text-[11px] leading-5 text-white/48">
+                    {currentDelivery?.launchTargetLabel ??
+                      (currentDelivery?.launchProofKind === "runnable_result"
+                        ? "Actual runnable target"
+                        : currentDelivery?.launchProofKind === "synthetic_wrapper"
+                          ? "Shell evidence wrapper"
+                          : "Launch target not classified")}
                   </div>
                   <div className="mt-2 break-all font-mono text-[11px] leading-5 text-white/68">
                     {currentPreviewTarget?.launchCommand ??
@@ -528,20 +570,10 @@ export function PrimaryRunSurface({
                   <div className="mt-1 break-all text-[11px] leading-5 text-white/48">
                     proof {currentDelivery?.launchProofUrl ?? "not proven yet"}
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {currentDelivery?.previewUrl ? (
-                      <Link
-                        href={currentDelivery.previewUrl}
-                        className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/82"
-                      >
-                        Open preview
-                      </Link>
-                    ) : null}
-                  </div>
                 </div>
 
                 <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Handoff packet</div>
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Handoff metadata</div>
                   <div className="mt-2 text-[14px] text-white">
                     {titleCase(currentHandoffPacket?.status ?? currentRun?.handoffStatus ?? "none")}
                   </div>
@@ -562,7 +594,7 @@ export function PrimaryRunSurface({
                   {formatResultReadiness(currentDelivery, currentHandoffPacket)}
                 </div>
                 <div className="mt-2 text-[11px] leading-5 text-white/56">
-                  Runnable localhost proof is required before the shell promotes the result to ready. Handoff evidence remains visible even when the launch step is still partial.
+                  Shell wrapper evidence and handoff metadata can be ready independently. The shell only promotes the result to ready after a real runnable target is proven locally.
                 </div>
               </div>
             </div>

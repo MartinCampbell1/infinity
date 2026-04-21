@@ -85,11 +85,24 @@ function formatResultState(
   delivery: DeliveryRecord | null,
   handoff: AutonomousHandoffPacketRecord | null
 ) {
-  if (delivery?.launchProofAt && handoff?.status === "ready") {
+  if (
+    delivery?.launchProofKind === "runnable_result" &&
+    delivery.launchProofAt &&
+    handoff?.status === "ready"
+  ) {
     return "Runnable + handoff ready";
   }
-  if (delivery?.launchProofAt) {
+  if (
+    delivery?.launchProofKind === "runnable_result" &&
+    delivery.launchProofAt
+  ) {
     return "Runnable";
+  }
+  if (delivery?.launchProofKind === "synthetic_wrapper" && handoff?.status === "ready") {
+    return "Wrapper + handoff ready";
+  }
+  if (delivery?.launchProofKind === "synthetic_wrapper") {
+    return "Wrapper only";
   }
   if (delivery?.localOutputPath || handoff) {
     return "Artifact only";
@@ -259,9 +272,13 @@ export function PlaneWorkItemsSurface({
               {formatResultState(currentDelivery, currentHandoffPacket)}
             </div>
             <div className="mt-1 text-[12px] leading-5 text-white/56">
-              {currentDelivery?.launchProofUrl ??
+              {(currentDelivery?.launchTargetLabel
+                ? `${currentDelivery.launchTargetLabel} · `
+                : "") +
+                (currentDelivery?.launchProofUrl ??
+                currentDelivery?.previewUrl ??
                 currentDelivery?.localOutputPath ??
-                "No localhost proof or artifact bundle yet."}
+                "No localhost proof or artifact bundle yet.")}
             </div>
           </div>
           <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">
@@ -457,7 +474,7 @@ export function PlaneWorkItemsSurface({
           <div className="border-b border-white/8 px-4 py-4">
             <div className="text-[12px] font-medium text-white">Result readiness</div>
             <div className="mt-2 text-[13px] leading-6 text-white/62">
-              Shell-side read on artifact, localhost proof, and handoff state.
+              Shell-side read on evidence wrapper, runnable-result proof, and handoff state.
             </div>
           </div>
           <div className="grid gap-3 px-4 py-4 text-[12px] text-white/62">
@@ -468,15 +485,17 @@ export function PlaneWorkItemsSurface({
               </div>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Artifact bundle</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Evidence wrapper</div>
               <div className="mt-1 break-all text-[11px] leading-5 text-white/68">
-                {currentDelivery?.localOutputPath ?? "No artifact bundle yet"}
+                {currentDelivery?.previewUrl ?? "No evidence wrapper yet"}
               </div>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Launch proof</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Runnable result proof</div>
               <div className="mt-1 break-all text-[11px] leading-5 text-white/68">
-                {currentDelivery?.launchProofUrl ?? "No localhost proof yet"}
+                {(currentDelivery?.launchTargetLabel
+                  ? `${currentDelivery.launchTargetLabel} · `
+                  : "") + (currentDelivery?.launchProofUrl ?? "No runnable proof yet")}
               </div>
             </div>
             <div>

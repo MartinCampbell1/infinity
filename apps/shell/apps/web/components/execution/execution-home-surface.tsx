@@ -297,16 +297,23 @@ export function ExecutionHomeSurface({
                   Delivery readiness
                 </div>
                 <div className="mt-3 text-[16px] font-medium text-foreground">
-                  {currentDelivery?.launchProofAt
+                  {currentDelivery?.launchProofKind === "runnable_result" &&
+                  currentDelivery.launchProofAt
                     ? "Runnable localhost result"
+                    : currentDelivery?.launchProofKind === "synthetic_wrapper"
+                      ? "Evidence wrapper only"
                     : currentDelivery?.status
                       ? titleCase(currentDelivery.status)
                       : "No delivery yet"}
                 </div>
                 <div className="mt-2 text-[12px] text-muted-foreground">
-                  {currentDelivery?.launchProofUrl ??
+                  {(currentDelivery?.launchTargetLabel
+                    ? `${currentDelivery.launchTargetLabel} · `
+                    : "") +
+                    (currentDelivery?.launchProofUrl ??
+                    currentDelivery?.previewUrl ??
                     currentDelivery?.localOutputPath ??
-                    "No artifact bundle or localhost proof is attached yet."}
+                    "No artifact bundle or localhost proof is attached yet.")}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {currentDelivery ? (

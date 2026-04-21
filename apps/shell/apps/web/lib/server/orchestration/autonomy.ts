@@ -288,7 +288,7 @@ async function maybeCreateReadyDelivery(initiativeId: string) {
   }
 
   const delivery = (await listDeliveries({ initiativeId }))[0] ?? null;
-  if (delivery && delivery.verificationRunId === verification.id && delivery.status === "ready") {
+  if (delivery && delivery.verificationRunId === verification.id) {
     return false;
   }
 

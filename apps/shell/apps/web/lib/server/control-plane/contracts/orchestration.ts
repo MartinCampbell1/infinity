@@ -450,6 +450,7 @@ export interface CreateVerificationRequest {
 }
 
 export type DeliveryStatus = "pending" | "ready" | "delivered" | "rejected";
+export type DeliveryLaunchProofKind = "synthetic_wrapper" | "runnable_result";
 
 export const DELIVERY_STATUS_FLOW = [
   "pending",
@@ -471,6 +472,8 @@ export interface DeliveryRecord {
   manifestPath?: string | null;
   previewUrl?: string | null;
   launchManifestPath?: string | null;
+  launchProofKind?: DeliveryLaunchProofKind | null;
+  launchTargetLabel?: string | null;
   launchProofUrl?: string | null;
   launchProofAt?: string | null;
   handoffNotes?: string | null;

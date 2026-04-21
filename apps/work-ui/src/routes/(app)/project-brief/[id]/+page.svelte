@@ -385,7 +385,7 @@
 								on:click={() => saveBrief('approved')}
 								disabled={saveState === 'saving'}
 							>
-								Approve brief override
+								Force approval
 							</button>
 						</div>
 					</form>

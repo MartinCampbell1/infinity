@@ -175,10 +175,13 @@ export function buildDeliveryManifest(params: {
     localOutputPath: params.delivery.localOutputPath ?? null,
     previewUrl: params.delivery.previewUrl ?? null,
     launchManifestPath: params.delivery.launchManifestPath ?? null,
+    launchProofKind: params.delivery.launchProofKind ?? null,
+    launchTargetLabel: params.delivery.launchTargetLabel ?? null,
     launchProofUrl: params.delivery.launchProofUrl ?? null,
     launchProofAt: params.delivery.launchProofAt ?? null,
     localhostReady:
       params.delivery.status === "ready" &&
+      params.delivery.launchProofKind === "runnable_result" &&
       Boolean(params.delivery.launchManifestPath && params.delivery.launchProofAt),
     handoffNotes: params.delivery.handoffNotes ?? null,
     deliveredAt: params.delivery.deliveredAt ?? null,

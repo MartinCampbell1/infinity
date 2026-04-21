@@ -74,25 +74,45 @@ export function DeliverySummary({
       <section className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
           <div className="text-xs uppercase tracking-[0.16em] text-white/42">
-            Artifact bundle
+            Evidence wrapper
           </div>
           <div className="mt-3 text-sm text-white">
-            {delivery.localOutputPath ? "Materialized" : "Pending"}
+            {delivery.previewUrl ? "Available" : "Pending"}
           </div>
           <div className="mt-3 text-sm leading-6 text-white/68">
-            {delivery.localOutputPath ?? "No artifact bundle is available yet."}
+            {delivery.previewUrl ?? "No shell evidence wrapper is available yet."}
           </div>
           <div className="mt-3 text-xs text-white/48">
+            Delivery bundle: {delivery.localOutputPath ?? "pending"}
+          </div>
+          <div className="mt-1 text-xs text-white/48">
             Delivery manifest: {delivery.manifestPath ?? "pending"}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {delivery.previewUrl ? (
+              <Link
+                className="rounded-full border border-white/12 px-4 py-2 text-sm text-white/78"
+                href={delivery.previewUrl}
+              >
+                Open evidence wrapper
+              </Link>
+            ) : null}
           </div>
         </div>
 
         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
           <div className="text-xs uppercase tracking-[0.16em] text-white/42">
-            Runnable localhost result
+            Runnable result
           </div>
           <div className="mt-3 text-sm text-white">
-            {delivery.launchProofAt ? "Runnable" : titleCase(delivery.status)}
+            {delivery.launchProofKind === "runnable_result" && delivery.launchProofAt
+              ? "Runnable"
+              : delivery.launchProofKind === "synthetic_wrapper"
+                ? "Synthetic wrapper only"
+                : titleCase(delivery.status)}
+          </div>
+          <div className="mt-3 text-xs text-white/48">
+            Target: {delivery.launchTargetLabel ?? "not classified"}
           </div>
           <div className="mt-3 break-all font-mono text-[11px] leading-6 text-white/68">
             {delivery.command ?? "Launch command not available yet"}
@@ -103,24 +123,18 @@ export function DeliverySummary({
           <div className="mt-1 text-xs text-white/48">
             Launch proof: {delivery.launchProofUrl ?? "not proven yet"}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {delivery.previewUrl ? (
-              <Link
-                className="rounded-full border border-white/12 px-4 py-2 text-sm text-white/78"
-                href={delivery.previewUrl}
-              >
-                Open preview
-              </Link>
-            ) : null}
-          </div>
         </div>
 
         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
           <div className="text-xs uppercase tracking-[0.16em] text-white/42">
-            Handoff packet
+            Handoff metadata
           </div>
           <div className="mt-3 text-sm text-white">
-            {delivery.launchProofAt ? "Evidence ready" : "Partial"}
+            {delivery.launchProofKind === "runnable_result" && delivery.launchProofAt
+              ? "Runnable + handoff ready"
+              : delivery.launchProofKind === "synthetic_wrapper"
+                ? "Wrapper + handoff ready"
+                : "Partial"}
           </div>
           <div className="mt-3 text-sm leading-6 text-white/68">
             {delivery.handoffNotes ?? "No handoff guidance available yet."}

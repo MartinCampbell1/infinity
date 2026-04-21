@@ -347,7 +347,12 @@ def assert_localhost_launch_ready(delivery: dict[str, Any]) -> dict[str, Any]:
     manifest = load_json(launch_manifest_path)
     command = manifest.get("command")
     working_directory = manifest.get("workingDirectory")
-    expected_marker = manifest.get("expectedMarker") or "Infinity Local Preview"
+    expected_marker = manifest.get("expectedMarker")
+    launch_kind = str(
+        manifest.get("targetKind")
+        or delivery.get("launchProofKind")
+        or "synthetic_wrapper"
+    )
 
     if not isinstance(command, list) or not command or not all(
         isinstance(part, str) and part for part in command
@@ -376,7 +381,7 @@ def assert_localhost_launch_ready(delivery: dict[str, Any]) -> dict[str, Any]:
                 f"Happy path: launch manifest {launch_manifest_path} did not expose stdout for READY detection."
             )
         ready_line = process.stdout.readline()
-        match = re.search(r"READY\s+(http://127\.0\.0\.1:\d+/preview\.html)", ready_line)
+        match = re.search(r"READY\s+(http://127\.0\.0\.1:\d+\S+)", ready_line)
         if match:
             ready_url = match.group(1)
 
@@ -390,7 +395,10 @@ def assert_localhost_launch_ready(delivery: dict[str, Any]) -> dict[str, Any]:
             raise ValidationFailure(
                 f"Happy path: localhost launch URL {ready_url} returned {response.status_code}."
             )
-        if expected_marker.lower() not in response.text.lower():
+        if launch_kind == "synthetic_wrapper" and (
+            not isinstance(expected_marker, str)
+            or expected_marker.lower() not in response.text.lower()
+        ):
             raise ValidationFailure(
                 f"Happy path: localhost launch URL {ready_url} did not return the expected delivery marker."
             )
@@ -403,10 +411,23 @@ def assert_localhost_launch_ready(delivery: dict[str, Any]) -> dict[str, Any]:
             raise ValidationFailure(
                 "Happy path: delivery replay succeeded, but the delivery record is missing launchProofUrl."
             )
+        if delivery.get("launchProofKind") != launch_kind:
+            raise ValidationFailure(
+                "Happy path: delivery replay succeeded, but the delivery record does not match the launch proof kind."
+            )
+        if launch_kind == "synthetic_wrapper" and delivery.get("status") == "ready":
+            raise ValidationFailure(
+                "Happy path: delivery is marked ready even though only a synthetic wrapper was proven."
+            )
+        if launch_kind == "runnable_result" and delivery.get("status") != "ready":
+            raise ValidationFailure(
+                "Happy path: delivery proved a runnable result but the delivery record was not promoted to ready."
+            )
 
         return {
             "launch_manifest_path": str(launch_manifest_path),
             "ready_url": ready_url,
+            "launch_kind": launch_kind,
             "recorded_proof_url": str(delivery.get("launchProofUrl")),
         }
     finally:
@@ -431,18 +452,32 @@ def wait_for_autonomous_delivery(
         initiative = continuity.get("initiative")
         if (
             isinstance(delivery, dict)
-            and delivery.get("status") == "ready"
             and isinstance(verification, dict)
             and verification.get("overallStatus") == "passed"
             and isinstance(assembly, dict)
             and assembly.get("status") == "assembled"
             and isinstance(initiative, dict)
-            and initiative.get("status") == "ready"
         ):
-            return continuity
+            delivery_status = delivery.get("status")
+            launch_kind = delivery.get("launchProofKind")
+            initiative_status = initiative.get("status")
+            if (
+                launch_kind == "runnable_result"
+                and delivery_status == "ready"
+                and initiative_status == "ready"
+            ):
+                return continuity
+            if (
+                launch_kind == "synthetic_wrapper"
+                and delivery_status == "pending"
+                and initiative_status == "verifying"
+                and delivery.get("previewUrl")
+                and delivery.get("launchManifestPath")
+            ):
+                return continuity
         time.sleep(1)
     raise ValidationFailure(
-        f"Autonomous delivery did not become ready for initiative {initiative_id} within {timeout_seconds}s."
+        f"Autonomous delivery did not reach a truthful delivery state for initiative {initiative_id} within {timeout_seconds}s."
     )
 
 
@@ -474,11 +509,11 @@ def assert_no_required_stage_labels(page, screen_name: str) -> list[str]:
 
 
 def approve_brief_and_launch_planner(page) -> None:
-    page.click('button:has-text("Approve brief")')
+    page.click('button:has-text("Force approval")')
     page.wait_for_timeout(1200)
     page.wait_for_selector("text=Status: brief_ready", timeout=15000)
 
-    launch_planner = page.locator('button:has-text("Launch planner explicitly")').first
+    launch_planner = page.locator('button:has-text("Trigger planner override")').first
     if launch_planner.count() == 0 or not launch_planner.is_enabled():
         raise ValidationFailure(
             "Brief approval did not leave the initiative in brief_ready with an explicit planner launch action."
@@ -486,7 +521,7 @@ def approve_brief_and_launch_planner(page) -> None:
 
     launch_planner.click()
     page.wait_for_timeout(1500)
-    page.wait_for_selector('a:has-text("Open shell task graph")', timeout=15000)
+    page.wait_for_selector('text=Return to shell workspace', timeout=15000)
 
 
 def open_shell_task_graph_from_brief(page) -> str:
@@ -594,7 +629,7 @@ def run_happy_path(page, shell_origin: str, work_origin: str, manifest: list[Scr
     result_url = build_embedded_url(work_origin, shell_origin, session_id, f"/project-result/{initiative_id}")
     page.goto(result_url, wait_until="networkidle")
     page.wait_for_selector("text=Project result", timeout=15000)
-    page.locator("text=ready").last.wait_for(timeout=15000)
+    page.wait_for_selector("text=Return to shell workspace", timeout=15000)
     capture_screenshot(page, "workui_project_result_passed", str(screenshots_dir / "workui_project_result_passed.png"), manifest, page.url, "happy_path")
     result_stage_labels = assert_no_required_stage_labels(page, "workui_project_result_passed")
     delivery_id = str(delivery["id"]).strip()
@@ -607,7 +642,7 @@ def run_happy_path(page, shell_origin: str, work_origin: str, manifest: list[Scr
         "delivery_id": delivery_id,
         "delivery_status": str(delivery.get("status") or ""),
         "preview_ready": True,
-        "launch_ready": True,
+        "launch_ready": str(delivery.get("launchProofKind") or "") == "runnable_result" and str(delivery.get("status") or "") == "ready",
         "handoff_ready": bool(handoff_path.exists()),
         "autonomous_one_prompt": True,
         "root_frontdoor": frontdoor_state,
@@ -617,6 +652,7 @@ def run_happy_path(page, shell_origin: str, work_origin: str, manifest: list[Scr
             "workui_project_result_passed": result_stage_labels,
         },
         "preview_url": delivery.get("previewUrl"),
+        "launch_kind": launch_state["launch_kind"],
         "launch_manifest_path": launch_state["launch_manifest_path"],
         "launch_ready_url": launch_state["ready_url"],
         "launch_recorded_proof_url": launch_state["recorded_proof_url"],
@@ -772,7 +808,7 @@ def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, man
     )["delivery"]
 
     page.goto(result_url, wait_until="networkidle")
-    page.wait_for_selector("text=ready", timeout=15000)
+    page.wait_for_selector("text=Return to shell workspace", timeout=15000)
 
     return {
         "initiative_id": initiative_id,

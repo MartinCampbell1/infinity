@@ -4,6 +4,7 @@ import path from "node:path";
 
 import type {
   DeliveryRecord,
+  DeliveryLaunchProofKind,
   AssemblyRecord,
   DeliveryMutationResponse,
 } from "../control-plane/contracts/orchestration";
@@ -41,6 +42,8 @@ type DeliveryLaunchManifest = {
   workingDirectory: string;
   entryPath: "/preview.html";
   expectedMarker: string;
+  targetKind: DeliveryLaunchProofKind;
+  targetLabel: string;
   command: string[];
   shellCommand: string;
   proof: {
@@ -219,7 +222,20 @@ async function buildDeliveryFields(
   deliveryId: string,
   assembly: AssemblyRecord | null,
   verificationId: string
-) {
+): Promise<{
+  localOutputPath: string;
+  manifestPath: string;
+  previewPath: string;
+  launchManifestPath: string;
+  launchProofKind: DeliveryLaunchProofKind;
+  launchTargetLabel: string;
+  handoffSummaryPath: string;
+  handoffManifestPath: string;
+  handoffNotes: string;
+  command: string;
+  launchProofUrl: string | null;
+  launchProofAt: string | null;
+}> {
   const localOutputPath = deliveryOutputLocation(initiativeId, deliveryId);
   await mkdir(localOutputPath, { recursive: true });
   const previewPath = path.join(localOutputPath, "preview.html");
@@ -251,7 +267,7 @@ async function buildDeliveryFields(
     `      <li>Assembly: <code>${assembly?.id ?? "n/a"}</code></li>`,
     `      <li>Assembly output: <code>${assembly?.outputLocation ?? "n/a"}</code></li>`,
     "    </ul>",
-    "    <p>This bundle includes a localhost launcher so operators can prove the result runs before treating it as ready.</p>",
+    "    <p>This bundle exposes a shell-generated evidence wrapper. It does not prove that the actual product result is runnable yet.</p>",
     "  </main>",
     "</body>",
     "</html>",
@@ -261,12 +277,16 @@ async function buildDeliveryFields(
   const launchCommand = [DELIVERY_PYTHON_BIN, launchScriptPath, "--port", "0"];
   const launchShellCommand = `${DELIVERY_PYTHON_BIN} ${shellQuote(launchScriptPath)} --port 0`;
   const launchProof = await proveLocalhostLaunch(launchCommand);
+  const launchProofKind: DeliveryLaunchProofKind = "synthetic_wrapper";
+  const launchTargetLabel = "Shell evidence wrapper";
   const launchManifest: DeliveryLaunchManifest = {
     launcher: "python_static_site",
     scriptPath: launchScriptPath,
     workingDirectory: localOutputPath,
     entryPath: "/preview.html",
     expectedMarker: LOCALHOST_PROOF_MARKER,
+    targetKind: launchProofKind,
+    targetLabel: launchTargetLabel,
     command: launchCommand,
     shellCommand: launchShellCommand,
     proof: launchProof
@@ -292,11 +312,13 @@ async function buildDeliveryFields(
         assemblyId: assembly?.id ?? null,
         assemblyOutputLocation: assembly?.outputLocation ?? null,
         launchManifestPath,
+        launchProofKind,
+        launchTargetLabel,
         launchCommand: launchShellCommand,
         launchProofUrl: launchProof?.url ?? null,
         launchProofAt: launchProof?.observedAt ?? null,
         note:
-          "This is a local delivery handoff package with a runnable localhost launcher and explicit operator review steps.",
+          "This is a local delivery handoff package with a shell-generated evidence wrapper. It does not prove the actual product result is runnable yet.",
       },
       null,
       2
@@ -313,8 +335,10 @@ async function buildDeliveryFields(
       `Verification: ${verificationId}`,
       `Assembly: ${assembly?.id ?? "n/a"}`,
       `Assembly output: ${assembly?.outputLocation ?? "n/a"}`,
+      `Launch target: ${launchTargetLabel}`,
       `Launch command: ${launchShellCommand}`,
       `Launch proof: ${launchProof?.url ?? "not proven"}`,
+      "Ready promotion stays blocked until a real runnable result is proven locally.",
     ].join("\n")
   );
   const handoffDir = path.join(localOutputPath, "handoff");
@@ -355,10 +379,12 @@ async function buildDeliveryFields(
     manifestPath: path.join(localOutputPath, "delivery-manifest.json"),
     previewPath,
     launchManifestPath,
+    launchProofKind,
+    launchTargetLabel,
     handoffSummaryPath,
     handoffManifestPath,
     handoffNotes:
-      "Review the linked assembly manifest, runnable localhost launcher, and evidence bundle before any manual publish or release step.",
+      "Review the linked assembly manifest, shell evidence wrapper, and handoff bundle before any manual publish or release step. A real runnable result still needs separate proof.",
     command: launchShellCommand,
     launchProofUrl: launchProof?.url ?? null,
     launchProofAt: launchProof?.observedAt ?? null,
@@ -407,7 +433,9 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     assembly,
     verification.id
   );
-  const launchReady = Boolean(fields.launchProofAt && fields.launchProofUrl);
+  const launchReady =
+    fields.launchProofKind === "runnable_result" &&
+    Boolean(fields.launchProofAt && fields.launchProofUrl);
   const delivery: DeliveryRecord = {
     id: deliveryId,
     initiativeId: input.initiativeId,
@@ -416,11 +444,13 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     resultSummary:
       launchReady
         ? "Runnable localhost delivery bundle backed by verified assembly evidence."
-        : `Artifact and handoff bundle prepared for initiative ${input.initiativeId}, but localhost launch proof is still missing.`,
+        : `Evidence wrapper and handoff bundle were prepared for initiative ${input.initiativeId}, but the actual runnable result is still unproven.`,
     localOutputPath: fields.localOutputPath,
     manifestPath: fields.manifestPath,
     previewUrl: null,
     launchManifestPath: fields.launchManifestPath,
+    launchProofKind: fields.launchProofKind,
+    launchTargetLabel: fields.launchTargetLabel,
     launchProofUrl: fields.launchProofUrl,
     launchProofAt: fields.launchProofAt,
     handoffNotes: fields.handoffNotes,
@@ -456,7 +486,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
         : initiative
     );
     updateAutonomousRunStage(draft, input.initiativeId, {
-      stage: launchReady ? "handed_off" : "delivering",
+      stage: launchReady ? "handed_off" : preview ? "preview_ready" : "delivering",
       health: launchReady ? "healthy" : "degraded",
       previewStatus: preview ? "ready" : "failed",
       handoffStatus: handoff ? "ready" : "failed",
@@ -472,24 +502,26 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     });
     appendAutonomousRunEvent(draft, input.initiativeId, {
       kind: launchReady ? "delivery.ready" : "delivery.partial",
-      stage: launchReady ? "preview_ready" : "delivering",
+      stage: launchReady ? "preview_ready" : preview ? "preview_ready" : "delivering",
       summary: launchReady
         ? `Delivery ${delivery.id} is ready with localhost launch proof.`
-        : `Delivery ${delivery.id} has artifact and handoff evidence, but localhost launch proof is missing.`,
+        : `Delivery ${delivery.id} has shell wrapper evidence and handoff metadata, but no real runnable result proof yet.`,
       payload: {
         deliveryId: delivery.id,
         localOutputPath: delivery.localOutputPath,
         launchManifestPath: delivery.launchManifestPath,
+        launchProofKind: delivery.launchProofKind,
+        launchTargetLabel: delivery.launchTargetLabel,
         launchProofUrl: delivery.launchProofUrl,
       },
     });
     if (preview) {
       appendAutonomousRunEvent(draft, input.initiativeId, {
         kind: "preview.ready",
-        stage: launchReady ? "preview_ready" : "delivering",
+        stage: launchReady ? "preview_ready" : "preview_ready",
         summary: launchReady
           ? `Preview ${preview.id} is ready.`
-          : `Preview ${preview.id} is available, but the localhost launch proof has not been promoted yet.`,
+          : `Preview ${preview.id} is available as shell evidence wrapper only.`,
         payload: {
           previewId: preview.id,
           url: preview.url,
@@ -499,7 +531,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     if (handoff) {
       appendAutonomousRunEvent(draft, input.initiativeId, {
         kind: "handoff.ready",
-        stage: launchReady ? "handed_off" : "delivering",
+        stage: launchReady ? "handed_off" : preview ? "preview_ready" : "delivering",
         summary: `Handoff packet ${handoff.id} is ready.`,
         payload: {
           handoffPacketId: handoff.id,
