@@ -1,0 +1,89 @@
+# Infinity Polished Solo V1 Release Handoff
+
+Date: 2026-04-21
+Workspace: `/Users/martin/infinity`
+Plan: `docs/plans/2026-04-21-polished-solo-v1-follow-up-execution-plan.md`
+
+## Outcome
+
+The follow-up execution plan is complete and the release gate is green.
+
+Completed end-to-end:
+
+- Step 0: Git baseline and rollback safety
+- Phase 1: secondary route manual-stage leakage removed
+- Phase 2: delivery truth split so `ready` means real runnable result, not shell wrapper proof
+- Phase 3: localhost execution kernel hardened and recovery truth improved
+- Phase 4: embedded launch shifted to shell-issued session semantics first
+- Phase 5: finish gate tightened and validated against the real localhost daily-driver path
+
+Post-finish hardening also landed:
+
+- legacy shell execution surfaces isolated under `components/execution/legacy`
+- validator guard added so live shell code cannot depend on that legacy subtree
+- primary execution routes pinned to live surfaces
+- legacy import scanning hardened for static imports, re-exports, `import()`, and `require()`
+- generated validation bundles ignored in Git so the worktree stays operationally clean
+
+## Final Release Evidence
+
+Fresh strict validation bundle:
+
+- `/Users/martin/infinity/handoff-packets/validation/2026-04-21T04-21-08Z`
+
+Release truth from that bundle:
+
+- `delivery_status = ready`
+- `launch_kind = runnable_result`
+- `preview_ready = true`
+- `launch_ready = true`
+- `handoff_ready = true`
+- `manual_stage_labels = []`
+
+Bundle artifacts that matter:
+
+- `final-validation-summary.md`
+- `functional-report.md`
+- `autonomous-proof.json`
+- `critic-report-iteration-0.json`
+- `critic-report-iteration-0.md`
+
+Final critic state for the release bundle:
+
+- external screenshot critic completed
+- `overall_score = 8.4`
+- `pass = true`
+- `findings = []`
+
+## Key Commits
+
+Main plan execution:
+
+- `e4db4b6` `chore: baseline infinity workspace`
+- `436389f` `feat: demote secondary workspace stages`
+- `9c0f60a` `feat: separate wrapper proof from runnable delivery`
+- `6a3ecec` `feat: harden localhost execution kernel`
+- `2b5d90a` `feat: prefer shell-issued embedded session auth`
+- `26beeb5` `feat: validate runnable result deliveries`
+- `a8e3eb5` `chore: narrow shell typecheck blind spot`
+
+Post-finish hardening:
+
+- `95baf82` `chore: isolate legacy shell execution surfaces`
+- `89461b7` `test: pin primary execution routes to live surfaces`
+- `8f0ebf9` `test: harden legacy import scanning`
+- `2a1e71a` `chore: ignore generated validation bundles`
+
+## Current Repo State
+
+- `git status` is clean
+- validation evidence remains on disk under `handoff-packets/validation/`
+- validation evidence is now ignored by Git
+
+## Optional Follow-Up
+
+Not release blockers:
+
+- continue shrinking the remaining legacy subtree by porting archived execution surfaces back under full typecheck one by one
+- reduce shell lint warnings related to undeclared env vars
+- decide whether any final release bundle should be copied into a curated tracked artifact outside `handoff-packets/validation/`
