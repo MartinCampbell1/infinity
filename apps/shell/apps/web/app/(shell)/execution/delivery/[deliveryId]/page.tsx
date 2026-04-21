@@ -35,6 +35,12 @@ export default async function ExecutionDeliveryPage({
     state.orchestration.verifications.find(
       (candidate) => candidate.id === delivery.verificationRunId
     ) ?? null;
+  const initiative =
+    state.orchestration.initiatives.find(
+      (candidate) => candidate.id === delivery.initiativeId
+    ) ?? null;
+  const currentRun =
+    state.orchestration.runs.find((candidate) => candidate.initiativeId === delivery.initiativeId) ?? null;
   const assembly =
     verification
       ? state.orchestration.assemblies.find(
@@ -42,13 +48,21 @@ export default async function ExecutionDeliveryPage({
         ) ?? null
       : null;
   const taskGraphId = delivery.taskGraphId ?? null;
+  const currentHandoffPacket =
+    state.orchestration.handoffPackets.find(
+      (candidate) => candidate.deliveryId === delivery.id
+    ) ?? null;
 
   return (
     <DeliverySummary
       delivery={delivery}
+      initiativeTitle={initiative?.title ?? delivery.initiativeId}
+      initiativePrompt={initiative?.userRequest ?? null}
       verification={verification}
       assembly={assembly}
       taskGraphId={taskGraphId}
+      runId={currentRun?.id ?? null}
+      handoffId={currentHandoffPacket?.id ?? null}
       routeScope={readShellRouteScopeFromQueryRecord(resolvedSearchParams)}
     />
   );

@@ -258,6 +258,11 @@ export function ExecutionHomeSurface({
                 <div className="max-w-3xl text-[12px] leading-6 text-white/56">
                   {kernelAvailability.detail}
                 </div>
+                {kernelAvailability.recoveryHint ? (
+                  <div className="max-w-3xl text-[12px] leading-6 text-white/62">
+                    {kernelAvailability.recoveryHint}
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap gap-2 pt-1">
                   {kernelAvailability.recoveryState === "retryable" ? (
                     <span className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/62">
@@ -267,6 +272,16 @@ export function ExecutionHomeSurface({
                   {kernelAvailability.restartRecoverable ? (
                     <span className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/62">
                       restart-recoverable
+                    </span>
+                  ) : null}
+                  {kernelAvailability.blockedBatchIds?.length ? (
+                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/62">
+                      blocked {kernelAvailability.blockedBatchIds.length}
+                    </span>
+                  ) : null}
+                  {kernelAvailability.failedAttemptIds?.length ? (
+                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/62">
+                      failed attempts {kernelAvailability.failedAttemptIds.length}
                     </span>
                   ) : null}
                 </div>
@@ -330,9 +345,11 @@ export function ExecutionHomeSurface({
                   {currentDelivery?.launchProofKind === "runnable_result" &&
                   currentDelivery.launchProofAt
                     ? "Runnable localhost result"
+                    : currentDelivery?.launchProofKind === "attempt_scaffold"
+                      ? "Attempt scaffold only"
                     : currentDelivery?.launchProofKind === "synthetic_wrapper"
                       ? "Evidence wrapper only"
-                    : currentDelivery?.status
+                      : currentDelivery?.status
                       ? titleCase(currentDelivery.status)
                       : "No delivery yet"}
                 </div>

@@ -6,6 +6,7 @@ import {
   buildExecutionRunScopeHref,
   type ShellRouteScope,
 } from "@/lib/route-scope";
+import { buildAutonomousBriefCreateRequest } from "@/components/frontdoor/plane-root-composer-logic";
 
 function deriveTitleFromPrompt(prompt: string) {
   const normalized = prompt.trim().split("\n")[0]?.trim() ?? "";
@@ -61,37 +62,34 @@ export function ExecutionRunComposer({
       const initiativePayload = (await initiativeResponse.json()) as {
         initiative: { id: string };
       };
-
-      const briefResponse = await fetch("/api/control/orchestration/briefs", {
+      const initiativeId = initiativePayload.initiative.id;
+      const briefRequest = fetch("/api/control/orchestration/briefs", {
         method: "POST",
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({
-          initiativeId: initiativePayload.initiative.id,
-          summary: normalizedPrompt,
-          goals: [],
-          nonGoals: [],
-          constraints: [],
-          assumptions: [],
-          acceptanceCriteria: [],
-          repoScope: [],
-          deliverables: [],
-          clarificationLog: [],
-          authoredBy: "hermes-intake",
-          status: "clarifying",
-        }),
-      });
-      if (!briefResponse.ok) {
+        body: JSON.stringify(buildAutonomousBriefCreateRequest(initiativeId, normalizedPrompt)),
+        keepalive: true,
+      }).then(async (briefResponse) => {
+        if (briefResponse.ok) {
+          return;
+        }
+
         const payload = (await briefResponse.json().catch(() => null)) as {
           detail?: string;
         } | null;
         throw new Error(payload?.detail ?? "Brief creation failed.");
-      }
+      });
 
       setStatusMessage("Autonomous run started. Redirecting to the primary run surface...");
+      void briefRequest.catch((error) => {
+        console.error("Autonomous brief bootstrap failed", {
+          initiativeId,
+          error,
+        });
+      });
       window.location.assign(
-        buildExecutionRunScopeHref(initiativePayload.initiative.id, routeScope)
+        buildExecutionRunScopeHref(initiativeId, routeScope)
       );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Run creation failed.");

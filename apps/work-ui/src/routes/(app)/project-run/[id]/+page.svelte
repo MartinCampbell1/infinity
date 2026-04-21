@@ -297,11 +297,11 @@
 							{/if}
 							<button
 								type="button"
-								class="rounded-full border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+								class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
 								on:click={createAssembly}
 								disabled={actionState === 'running' || !canAssemble}
 							>
-								{assembly ? 'Refresh assembly override' : 'Create assembly override'}
+								{assembly ? 'Refresh assembly recovery' : 'Create assembly recovery'}
 							</button>
 							{#if batchShellHref && !shellReturnHref}
 								<a
@@ -313,10 +313,10 @@
 								</a>
 							{/if}
 							<a
-								class="rounded-full border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-800"
+								class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900"
 								href={projectResultHref ?? '#'}
 							>
-								Open local result view
+								Open local result drill-down
 							</a>
 						</div>
 					</section>

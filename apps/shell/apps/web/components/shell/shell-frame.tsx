@@ -1,14 +1,13 @@
 "use client";
 
 import {
-  ArrowRight,
   BadgeCheck,
   Bell,
   Bot,
   Boxes,
   BookOpenText,
   ChevronDown,
-  FolderKanban,
+  Pause,
   GitBranch,
   LayoutGrid,
   LifeBuoy,
@@ -35,6 +34,7 @@ type ShellNavItem = {
   href: string;
   description: string;
   icon: ComponentType<{ className?: string }>;
+  count?: string;
   match: (pathname: string) => boolean;
 };
 
@@ -47,33 +47,31 @@ type ShellNavGroup = {
 
 const CONTROL_PLANE_ITEMS: ShellNavItem[] = [
   {
-    label: "Projects",
-    href: "/execution",
-    description: "Control overview",
+    label: "Run control plane",
+    href: "/execution/runs",
+    description: "Canonical autonomous lifecycle",
     icon: LayoutGrid,
-    match: (pathname) => pathname === "/" || pathname === "/execution",
-  },
-  {
-    label: "Sessions",
-    href: "/execution/sessions",
-    description: "Live runs and workspace deep links",
-    icon: FolderKanban,
+    count: "14",
     match: (pathname) =>
-      pathname === "/execution/sessions" || pathname.startsWith("/execution/workspace/"),
+      pathname === "/" || pathname === "/execution" || pathname.startsWith("/execution/runs"),
   },
   {
-    label: "Groups",
-    href: "/execution/groups",
-    description: "Grouped session lanes",
-    icon: PanelLeft,
-    match: (pathname) => pathname === "/execution/groups",
+    label: "Planner",
+    href: "/execution/planner",
+    description: "Task graph and planning lane",
+    icon: GitBranch,
+    match: (pathname) =>
+      pathname.startsWith("/execution/planner") ||
+      pathname.startsWith("/execution/task-graphs/") ||
+      pathname.startsWith("/execution/batches/"),
   },
   {
-    label: "Accounts",
-    href: "/execution/accounts",
-    description: "Quota and capacity pressure",
-    icon: Wrench,
-    match: (pathname) => pathname.startsWith("/execution/accounts"),
+    label: "Tasks",
+    href: "/execution/tasks",
+    description: "Work-item ownership",
+    icon: Boxes,
+    count: "28",
+    match: (pathname) => pathname.startsWith("/execution/tasks"),
   },
 ];
 
@@ -83,6 +81,7 @@ const OPERATOR_ITEMS: ShellNavItem[] = [
     href: "/execution/recoveries",
     description: "Retry and failover actions",
     icon: TimerReset,
+    count: "2",
     match: (pathname) => pathname.startsWith("/execution/recoveries"),
   },
   {
@@ -90,73 +89,8 @@ const OPERATOR_ITEMS: ShellNavItem[] = [
     href: "/execution/approvals",
     description: "Pending operator decisions",
     icon: BadgeCheck,
+    count: "1",
     match: (pathname) => pathname.startsWith("/execution/approvals"),
-  },
-  {
-    label: "Audits",
-    href: "/execution/audits",
-    description: "Operator action trail",
-    icon: ShieldCheck,
-    match: (pathname) => pathname.startsWith("/execution/audits"),
-  },
-  {
-    label: "Issues",
-    href: "/execution/issues",
-    description: "Mandatory secret stops",
-    icon: TriangleAlert,
-    match: (pathname) => pathname.startsWith("/execution/issues"),
-  },
-];
-
-const AUTONOMOUS_ITEMS: ShellNavItem[] = [
-  {
-    label: "Runs",
-    href: "/execution/runs",
-    description: "Canonical autonomous lifecycle",
-    icon: Workflow,
-    match: (pathname) => pathname.startsWith("/execution/runs"),
-  },
-  {
-    label: "Spec",
-    href: "/execution/spec",
-    description: "Shell-authored spec artifacts",
-    icon: LayoutGrid,
-    match: (pathname) => pathname.startsWith("/execution/spec"),
-  },
-  {
-    label: "Planner",
-    href: "/execution/planner",
-    description: "Task graph and batches",
-    icon: GitBranch,
-    match: (pathname) => pathname.startsWith("/execution/planner"),
-  },
-  {
-    label: "Tasks",
-    href: "/execution/tasks",
-    description: "Work-item ownership",
-    icon: Boxes,
-    match: (pathname) => pathname.startsWith("/execution/tasks"),
-  },
-  {
-    label: "Agents",
-    href: "/execution/agents",
-    description: "Worker session state",
-    icon: Bot,
-    match: (pathname) => pathname.startsWith("/execution/agents"),
-  },
-  {
-    label: "Events",
-    href: "/execution/events",
-    description: "Run event timeline",
-    icon: LayoutGrid,
-    match: (pathname) => pathname.startsWith("/execution/events"),
-  },
-  {
-    label: "Refusals",
-    href: "/execution/refusals",
-    description: "Worker refusals and failures",
-    icon: TriangleAlert,
-    match: (pathname) => pathname.startsWith("/execution/refusals"),
   },
   {
     label: "Validation",
@@ -166,13 +100,22 @@ const AUTONOMOUS_ITEMS: ShellNavItem[] = [
     match: (pathname) => pathname.startsWith("/execution/validation"),
   },
   {
-    label: "Delivery",
-    href: "/execution/deliveries",
-    description: "Delivery records and outputs",
-    icon: Package,
-    match: (pathname) =>
-      pathname.startsWith("/execution/deliveries") ||
-      pathname.startsWith("/execution/delivery/"),
+    label: "Refusals",
+    href: "/execution/refusals",
+    description: "Worker refusals and failures",
+    icon: TriangleAlert,
+    match: (pathname) => pathname.startsWith("/execution/refusals"),
+  },
+];
+
+const AUTONOMOUS_ITEMS: ShellNavItem[] = [
+  {
+    label: "Agents",
+    href: "/execution/agents",
+    description: "Worker session state",
+    icon: Bot,
+    count: "6",
+    match: (pathname) => pathname.startsWith("/execution/agents"),
   },
   {
     label: "Previews",
@@ -182,11 +125,13 @@ const AUTONOMOUS_ITEMS: ShellNavItem[] = [
     match: (pathname) => pathname.startsWith("/execution/previews"),
   },
   {
-    label: "Handoffs",
-    href: "/execution/handoffs",
-    description: "Final handoff packets",
+    label: "Delivery",
+    href: "/execution/deliveries",
+    description: "Delivery records and outputs",
     icon: Package,
-    match: (pathname) => pathname.startsWith("/execution/handoffs"),
+    match: (pathname) =>
+      pathname.startsWith("/execution/deliveries") ||
+      pathname.startsWith("/execution/delivery/"),
   },
 ];
 
@@ -214,10 +159,9 @@ const SHELL_NAV_GROUPS: ShellNavGroup[] = [
 function pageMeta(pathname: string) {
   if (pathname === "/") {
     return {
-      eyebrow: "Infinity / Root",
-      title: "infinity",
-      description:
-        "Plane AI home.",
+      eyebrow: "Plane / Home",
+      title: "Home",
+      description: "Plane AI home.",
     };
   }
 
@@ -463,6 +407,22 @@ function pageMeta(pathname: string) {
   };
 }
 
+function topbarMode(pathname: string) {
+  if (pathname.startsWith("/execution/runs/")) {
+    return "run";
+  }
+  if (pathname.startsWith("/execution/runs")) {
+    return "runs";
+  }
+  if (pathname.startsWith("/execution/delivery/")) {
+    return "delivery";
+  }
+  if (pathname === "/") {
+    return "frontdoor";
+  }
+  return "default";
+}
+
 function NavSection({
   label,
   items,
@@ -497,6 +457,11 @@ function NavSection({
               <div className="min-w-0">
                 <div className="text-[13px] font-medium text-foreground">{item.label}</div>
               </div>
+              {item.count ? (
+                <span className="ml-auto font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
+                  {item.count}
+                </span>
+              ) : null}
             </Link>
           );
         })}
@@ -518,9 +483,7 @@ function GroupRail({
     return (
       <div className="shell-icon-rail hidden md:flex md:flex-col">
         <div className="flex h-14 items-center justify-center border-b border-[color:var(--shell-sidebar-border)]">
-          <div className="shell-rail-brand">
-            <PanelLeft className="h-4 w-4" />
-          </div>
+          <div className="shell-rail-brand text-[15px] font-medium text-white">I</div>
         </div>
 
         <div className="flex flex-1 flex-col items-center gap-4 px-2 py-4">
@@ -548,9 +511,7 @@ function GroupRail({
   return (
     <div className="shell-icon-rail hidden md:flex md:flex-col">
       <div className="flex h-14 items-center justify-center border-b border-[color:var(--shell-sidebar-border)]">
-        <div className="shell-rail-brand">
-          <PanelLeft className="h-4 w-4" />
-        </div>
+        <div className="shell-rail-brand text-[15px] font-medium text-white">I</div>
       </div>
 
       <div className="flex flex-1 flex-col items-center gap-2 px-3 py-4">
@@ -680,7 +641,8 @@ export function ShellFrame({ children }: { children: ReactNode }) {
   const meta = pageMeta(pathname);
   const isRootFrontdoor = pathname === "/";
   const isWorkItemsRoute = pathname === "/work-items";
-  const isPlaneWorkspaceRoute = isRootFrontdoor || isWorkItemsRoute;
+  const isPlaneWorkspaceRoute = isWorkItemsRoute;
+  const currentTopbarMode = topbarMode(pathname);
   const visibleRecentSessions = isPlaneWorkspaceRoute ? recentSessions : [];
   const visibleRecentSessionsLoading = isPlaneWorkspaceRoute
     ? recentSessionsLoading
@@ -784,19 +746,23 @@ export function ShellFrame({ children }: { children: ReactNode }) {
 
           <div className="shell-sidebar-panel flex min-h-screen flex-col">
             <div className="shell-sidebar-top border-b border-[color:var(--shell-sidebar-border)] px-4 py-4">
-              <div className="text-[14px] font-medium tracking-[-0.01em] text-foreground">
-                {isWorkItemsRoute ? "Projects" : "Plane AI"}
+              <div className="space-y-1">
+                <div className="text-[16px] font-medium tracking-[-0.02em] text-foreground">
+                  {isWorkItemsRoute ? "Projects" : "Execution"}
+                </div>
+                <div className="font-mono text-[11px] text-[var(--shell-sidebar-muted)]">
+                  shell · FounderOS
+                </div>
               </div>
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+              >
+                <PanelLeft className="h-4 w-4" />
+              </button>
             </div>
 
             <div className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
-              {!isRootFrontdoor ? (
-                <div className="shell-sidebar-chip-row">
-                  <span className="shell-sidebar-chip">localhost</span>
-                  <span className="shell-sidebar-chip">embedded</span>
-                </div>
-              ) : null}
-
               {isPlaneWorkspaceRoute ? (
                 <div className="space-y-6">
                   <section className="space-y-3">
@@ -882,41 +848,17 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                     <NavSection label="Autonomous" items={AUTONOMOUS_ITEMS} pathname={pathname} />
                     <NavSection label="Operator" items={OPERATOR_ITEMS} pathname={pathname} />
                   </div>
-
-                  <section className="shell-runtime-card mx-1 space-y-3 px-3 py-3">
-                    <div className="shell-section-header">Runtime status</div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-3 text-[12px]">
-                        <div className="text-muted-foreground">Local shell</div>
-                        <div className="inline-flex items-center gap-2 text-foreground">
-                          <span className="shell-status-dot-active h-2 w-2 rounded-full" />
-                          Ready
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 text-[12px]">
-                        <div className="text-muted-foreground">Workspace host</div>
-                        <div className="text-foreground">Embedded</div>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 text-[12px]">
-                        <div className="text-muted-foreground">Reference mode</div>
-                        <div className="text-foreground">Read-only upstreams</div>
-                      </div>
-                    </div>
-                  </section>
                 </>
               )}
             </div>
 
             {!isPlaneWorkspaceRoute ? (
               <div className="border-t border-[color:var(--shell-sidebar-border)] px-4 py-4">
-                <div className="shell-runtime-card px-3 py-3">
-                  <div className="flex items-center gap-2 text-[12px] font-medium text-foreground">
-                    <Bell className="h-3.5 w-3.5 text-[var(--shell-sidebar-muted)]" />
-                    Local preview mode
-                  </div>
-                  <div className="mt-1 text-[11px] leading-4 text-muted-foreground">
-                    Host and workspace run inside `infinity`. FounderOS and Open WebUI upstream repos stay read-only.
-                  </div>
+                <div className="flex items-center gap-2 text-[12px] text-white/72">
+                  <span className="shell-status-dot-active h-2 w-2 rounded-full" />
+                  <span>
+                    Local shell <span className="text-[var(--shell-sidebar-muted)]">· ready</span>
+                  </span>
                 </div>
               </div>
             ) : null}
@@ -939,19 +881,26 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <div className="md:hidden">
                         <div className="shell-rail-brand">
                           <PanelLeft className="h-4 w-4" />
                         </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--shell-sidebar-muted)]">
-                          {meta.eyebrow}
-                        </div>
-                        <h1 className="mt-1 truncate text-[17px] font-semibold tracking-[-0.03em] text-foreground">
-                          {meta.title}
-                        </h1>
+                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/85 text-[16px] font-medium text-white">
+                        I
+                      </div>
+                      <div className="min-w-0 text-[16px] font-medium tracking-[-0.02em] text-foreground">
+                        {meta.eyebrow.split("/").map((part, index, parts) => (
+                          <span key={`${part}-${index}`} className="inline-flex items-center gap-2">
+                            <span className={index === parts.length - 1 ? "text-foreground" : "text-white/78"}>
+                              {part.trim()}
+                            </span>
+                            {index < parts.length - 1 ? (
+                              <ChevronDown className="h-4 w-4 rotate-[-90deg] text-[var(--shell-sidebar-muted)]" />
+                            ) : null}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -959,7 +908,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
 
                 <button type="button" className="shell-search-control hidden md:flex">
                   <Search className="h-3.5 w-3.5" />
-                  <span className="flex-1 text-left">Search</span>
+                  <span className="flex-1 text-left">Search runs, tasks, agents...</span>
                   <span className="shell-search-shortcut">⌘K</span>
                 </button>
 
@@ -992,35 +941,78 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
-                    <span className="shell-topbar-pill">
-                      <LifeBuoy className="h-3.5 w-3.5" />
-                      localhost preview
-                    </span>
-                    <span className="shell-topbar-pill">shell = FounderOS</span>
-                    <Link
-                      href="/execution/workspace/session-2026-04-11-001?project_id=project-atlas&group_id=group-ops-01&account_id=account-chatgpt-01&workspace_id=workspace-atlas-main&opened_from=execution_board"
-                      className="shell-topbar-action"
-                    >
-                      Open workspace
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
+                    {currentTopbarMode === "frontdoor" ? (
+                      <>
+                        <button
+                          type="button"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--muted-foreground)]"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+                        >
+                          <Bell className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+                        >
+                          <LifeBuoy className="h-4 w-4" />
+                        </button>
+                      </>
+                    ) : null}
+                    {currentTopbarMode === "runs" ? (
+                      <Link
+                        href="/"
+                        className="inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4 text-[13px] text-white/78"
+                      >
+                        <PencilLine className="h-4 w-4" />
+                        New run
+                        </Link>
+                    ) : null}
+                    {currentTopbarMode === "run" ? (
+                      <>
+                        <button
+                          type="button"
+                          className="inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4 text-[13px] text-white/72"
+                        >
+                          <Pause className="h-4 w-4" />
+                          Pause
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4 text-[13px] text-white/72"
+                        >
+                          <TimerReset className="h-4 w-4" />
+                          Recover
+                        </button>
+                      </>
+                    ) : null}
+                    {currentTopbarMode === "delivery" ? (
+                      <button
+                        type="button"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+                      />
+                    ) : null}
+                    {currentTopbarMode === "frontdoor" ? (
+                      <button
+                        type="button"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/85 text-white"
+                      >
+                        <UserCircle2 className="h-5 w-5" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+                      />
+                    )}
                   </div>
                 )}
               </div>
 
-              {!isPlaneWorkspaceRoute ? (
-                <p className="mt-3 max-w-3xl text-[12px] leading-5 text-muted-foreground">
-                  {meta.description}
-                </p>
-              ) : null}
-
-              {!isPlaneWorkspaceRoute ? (
-                <button type="button" className="shell-search-control mt-3 w-full md:hidden">
-                  <Search className="h-3.5 w-3.5" />
-                  <span className="flex-1 text-left">Search</span>
-                  <span className="shell-search-shortcut">⌘K</span>
-                </button>
-              ) : null}
             </div>
           </header>
 
