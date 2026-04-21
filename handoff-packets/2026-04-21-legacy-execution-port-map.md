@@ -8,23 +8,17 @@ Scope: `apps/shell/apps/web/components/execution/legacy`
 
 The release gate is already green.
 
-The remaining `legacy` subtree is intentionally isolated and excluded from shell
-typecheck, but future cleanup should happen as bounded ports, not as one large
+The remaining `legacy` subtree was intentionally isolated and excluded from shell
+typecheck while the cleanup happened in bounded ports rather than one large
 reanimation pass.
 
 This file records the current blocker shape so the next agent can pick one
 cluster and move surgically.
 
-## Current Legacy Files
+## Current Legacy State
 
-- `execution-agent-workspace.tsx`
-- `execution-agents-workspace.tsx`
-- `execution-audit-workspace.tsx`
-- `execution-audits-workspace.tsx`
-- `execution-handoff-workspace.tsx`
-- `execution-intake-workspace.tsx`
-- `execution-review-workspace.tsx`
-- `execution-workspace.tsx`
+- no legacy execution `.tsx` files remain
+- `apps/shell/apps/web/components/execution/legacy/README.md` remains as an archive note only
 
 ## Ported Back Under Typecheck
 
@@ -47,96 +41,15 @@ cluster and move surgically.
   - `app/api/shell/execution/handoffs/route.ts`
 
 This started with the first legacy file intentionally pulled back out of the archive,
-and now also covers the event-stream workspace plus the handoff queue with bounded local
-polling/live-event and store/snapshot support layers.
+continued through the event-stream workspace and the handoff queue, and ended with
+deletion of the remaining dead duplicate legacy screens.
 
-## Missing Dependency Clusters
+## Closure
 
-### Cluster A — shared polling/snapshot infra
+The initial recommendation held:
 
-This is the broadest blocker and appears in most legacy files:
+- restore only the legacy execution screens that still mattered to live product shape
+- delete the dead duplicate screens once the live shell already had a better replacement
 
-- `@/lib/shell-preferences`
-- `@/lib/shell-snapshot-client`
-- `@/lib/use-shell-polled-snapshot`
-- `@/lib/use-shell-manual-refresh`
-- `@/lib/use-shell-route-mutation-runner`
-- `@/lib/use-shell-snapshot-refresh-nonce`
-- `@/lib/use-shell-mutation-runner`
-
-Files blocked by this cluster:
-
-- `execution-agent-workspace.tsx`
-- `execution-agents-workspace.tsx`
-- `execution-audit-workspace.tsx`
-- `execution-audits-workspace.tsx`
-- `execution-events-workspace.tsx`
-- `execution-handoff-workspace.tsx`
-- `execution-handoffs-workspace.tsx`
-- `execution-intake-workspace.tsx`
-- `execution-review-workspace.tsx`
-- `execution-workspace.tsx`
-
-### Cluster B — execution data models and mutations
-
-- `@/lib/execution`
-- `@/lib/execution-agent-model`
-- `@/lib/execution-agents`
-- `@/lib/execution-audits-model`
-- `@/lib/execution-handoffs-model`
-- `@/lib/execution-live-events`
-- `@/lib/execution-mutations`
-- `@/lib/execution-review`
-- `@/lib/execution-review-model`
-- `@/lib/execution-source`
-- `@/lib/execution-ui-state`
-
-### Cluster C — review/attention helpers
-
-- `@/lib/attention-action-model`
-- `@/lib/attention-records`
-- `@/lib/review-batch-actions`
-- `@/lib/review-execution-actions`
-- `@/lib/review-memory`
-- `@/lib/use-scoped-query`
-- `@/lib/use-scoped-selection`
-
-### Cluster D — smaller UI/support gaps
-
-- `@/components/shell/shell-route-scope-banner`
-- `@/components/shell/shell-skeleton`
-- `@/lib/format-utils`
-- `@/lib/shell-entry-hrefs`
-
-## Suggested Port Order
-
-1. Do **not** start with `execution-workspace.tsx` or `execution-review-workspace.tsx`.
-   They have the widest dependency fan-out.
-2. Start with the smallest leaf:
-   - completed: `execution-attention-cards.tsx`
-   This confirmed that execution-only helper ports are feasible without reviving discovery/chain-graph donors.
-3. Then try one directory-style surface:
-   - completed: `execution-events-workspace.tsx`
-   - completed: `execution-handoffs-workspace.tsx`
-4. Only after shared polling/snapshot infra is restored should anyone attempt:
-   - `execution-intake-workspace.tsx`
-   - next candidate: `execution-handoff-workspace.tsx`
-   - `execution-workspace.tsx`
-   - `execution-review-workspace.tsx`
-
-## Strong Recommendation
-
-Before porting any legacy file back into the live shell tree, first decide whether
-that surface is still product-relevant.
-
-The current live routes already use:
-
-- `ExecutionHomeSurface`
-- `PrimaryRunSurface`
-- `ExecutionRunComposer`
-- `AutonomousRecordBoard`
-- `ExecutionWorkspaceHandoffSurface`
-- `operator-audit-surfaces`
-
-If a legacy surface duplicates one of those live routes, deletion may be a
-better move than restoration.
+The archive folder can remain as a historical note, but it no longer contains executable
+legacy UI that needs to be ported back under typecheck.

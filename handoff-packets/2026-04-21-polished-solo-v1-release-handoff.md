@@ -29,6 +29,7 @@ Post-finish hardening also landed:
 - `execution-attention-cards.tsx` was ported back out of legacy and restored to normal shell typecheck coverage
 - `execution-events-workspace.tsx` was ported back out of legacy together with a bounded shell polling/live-events support layer
 - `execution-handoffs-workspace.tsx` was ported back out of legacy together with a bounded local handoff store/snapshot path
+- the remaining legacy execution screens were removed after verification showed they were dead duplicates with no live callers
 
 ## Final Release Evidence
 
@@ -91,15 +92,11 @@ Post-finish hardening:
 - compact tracked validation snapshot lives at `handoff-packets/2026-04-21-polished-solo-v1-validation-summary.md`
 - Python bytecode is no longer tracked
 - validation runs can now finish with completed critic artifacts in one command when a critic JSON is already available
-- three legacy execution surfaces now sit back under normal shell typecheck: attention cards, events workspace, and handoffs workspace
+- the only remaining `components/execution/legacy` artifact is the archive README; no legacy execution `.tsx` screens remain
 - the handoff queue and detail routes now run on the new execution-brief handoff path rather than the older orchestration handoff-packet list/detail path
 
 ## Optional Follow-Up
 
 Not release blockers:
 
-- continue shrinking the remaining legacy subtree by porting archived execution surfaces back under full typecheck one by one
-
-Reference for that follow-up:
-
-- `handoff-packets/2026-04-21-legacy-execution-port-map.md`
+- decide whether the archive README in `components/execution/legacy/` should stay as a breadcrumb or be folded into repo docs later
