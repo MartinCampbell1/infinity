@@ -120,6 +120,24 @@ LEGACY_REQUIRED_STAGE_LABELS = [
     "Force delivery handoff",
 ]
 
+CRITICAL_SHELL_TYPECHECK_PATHS = [
+    "components/execution/execution-home-surface.tsx",
+    "components/execution/primary-run-surface.tsx",
+    "components/shell/shell-screen-primitives.tsx",
+]
+
+
+def assert_critical_shell_typecheck_scope() -> None:
+    tsconfig_path = ROOT / "apps" / "shell" / "apps" / "web" / "tsconfig.json"
+    tsconfig = json.loads(tsconfig_path.read_text(encoding="utf-8"))
+    excluded = set(tsconfig.get("exclude") or [])
+    blocked = [path for path in CRITICAL_SHELL_TYPECHECK_PATHS if path in excluded]
+    if blocked:
+        raise ValidationFailure(
+            "Critical shell surfaces are still excluded from typecheck: "
+            + ", ".join(blocked)
+        )
+
 
 def assert_shell_root_frontdoor(page, screen_name: str) -> dict[str, Any]:
     composer_visible = page.locator("text=Start an autonomous run").first.is_visible()
@@ -866,6 +884,8 @@ def main() -> int:
     parser.add_argument("--skip-static-checks", action="store_true")
     parser.add_argument("--require-runnable-result", action="store_true")
     args = parser.parse_args()
+
+    assert_critical_shell_typecheck_scope()
 
     validation_run_id = run_id()
     run_dir = HANDOFF_ROOT / validation_run_id

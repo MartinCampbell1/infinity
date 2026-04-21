@@ -623,7 +623,6 @@ export function ShellSelectionEmptyState({
 }) {
   return (
     <ShellEmptyState
-      centered
       title={title}
       description={description}
       icon={

@@ -24,7 +24,6 @@
     "components/execution/execution-handoffs-workspace.tsx",
     "components/execution/execution-intake-workspace.tsx",
     "components/execution/execution-review-workspace.tsx",
-    "components/execution/execution-workspace.tsx",
-    "components/shell/shell-screen-primitives.tsx"
+    "components/execution/execution-workspace.tsx"
   ]
 }
