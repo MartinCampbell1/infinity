@@ -15,6 +15,14 @@
     {
       "sha": "46fe7e3",
       "subject": "docs: add strict validation and release handoff artifacts"
+    },
+    {
+      "sha": "ed33ccd",
+      "subject": "docs: refresh packaged branch status artifacts"
+    },
+    {
+      "sha": "997150f",
+      "subject": "docs: record external transport artifact paths"
     }
   ],
   "checklist_path": "/Users/martin/infinity/2026-04-21-infinity-strict-remaining-work-checklist-with-claude-design-frontend-integration.md",

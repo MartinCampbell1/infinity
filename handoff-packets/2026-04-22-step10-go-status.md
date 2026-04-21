@@ -9,6 +9,8 @@ Packaged commits:
 - `44331ea` — `feat: integrate strict shell-first execution frontend`
 - `38d1104` — `fix: harden execution truth, auth seam, and validation gates`
 - `46fe7e3` — `docs: add strict validation and release handoff artifacts`
+- `ed33ccd` — `docs: refresh packaged branch status artifacts`
+- `997150f` — `docs: record external transport artifact paths`
 
 ## Current state
 
