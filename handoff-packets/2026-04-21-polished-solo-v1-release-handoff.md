@@ -35,7 +35,7 @@ Post-finish hardening also landed:
 
 Fresh strict validation bundle:
 
-- `/Users/martin/infinity/handoff-packets/validation/2026-04-21T04-21-08Z`
+- `/Users/martin/infinity/handoff-packets/validation/2026-04-21T05-30-18Z`
 
 Release truth from that bundle:
 
@@ -60,6 +60,12 @@ Final critic state for the release bundle:
 - `overall_score = 8.4`
 - `pass = true`
 - `findings = []`
+- cluster scores:
+  - `entry_and_navigation = 8.3`
+  - `user_flow = 8.5`
+  - `operator_flow = 8.6`
+  - `error_states = 8.4`
+  - `visual_consistency = 8.2`
 
 ## Key Commits
 
