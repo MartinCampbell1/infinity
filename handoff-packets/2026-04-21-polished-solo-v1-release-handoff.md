@@ -94,3 +94,7 @@ Post-finish hardening:
 Not release blockers:
 
 - continue shrinking the remaining legacy subtree by porting archived execution surfaces back under full typecheck one by one
+
+Reference for that follow-up:
+
+- `handoff-packets/2026-04-21-legacy-execution-port-map.md`
