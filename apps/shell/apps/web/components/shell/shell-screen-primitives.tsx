@@ -566,19 +566,22 @@ export function ShellEmptyState({
   description,
   icon,
   action,
+  centered = true,
   className,
 }: {
   title?: React.ReactNode;
   description: React.ReactNode;
   icon?: React.ReactNode;
   action?: { label: string; onClick: () => void };
+  centered?: boolean;
   className?: string;
 }) {
   return (
     <div
       role="status"
       className={cn(
-        "flex flex-col items-center gap-3 pt-20 pb-12 text-center",
+        "flex flex-col gap-3 pt-20 pb-12",
+        centered ? "items-center text-center" : "items-start text-left",
         className
       )}
     >
