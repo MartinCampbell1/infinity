@@ -19,7 +19,6 @@ cluster and move surgically.
 
 - `execution-agent-workspace.tsx`
 - `execution-agents-workspace.tsx`
-- `execution-attention-cards.tsx`
 - `execution-audit-workspace.tsx`
 - `execution-audits-workspace.tsx`
 - `execution-events-workspace.tsx`
@@ -28,6 +27,16 @@ cluster and move surgically.
 - `execution-intake-workspace.tsx`
 - `execution-review-workspace.tsx`
 - `execution-workspace.tsx`
+
+## Ported Back Under Typecheck
+
+- `components/execution/execution-attention-cards.tsx`
+- supporting local execution-only helpers:
+  - `lib/attention-records.ts`
+  - `lib/execution-source.ts`
+  - `lib/shell-entry-hrefs.ts`
+
+This was the first legacy file intentionally pulled back out of the archive.
 
 ## Missing Dependency Clusters
 
@@ -92,8 +101,8 @@ Files blocked by this cluster:
 1. Do **not** start with `execution-workspace.tsx` or `execution-review-workspace.tsx`.
    They have the widest dependency fan-out.
 2. Start with the smallest leaf:
-   - `execution-attention-cards.tsx`
-   It only needs attention/source/link helpers and is the cheapest probe for whether the archived UI is still worth reviving.
+   - completed: `execution-attention-cards.tsx`
+   This confirmed that execution-only helper ports are feasible without reviving discovery/chain-graph donors.
 3. Then try one directory-style surface:
    - `execution-events-workspace.tsx`
    - or `execution-handoffs-workspace.tsx`

@@ -26,6 +26,7 @@ Post-finish hardening also landed:
 - generated validation bundles ignored in Git so the worktree stays operationally clean
 - validation workflow can now finalize external critic output via helper script or inline `--critic-json`
 - tracked Python bytecode was removed and ignored
+- `execution-attention-cards.tsx` was ported back out of legacy and restored to normal shell typecheck coverage
 
 ## Final Release Evidence
 
