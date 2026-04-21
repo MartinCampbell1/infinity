@@ -1,3 +1,5 @@
+import type { ShellExecutionAgentSnapshot } from "@/lib/execution-agent-model";
+import type { ShellExecutionAgentsSnapshot } from "@/lib/execution-agents";
 import type { ShellExecutionEventsSnapshot } from "@/lib/execution-events-model";
 import type { ShellExecutionHandoffsSnapshot } from "@/lib/execution-handoffs-model";
 
@@ -66,4 +68,64 @@ export function fetchShellExecutionHandoffsSnapshot(
       handoffsLoadState: "error" as const,
     })
   );
+}
+
+export function fetchShellExecutionAgentsSnapshot(
+  input: RequestInfo | URL = "/api/shell/execution/agents",
+  init?: RequestInit
+): Promise<ShellExecutionAgentsSnapshot> {
+  return requestShellSnapshotJson<ShellExecutionAgentsSnapshot>(input, init).catch(
+    (error) => ({
+      generatedAt: new Date().toISOString(),
+      projects: [],
+      projectsError:
+        error instanceof Error
+          ? `Autopilot projects: ${error.message}`
+          : "Autopilot projects: request failed.",
+      projectsLoadState: "error" as const,
+      agents: [],
+      agentsError:
+        error instanceof Error
+          ? `Execution runtime agents: ${error.message}`
+          : "Execution runtime agents: request failed.",
+      agentsLoadState: "error" as const,
+      agentsSummary: null,
+      agentsSummaryError:
+        error instanceof Error
+          ? `Execution runtime agent summary: ${error.message}`
+          : "Execution runtime agent summary: request failed.",
+      agentsSummaryLoadState: "error" as const,
+      actionRuns: [],
+      actionRunsError:
+        error instanceof Error
+          ? `Execution runtime agent action runs: ${error.message}`
+          : "Execution runtime agent action runs: request failed.",
+      actionRunsLoadState: "error" as const,
+      actionRunsSummary: null,
+      actionRunsSummaryError:
+        error instanceof Error
+          ? `Execution runtime agent action run summary: ${error.message}`
+          : "Execution runtime agent action run summary: request failed.",
+      actionRunsSummaryLoadState: "error" as const,
+    })
+  );
+}
+
+export function fetchShellExecutionAgentSnapshot(
+  runtimeAgentId: string,
+  init?: RequestInit
+): Promise<ShellExecutionAgentSnapshot> {
+  return requestShellSnapshotJson<ShellExecutionAgentSnapshot>(
+    `/api/shell/execution/agents/${encodeURIComponent(runtimeAgentId)}`,
+    init
+  ).catch((error) => ({
+    generatedAt: new Date().toISOString(),
+    runtimeAgentId,
+    agent: null,
+    agentError:
+      error instanceof Error
+        ? `Execution runtime agent: ${error.message}`
+        : "Execution runtime agent: request failed.",
+    agentLoadState: "error" as const,
+  }));
 }

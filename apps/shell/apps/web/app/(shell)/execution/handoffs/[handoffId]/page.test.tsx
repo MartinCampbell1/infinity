@@ -26,58 +26,54 @@ vi.mock("@/lib/route-scope", () => ({
     accountId: "",
     workspaceId: "",
   })),
-  buildExecutionContinuityScopeHref: vi.fn((initiativeId: string) => `/execution/continuity/${initiativeId}`),
-  buildExecutionDeliveryScopeHref: vi.fn((deliveryId: string) => `/execution/delivery/${deliveryId}`),
+  buildExecutionHandoffsScopeHref: vi.fn(() => "/execution/handoffs"),
 }));
 
-vi.mock("@/lib/server/control-plane/state/store", () => ({
-  readControlPlaneState: vi.fn(async () => ({
-    orchestration: {
-      handoffPackets: [
-        {
-          id: "handoff-1",
-          runId: "run-1",
-          deliveryId: "delivery-1",
-          status: "ready",
-          rootPath: "/tmp/handoff-1",
-          finalSummaryPath: "/tmp/handoff-1/final-summary.md",
-          manifestPath: "/tmp/handoff-1/manifest.json",
-          createdAt: "2026-04-20T01:00:00.000Z",
-          updatedAt: "2026-04-20T01:10:00.000Z",
-        },
-      ],
-      runs: [
-        {
-          id: "run-1",
-          initiativeId: "initiative-1",
-          title: "Atlas delivery run",
-        },
-      ],
-      deliveries: [
-        {
-          id: "delivery-1",
-          initiativeId: "initiative-1",
-        },
-      ],
+vi.mock("@/lib/execution-brief-handoffs", () => ({
+  getExecutionBriefHandoff: vi.fn(() => ({
+    id: "handoff-1",
+    source_plane: "discovery",
+    source_session_id: "session-smoke",
+    brief_kind: "quorum_execution_brief",
+    brief: {
+      title: "Atlas handoff",
+      summary: "Ship the Atlas launch flow.",
+      open_questions: ["Which preset?"],
+      constraints: ["Stay localhost-first"],
+      acceptance_criteria: ["Project can be created from handoff"],
+      tags: ["atlas", "launch"],
     },
+    default_project_name: "Atlas",
+    recommended_launch_preset_id: "team",
+    launch_intent: "create",
+    created_at: "2026-04-20T01:00:00.000Z",
+    expires_at: "2026-04-20T01:30:00.000Z",
   })),
+}));
+
+vi.mock("@/components/execution/execution-handoff-action-panel", () => ({
+  ExecutionHandoffActionPanel: ({
+    title,
+  }: {
+    title: string;
+  }) => <div data-handoff-action-panel="true">{title}</div>,
 }));
 
 import Page from "./page";
 
 describe("handoff detail route", () => {
-  test("renders the dark shell handoff detail", async () => {
+  test("renders the execution brief detail and embeds the action panel", async () => {
     const markup = renderToStaticMarkup(
       await Page({
         params: Promise.resolve({ handoffId: "handoff-1" }),
       })
     );
 
-    expect(markup).toContain("Handoff Packet");
-    expect(markup).toContain("handoff-1");
-    expect(markup).toContain("Atlas delivery run");
-    expect(markup).toContain("/tmp/handoff-1/final-summary.md");
-    expect(markup).toContain("Open delivery");
-    expect(markup).toContain("Open continuity");
+    expect(markup).toContain("Atlas handoff");
+    expect(markup).toContain("Ship the Atlas launch flow.");
+    expect(markup).toContain("quorum_execution_brief");
+    expect(markup).toContain("Project can be created from handoff");
+    expect(markup).toContain("data-handoff-action-panel=\"true\"");
+    expect(markup).toContain("/execution/handoffs");
   });
 });
