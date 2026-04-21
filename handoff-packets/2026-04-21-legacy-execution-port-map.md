@@ -22,7 +22,6 @@ cluster and move surgically.
 - `execution-audit-workspace.tsx`
 - `execution-audits-workspace.tsx`
 - `execution-handoff-workspace.tsx`
-- `execution-handoffs-workspace.tsx`
 - `execution-intake-workspace.tsx`
 - `execution-review-workspace.tsx`
 - `execution-workspace.tsx`
@@ -31,6 +30,7 @@ cluster and move surgically.
 
 - `components/execution/execution-attention-cards.tsx`
 - `components/execution/execution-events-workspace.tsx`
+- `components/execution/execution-handoffs-workspace.tsx`
 - supporting local execution-only helpers:
   - `lib/attention-records.ts`
   - `lib/execution-source.ts`
@@ -40,9 +40,15 @@ cluster and move surgically.
   - `lib/use-shell-polled-snapshot.ts`
   - `lib/shell-snapshot-client.ts`
   - `lib/execution-live-events.ts`
+  - `lib/execution-brief-handoffs.ts`
+  - `lib/execution-brief-handoffs.test.ts`
+  - `lib/execution-handoffs-model.ts`
+  - `lib/execution-handoffs.ts`
+  - `app/api/shell/execution/handoffs/route.ts`
 
 This started with the first legacy file intentionally pulled back out of the archive,
-and now also covers the event-stream workspace plus its bounded polling/live-event support layer.
+and now also covers the event-stream workspace plus the handoff queue with bounded local
+polling/live-event and store/snapshot support layers.
 
 ## Missing Dependency Clusters
 
@@ -111,10 +117,10 @@ Files blocked by this cluster:
    This confirmed that execution-only helper ports are feasible without reviving discovery/chain-graph donors.
 3. Then try one directory-style surface:
    - completed: `execution-events-workspace.tsx`
-   - next candidate: `execution-handoffs-workspace.tsx`
+   - completed: `execution-handoffs-workspace.tsx`
 4. Only after shared polling/snapshot infra is restored should anyone attempt:
    - `execution-intake-workspace.tsx`
-   - `execution-handoff-workspace.tsx`
+   - next candidate: `execution-handoff-workspace.tsx`
    - `execution-workspace.tsx`
    - `execution-review-workspace.tsx`
 

@@ -28,6 +28,7 @@ Post-finish hardening also landed:
 - tracked Python bytecode was removed and ignored
 - `execution-attention-cards.tsx` was ported back out of legacy and restored to normal shell typecheck coverage
 - `execution-events-workspace.tsx` was ported back out of legacy together with a bounded shell polling/live-events support layer
+- `execution-handoffs-workspace.tsx` was ported back out of legacy together with a bounded local handoff store/snapshot path
 
 ## Final Release Evidence
 
@@ -90,7 +91,8 @@ Post-finish hardening:
 - compact tracked validation snapshot lives at `handoff-packets/2026-04-21-polished-solo-v1-validation-summary.md`
 - Python bytecode is no longer tracked
 - validation runs can now finish with completed critic artifacts in one command when a critic JSON is already available
-- two legacy execution surfaces now sit back under normal shell typecheck: attention cards and events workspace
+- three legacy execution surfaces now sit back under normal shell typecheck: attention cards, events workspace, and handoffs workspace
+- the handoff queue and detail routes now run on the new execution-brief handoff path rather than the older orchestration handoff-packet list/detail path
 
 ## Optional Follow-Up
 

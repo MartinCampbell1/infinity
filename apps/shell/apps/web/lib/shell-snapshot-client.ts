@@ -1,4 +1,5 @@
 import type { ShellExecutionEventsSnapshot } from "@/lib/execution-events-model";
+import type { ShellExecutionHandoffsSnapshot } from "@/lib/execution-handoffs-model";
 
 async function parseSnapshotError(response: Response) {
   const fallback = `Snapshot request failed: ${response.status}`;
@@ -48,4 +49,21 @@ export function fetchShellExecutionEventsSnapshot(
   init?: RequestInit
 ): Promise<ShellExecutionEventsSnapshot> {
   return requestShellSnapshotJson<ShellExecutionEventsSnapshot>(input, init);
+}
+
+export function fetchShellExecutionHandoffsSnapshot(
+  input: RequestInfo | URL = "/api/shell/execution/handoffs",
+  init?: RequestInit
+): Promise<ShellExecutionHandoffsSnapshot> {
+  return requestShellSnapshotJson<ShellExecutionHandoffsSnapshot>(input, init).catch(
+    (error) => ({
+      generatedAt: new Date().toISOString(),
+      handoffs: [],
+      handoffsError:
+        error instanceof Error
+          ? `Execution handoffs: ${error.message}`
+          : "Execution handoffs: request failed.",
+      handoffsLoadState: "error" as const,
+    })
+  );
 }
