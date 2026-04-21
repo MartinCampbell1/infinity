@@ -30,6 +30,7 @@ Post-finish hardening also landed:
 - `execution-events-workspace.tsx` was ported back out of legacy together with a bounded shell polling/live-events support layer
 - `execution-handoffs-workspace.tsx` was ported back out of legacy together with a bounded local handoff store/snapshot path
 - the remaining legacy execution screens were removed after verification showed they were dead duplicates with no live callers
+- `/execution/handoffs/[handoffId]` now includes a live create-project action panel on top of the shell-owned execution-brief handoff detail
 
 ## Final Release Evidence
 
