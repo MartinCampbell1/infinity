@@ -126,7 +126,6 @@ CRITICAL_SHELL_TYPECHECK_PATHS = [
     "components/shell/shell-screen-primitives.tsx",
 ]
 
-LEGACY_EXECUTION_SURFACES_EXCLUDE = "components/execution/legacy"
 LOCAL_MODULE_SPECIFIER_PATTERN = re.compile(
     r"""(?:import|export)\s+(?:[^;'"]*?\sfrom\s+)?["']([^"']+)["']""",
     re.MULTILINE,
@@ -164,7 +163,7 @@ def assert_critical_shell_typecheck_scope() -> None:
 
 
 def iter_typescript_files(root: Path):
-    for suffix in (".ts", ".tsx"):
+    for suffix in (".ts", ".tsx", ".mts", ".cts"):
         yield from root.rglob(f"*{suffix}")
 
 
@@ -190,8 +189,12 @@ def resolve_shell_module_specifier(
         candidate,
         candidate.with_suffix(".ts"),
         candidate.with_suffix(".tsx"),
+        candidate.with_suffix(".mts"),
+        candidate.with_suffix(".cts"),
         candidate / "index.ts",
         candidate / "index.tsx",
+        candidate / "index.mts",
+        candidate / "index.cts",
     ]
     for resolved in resolution_candidates:
         if resolved.exists():
@@ -213,12 +216,14 @@ def iter_local_module_specifiers(content: str):
 def assert_legacy_execution_surfaces_are_isolated() -> None:
     shell_root = ROOT / "apps" / "shell" / "apps" / "web"
     legacy_root = (shell_root / "components" / "execution" / "legacy").resolve()
-    tsconfig_path = shell_root / "tsconfig.json"
-    tsconfig = json.loads(tsconfig_path.read_text(encoding="utf-8"))
-    excluded = set(tsconfig.get("exclude") or [])
-    if LEGACY_EXECUTION_SURFACES_EXCLUDE not in excluded:
+    legacy_ts_files = [
+        str(path.relative_to(shell_root))
+        for path in iter_typescript_files(legacy_root)
+    ]
+    if legacy_ts_files:
         raise ValidationFailure(
-            "Legacy execution surfaces must live behind an explicit tsconfig exclusion."
+            "Legacy execution archive still contains TypeScript files: "
+            + ", ".join(sorted(legacy_ts_files))
         )
 
     illegal_imports: list[str] = []

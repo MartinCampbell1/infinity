@@ -19,7 +19,7 @@ Completed end-to-end:
 
 Post-finish hardening also landed:
 
-- legacy shell execution surfaces isolated under `components/execution/legacy`
+- legacy shell execution surfaces were isolated under `components/execution/legacy` during the cleanup phase
 - validator guard added so live shell code cannot depend on that legacy subtree
 - primary execution routes pinned to live surfaces
 - legacy import scanning hardened for static imports, re-exports, `import()`, and `require()`
@@ -93,6 +93,7 @@ Post-finish hardening:
 - Python bytecode is no longer tracked
 - validation runs can now finish with completed critic artifacts in one command when a critic JSON is already available
 - the only remaining `components/execution/legacy` artifact is the archive README; no legacy execution `.tsx` screens remain
+- `tsconfig` no longer excludes `components/execution/legacy`; the validator now fails if any TS/TSX reappears there
 - the handoff queue and detail routes now run on the new execution-brief handoff path rather than the older orchestration handoff-packet list/detail path
 
 ## Optional Follow-Up

@@ -12,8 +12,5 @@
     "lib",
     "next-env.d.ts",
     ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "components/execution/legacy"
   ]
 }

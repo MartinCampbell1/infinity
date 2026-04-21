@@ -8,8 +8,8 @@ Scope: `apps/shell/apps/web/components/execution/legacy`
 
 The release gate is already green.
 
-The remaining `legacy` subtree was intentionally isolated and excluded from shell
-typecheck while the cleanup happened in bounded ports rather than one large
+The remaining `legacy` subtree was intentionally isolated while the cleanup
+happened in bounded ports rather than one large
 reanimation pass.
 
 This file records the current blocker shape so the next agent can pick one
@@ -19,6 +19,7 @@ cluster and move surgically.
 
 - no legacy execution `.tsx` files remain
 - `apps/shell/apps/web/components/execution/legacy/README.md` remains as an archive note only
+- validator policy: any new TS/TSX under `components/execution/legacy` is now a hard failure
 
 ## Ported Back Under Typecheck
 
