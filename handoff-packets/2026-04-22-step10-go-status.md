@@ -59,6 +59,10 @@ Fresh current critic verdicts:
   - `/Users/martin/infinity/handoff-packets/validation/2026-04-21T23-37-59Z/final-validation-summary.md`
 - screenshot manifest:
   - `/Users/martin/infinity/handoff-packets/validation/2026-04-21T23-37-59Z/screenshot-manifest.json`
+- git bundle:
+  - `/Users/martin/Desktop/infinity-step10-go.bundle`
+- patch series:
+  - `/Users/martin/Desktop/patches-step10-go/`
 
 ## Re-run commands
 
@@ -96,4 +100,5 @@ npm run localhost:start
 - The worktree is currently clean on `codex/infinity-step10-go`.
 - `next-env.d.ts` generated noise was restored out of the diff again.
 - The canonical local stack is not currently left running on `3737 / 3101 / 8798`; validation shut it down cleanly after the latest pass.
+- There is no git remote configured for this repo right now, so a local bundle and patch series were created for transport/review.
 - If another agent resumes from here, they should treat the latest strict bundle as the primary release evidence, not the older `2026-04-21T22-35-04Z` scaffold-era pass.

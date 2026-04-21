@@ -33,6 +33,8 @@
   "handoff_markdown": "/Users/martin/infinity/handoff-packets/2026-04-22-step10-go-status.md",
   "release_audit_markdown": "/Users/martin/infinity/handoff-packets/2026-04-22-final-release-audit.md",
   "commit_plan_markdown": "/Users/martin/infinity/handoff-packets/2026-04-22-commit-plan.md",
+  "git_bundle": "/Users/martin/Desktop/infinity-step10-go.bundle",
+  "patch_series_dir": "/Users/martin/Desktop/patches-step10-go",
   "recommended_commands": {
     "stack_start": "cd /Users/martin/infinity && npm run localhost:start",
     "strict_validation": "cd /Users/martin/infinity && python3 scripts/validation/run_infinity_validation.py --skip-static-checks",
@@ -40,5 +42,6 @@
     "shell_orchestration_tests": "cd /Users/martin/infinity/apps/shell/apps/web && npx vitest run app/api/control/orchestration/autonomy-happy-path.test.ts 'app/api/control/orchestration/continuity/[initiativeId]/route.test.ts' app/api/control/orchestration/delivery/route.test.ts"
   },
   "stack_left_running": false,
-  "worktree_clean": true
+  "worktree_clean": true,
+  "git_remote_configured": false
 }
