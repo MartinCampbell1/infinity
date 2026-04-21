@@ -131,6 +131,20 @@ LOCAL_MODULE_SPECIFIER_PATTERN = re.compile(
     r"""(?:import|export)\s+(?:[^;'"]*?\sfrom\s+)?["']([^"']+)["']""",
     re.MULTILINE,
 )
+PRIMARY_EXECUTION_ROUTE_SURFACES = [
+    (
+        "app/(shell)/execution/page.tsx",
+        "@/components/execution/execution-home-surface",
+    ),
+    (
+        "app/(shell)/execution/workspace/[sessionId]/page.tsx",
+        "@/components/execution/workspace-handoff-surface",
+    ),
+    (
+        "app/(shell)/execution/runs/[initiativeId]/page.tsx",
+        "@/components/execution/primary-run-surface",
+    ),
+]
 
 
 def assert_critical_shell_typecheck_scope() -> None:
@@ -217,6 +231,33 @@ def assert_legacy_execution_surfaces_are_isolated() -> None:
         raise ValidationFailure(
             "Live shell code imports legacy execution surfaces: "
             + ", ".join(sorted(illegal_imports))
+        )
+
+
+def assert_primary_execution_routes_use_live_surfaces() -> None:
+    shell_root = ROOT / "apps" / "shell" / "apps" / "web"
+    legacy_root = (shell_root / "components" / "execution" / "legacy").resolve()
+    mismatches: list[str] = []
+    for route_path, expected_surface in PRIMARY_EXECUTION_ROUTE_SURFACES:
+        absolute_path = shell_root / route_path
+        content = absolute_path.read_text(encoding="utf-8")
+        if expected_surface not in content:
+            mismatches.append(f"{route_path} missing {expected_surface}")
+            continue
+
+        resolved = resolve_shell_module_specifier(
+            shell_root, absolute_path.resolve(), expected_surface
+        )
+        if resolved is None:
+            mismatches.append(f"{route_path} could not resolve {expected_surface}")
+            continue
+        if is_legacy_execution_path(resolved, legacy_root):
+            mismatches.append(f"{route_path} resolves {expected_surface} into legacy")
+
+    if mismatches:
+        raise ValidationFailure(
+            "Primary execution routes are not pinned to live shell surfaces: "
+            + ", ".join(mismatches)
         )
 
 
@@ -968,6 +1009,7 @@ def main() -> int:
 
     assert_critical_shell_typecheck_scope()
     assert_legacy_execution_surfaces_are_isolated()
+    assert_primary_execution_routes_use_live_surfaces()
 
     validation_run_id = run_id()
     run_dir = HANDOFF_ROOT / validation_run_id
