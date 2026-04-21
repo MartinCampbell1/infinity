@@ -23,3 +23,23 @@ export function buildInitiativeCreateRequest(
     workspaceSessionId: routeScope?.sessionId || null,
   };
 }
+
+export function buildAutonomousBriefCreateRequest(
+  initiativeId: string,
+  prompt: string
+) {
+  return {
+    initiativeId,
+    summary: prompt,
+    goals: [],
+    nonGoals: [],
+    constraints: [],
+    assumptions: [],
+    acceptanceCriteria: [],
+    repoScope: [],
+    deliverables: [],
+    clarificationLog: [],
+    authoredBy: "hermes-intake",
+    status: "clarifying" as const,
+  };
+}

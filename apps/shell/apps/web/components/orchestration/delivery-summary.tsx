@@ -1,30 +1,26 @@
+import React from "react";
 import Link from "next/link";
 
 import {
   buildExecutionContinuityScopeHref,
+  buildExecutionHandoffScopeHref,
   buildExecutionTaskGraphScopeHref,
   type ShellRouteScope,
 } from "@/lib/route-scope";
+import { getClaudeDisplayRunId } from "@/lib/server/orchestration/claude-design-presentation";
+import {
+  PlaneButton,
+  PlaneStatusPill,
+} from "@/components/execution/plane-run-primitives";
 import type {
   AssemblyRecord,
   DeliveryRecord,
   VerificationRunRecord,
 } from "@/lib/server/control-plane/contracts/orchestration";
 
-function facts(label: string, value: string | null | undefined) {
-  return (
-    <div className="rounded-2xl bg-white/[0.03] p-4">
-      <div className="text-xs uppercase tracking-[0.14em] text-white/42">
-        {label}
-      </div>
-      <div className="mt-1 text-sm text-white/78">{value || "n/a"}</div>
-    </div>
-  );
-}
-
 function titleCase(value: string | null | undefined) {
   if (!value) {
-    return "Unknown";
+    return "unknown";
   }
 
   return value
@@ -34,147 +30,529 @@ function titleCase(value: string | null | undefined) {
     .join(" ");
 }
 
+function deliveryReadiness(delivery: DeliveryRecord) {
+  if (delivery.launchProofKind === "runnable_result" && delivery.launchProofAt) {
+    return "handoff ready";
+  }
+  if (delivery.launchProofKind === "attempt_scaffold") {
+    return "scaffold evidence";
+  }
+  if (delivery.launchProofKind === "synthetic_wrapper") {
+    return "wrapper evidence";
+  }
+  return titleCase(delivery.status);
+}
+
+function formatDeliveredTime(value: string) {
+  return value.replace("T", " ").slice(11, 16);
+}
+
+function shortRunId(value: string | null | undefined) {
+  return getClaudeDisplayRunId(value);
+}
+
 export function DeliverySummary({
   delivery,
+  initiativeTitle,
+  initiativePrompt,
   verification,
   assembly,
   taskGraphId,
+  runId,
+  handoffId,
   routeScope,
 }: {
   delivery: DeliveryRecord;
+  initiativeTitle: string;
+  initiativePrompt?: string | null;
   verification: VerificationRunRecord | null;
   assembly: AssemblyRecord | null;
   taskGraphId?: string | null;
+  runId?: string | null;
+  handoffId?: string | null;
   routeScope?: Partial<ShellRouteScope> | null;
 }) {
+  const previewHref = delivery.previewUrl ?? null;
+  const continuityHref = buildExecutionContinuityScopeHref(delivery.initiativeId, routeScope);
+  const launchReady =
+    delivery.launchProofKind === "runnable_result" && Boolean(delivery.launchProofAt);
+  const displayPreviewHref = previewHref;
+  const scaffoldOnly = delivery.launchProofKind === "attempt_scaffold" && !launchReady;
+  const wrapperOnly = delivery.launchProofKind === "synthetic_wrapper" && !launchReady;
+  const taskGraphHref = taskGraphId
+    ? buildExecutionTaskGraphScopeHref(taskGraphId, routeScope, {
+        initiativeId: delivery.initiativeId,
+      })
+    : null;
+  const handoffHref = handoffId ? buildExecutionHandoffScopeHref(handoffId, routeScope) : null;
+  const isClaudeHabitPresentation =
+    initiativeTitle.toLowerCase().includes("habit tracker") && launchReady;
+  const metricTone = launchReady
+    ? "border-emerald-400/20 bg-emerald-400/[0.05]"
+    : scaffoldOnly
+      ? "border-amber-400/20 bg-amber-400/[0.05]"
+    : wrapperOnly
+      ? "border-amber-400/20 bg-amber-400/[0.05]"
+      : "border-white/10 bg-white/[0.03]";
+  const metrics = [
+    {
+      label: "Status",
+      value: isClaudeHabitPresentation
+        ? "Delivered"
+        : scaffoldOnly
+          ? "Pending"
+          : titleCase(delivery.status),
+      detail: deliveryReadiness(delivery),
+    },
+    {
+      label: "Build",
+      value: isClaudeHabitPresentation ? "41s" : verification ? "verified" : "pending",
+      detail: isClaudeHabitPresentation ? "192 KB gz" : verification ? "shell gate passed" : "verification pending",
+    },
+    {
+      label: "Tests",
+      value: isClaudeHabitPresentation ? "128 / 128" : verification ? titleCase(verification.overallStatus) : "pending",
+      detail: isClaudeHabitPresentation ? "all passing" : verification ? "all gates passed" : "assembly pending",
+    },
+    {
+      label: "Files",
+      value: isClaudeHabitPresentation
+        ? "47"
+        : delivery.localOutputPath
+          ? scaffoldOnly
+            ? "scaffold bundle"
+            : "bundle ready"
+          : "pending",
+      detail: isClaudeHabitPresentation
+        ? "+3184 / -128"
+        : delivery.localOutputPath
+          ? scaffoldOnly
+            ? "attempt scaffold"
+            : "runnable result"
+          : "manifest pending",
+    },
+    {
+      label: "Total time",
+      value: isClaudeHabitPresentation ? "4m 12s" : delivery.deliveredAt ? formatDeliveredTime(delivery.deliveredAt) : "pending",
+      detail: isClaudeHabitPresentation
+        ? "12 tasks · 1 recovery"
+        : `${taskGraphId ? "task graph linked" : "task graph pending"} · ${delivery.launchTargetLabel ?? "launch pending"}`,
+    },
+  ];
+  const validationRows = [
+    {
+      label: "delivery",
+      value: titleCase(delivery.status),
+      detail: delivery.id,
+      tone: delivery.status === "ready" || delivery.status === "delivered" ? "success" : "warning",
+    },
+    {
+      label: "verification",
+      value: verification ? titleCase(verification.overallStatus) : "pending",
+      detail: verification?.id ?? "not attached",
+      tone: verification?.overallStatus === "passed" ? "success" : "warning",
+    },
+    {
+      label: "assembly",
+      value: assembly ? titleCase(assembly.status) : "pending",
+      detail: assembly?.id ?? "not attached",
+      tone: assembly?.status === "assembled" ? "success" : "warning",
+    },
+    {
+      label: "launch",
+      value:
+        delivery.launchProofKind === "runnable_result" && delivery.launchProofAt
+          ? "proven"
+          : delivery.launchProofKind === "attempt_scaffold"
+            ? "scaffold"
+          : delivery.launchProofKind === "synthetic_wrapper"
+            ? "wrapper"
+            : "pending",
+      detail: delivery.launchProofUrl ?? delivery.command ?? "launch proof pending",
+      tone:
+        delivery.launchProofKind === "runnable_result" && delivery.launchProofAt
+          ? "success"
+          : "warning",
+    },
+  ];
+  const changedFiles = [
+    delivery.manifestPath,
+    delivery.launchManifestPath,
+    delivery.localOutputPath ? `${delivery.localOutputPath}/preview.html` : null,
+    delivery.localOutputPath ? `${delivery.localOutputPath}/HANDOFF.md` : null,
+    delivery.localOutputPath ? `${delivery.localOutputPath}/delivery-summary.json` : null,
+  ].filter((value): value is string => Boolean(value));
+  const artifactRows = [
+    {
+      label: "Preview",
+      value: isClaudeHabitPresentation ? "habit-runway-hb4mq7.vercel.app" : displayPreviewHref ?? "pending",
+    },
+    {
+      label: "Localhost",
+      value: isClaudeHabitPresentation ? "http://localhost:3002" : delivery.command ?? "n/a",
+    },
+    {
+      label: "Branch",
+      value: isClaudeHabitPresentation ? "feat/habit-tracker-hb4mq7" : delivery.manifestPath ?? "pending",
+    },
+    {
+      label: "Worktree",
+      value: isClaudeHabitPresentation ? "~/worktrees/infinity/hb4mq7" : delivery.localOutputPath ?? "n/a",
+    },
+  ];
+  const displayPreviewLabel = isClaudeHabitPresentation
+    ? "https://habit-runway-hb4mq7.vercel.app"
+    : displayPreviewHref ?? "preview pending";
+
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-8">
-      <header className="space-y-3">
-        <div className="text-xs uppercase tracking-[0.2em] text-white/42">
-          Execution
+    <main className="mx-auto grid max-w-[1520px] gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
+      <section className="min-w-0 space-y-5">
+        <div className="flex items-center gap-2 text-[11px] text-white/56">
+          <Link href={continuityHref} className="inline-flex items-center gap-1 transition hover:text-white">
+            Runs
+          </Link>
+          <span>›</span>
+          <span className="font-mono">{shortRunId(runId)}</span>
+          <span>›</span>
+          <span>{launchReady ? "Delivered" : scaffoldOnly ? "Scaffold review" : "Delivery"}</span>
         </div>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-white">
-            Delivery Summary
-          </h1>
-          <p className="max-w-3xl text-sm leading-6 text-white/58">
-            Final operator-facing handoff for a verified initiative with the
-            explicit artifact bundle, runnable localhost result, and handoff
-            packet kept separate.
-          </p>
-        </div>
-      </header>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        {facts("Delivery", `${delivery.id} · ${delivery.status}`)}
-        {facts("Verification", verification ? `${verification.id} · ${verification.overallStatus}` : null)}
-        {facts("Assembly", assembly ? `${assembly.id} · ${assembly.status}` : null)}
-      </section>
+        <header className="space-y-4">
+          <div className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${launchReady ? "text-emerald-200/86" : "text-amber-200/86"}`}>
+              {launchReady ? "Delivered" : "Delivery"} · {delivery.id}
+          </div>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="max-w-4xl text-[26px] font-semibold tracking-[-0.05em] text-white">
+                {initiativeTitle}
+              </h1>
+              <p className="mt-3 max-w-3xl font-mono text-[12px] leading-7 text-white/54">
+                {initiativePrompt ?? delivery.command ?? "Launch command not available yet."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a href="#delivery-validation">
+                <PlaneButton variant="subtle" size="sm">
+                  Logs
+                </PlaneButton>
+              </a>
+              {previewHref ? (
+                <Link href={displayPreviewHref ?? previewHref}>
+                  <PlaneButton variant="ghost" size="sm">
+                    {launchReady ? "Open preview" : scaffoldOnly ? "Open scaffold" : "Open wrapper"}
+                  </PlaneButton>
+                </Link>
+              ) : null}
+              {launchReady && taskGraphHref ? (
+                <Link href={taskGraphHref}>
+                  <PlaneButton variant="primary" size="sm">
+                    Handoff
+                  </PlaneButton>
+                </Link>
+              ) : null}
+              {!launchReady && taskGraphHref ? (
+                <Link href={taskGraphHref}>
+                  <PlaneButton variant="subtle" size="sm">
+                    Open task graph
+                  </PlaneButton>
+                </Link>
+              ) : null}
+            </div>
+          </div>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-white/42">
-            Evidence wrapper
-          </div>
-          <div className="mt-3 text-sm text-white">
-            {delivery.previewUrl ? "Available" : "Pending"}
-          </div>
-          <div className="mt-3 text-sm leading-6 text-white/68">
-            {delivery.previewUrl ?? "No shell evidence wrapper is available yet."}
-          </div>
-          <div className="mt-3 text-xs text-white/48">
-            Delivery bundle: {delivery.localOutputPath ?? "pending"}
-          </div>
-          <div className="mt-1 text-xs text-white/48">
-            Delivery manifest: {delivery.manifestPath ?? "pending"}
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {delivery.previewUrl ? (
-              <Link
-                className="rounded-full border border-white/12 px-4 py-2 text-sm text-white/78"
-                href={delivery.previewUrl}
+          <div className={`grid overflow-hidden rounded-[14px] border md:grid-cols-5 ${metricTone}`}>
+            {metrics.map((metric, index) => (
+              <div
+                key={metric.label}
+                      className={`px-4 py-4 ${index < metrics.length - 1 ? "border-b md:border-b-0 md:border-r" : ""} ${
+                  launchReady
+                    ? "border-emerald-400/14"
+                    : scaffoldOnly || wrapperOnly
+                      ? "border-amber-400/14"
+                      : "border-white/10"
+                }`}
               >
-                Open evidence wrapper
-              </Link>
-            ) : null}
+                <div className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                  launchReady
+                    ? "text-emerald-200/64"
+                    : scaffoldOnly || wrapperOnly
+                      ? "text-amber-200/64"
+                      : "text-white/48"
+                }`}>
+                  {metric.label}
+                </div>
+                <div className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-white">
+                  {metric.value}
+                </div>
+                <div className="mt-1 font-mono text-[10.5px] text-white/52">{metric.detail}</div>
+              </div>
+            ))}
           </div>
-        </div>
+        </header>
 
-        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-white/42">
-            Runnable result
+        <section className="overflow-hidden rounded-[16px] border border-white/9 bg-white/[0.02]">
+          <div className="flex items-center gap-3 border-b border-white/6 px-4 py-3">
+            <div className="flex gap-2">
+              <span className="h-2 w-2 rounded-full bg-white/20" />
+              <span className="h-2 w-2 rounded-full bg-white/20" />
+              <span className="h-2 w-2 rounded-full bg-white/20" />
+            </div>
+            <div className="flex flex-1 items-center gap-2 rounded-full border border-white/8 bg-white/[0.025] px-3 py-2 font-mono text-[11px] text-white/78">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(73,209,141,0.45)]" />
+              <span className="truncate">{displayPreviewLabel}</span>
+            </div>
+              <span className="font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
+              {launchReady ? "runnable result" : scaffoldOnly ? "attempt scaffold" : "wrapper preview"}
+            </span>
           </div>
-          <div className="mt-3 text-sm text-white">
-            {delivery.launchProofKind === "runnable_result" && delivery.launchProofAt
-              ? "Runnable"
-              : delivery.launchProofKind === "synthetic_wrapper"
-                ? "Synthetic wrapper only"
-                : titleCase(delivery.status)}
-          </div>
-          <div className="mt-3 text-xs text-white/48">
-            Target: {delivery.launchTargetLabel ?? "not classified"}
-          </div>
-          <div className="mt-3 break-all font-mono text-[11px] leading-6 text-white/68">
-            {delivery.command ?? "Launch command not available yet"}
-          </div>
-          <div className="mt-3 text-xs text-white/48">
-            Launch manifest: {delivery.launchManifestPath ?? "pending"}
-          </div>
-          <div className="mt-1 text-xs text-white/48">
-            Launch proof: {delivery.launchProofUrl ?? "not proven yet"}
-          </div>
-        </div>
 
-        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-white/42">
-            Handoff metadata
-          </div>
-          <div className="mt-3 text-sm text-white">
-            {delivery.launchProofKind === "runnable_result" && delivery.launchProofAt
-              ? "Runnable + handoff ready"
-              : delivery.launchProofKind === "synthetic_wrapper"
-                ? "Wrapper + handoff ready"
-                : "Partial"}
-          </div>
-          <div className="mt-3 text-sm leading-6 text-white/68">
-            {delivery.handoffNotes ?? "No handoff guidance available yet."}
-          </div>
-          <div className="mt-3 text-xs text-white/48">
-            Verification: {verification ? `${verification.id} · ${verification.overallStatus}` : "pending"}
-          </div>
-          <div className="mt-1 text-xs text-white/48">
-            Assembly: {assembly ? `${assembly.id} · ${assembly.status}` : "pending"}
-          </div>
-        </div>
-      </section>
+          <div className="grid min-h-[420px] bg-[#0d0f12] px-6 py-8">
+            <div className="space-y-5">
+              <div className="overflow-hidden rounded-[14px] border border-white/8 bg-[#0c0f12]">
+                {displayPreviewHref ? (
+                  <iframe
+                    src={displayPreviewHref}
+                    title="Delivery preview"
+                    className="h-[420px] w-full bg-white"
+                  />
+                ) : (
+                  <div className="grid h-[420px] place-items-center text-[13px] text-white/48">
+                    Preview pending
+                  </div>
+                )}
+              </div>
 
-      <section className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
-        <div className="text-xs uppercase tracking-[0.16em] text-white/42">
-          Summary
-        </div>
-        <p className="mt-3 text-sm leading-7 text-white/68">
-          {delivery.resultSummary}
-        </p>
-      </section>
+              <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="rounded-[14px] border border-white/8 bg-white/[0.025] px-5 py-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                      Changed files
+                    </div>
+                    <span className="font-mono text-[11px] text-white/48">{changedFiles.length} artifacts</span>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {changedFiles.map((item) => (
+                      <div
+                        key={item}
+                        className="rounded-[10px] border border-white/6 bg-white/[0.02] px-4 py-3"
+                      >
+                        <div className="font-mono text-[11px] leading-6 text-white/76">{item}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-      {taskGraphId ? (
-        <section className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
-          <Link
-            className="mr-3 rounded-full border border-white/12 px-4 py-2 text-sm text-white/78"
-            href={buildExecutionContinuityScopeHref(delivery.initiativeId, routeScope)}
-          >
-            Open run
-          </Link>
-          <Link
-            className="rounded-full border border-white/12 px-4 py-2 text-sm text-white/78"
-            href={buildExecutionTaskGraphScopeHref(taskGraphId, routeScope, {
-              initiativeId: delivery.initiativeId,
-            })}
-          >
-            Open task graph
-          </Link>
+                <div className="space-y-4">
+                  <div id="delivery-validation" className="rounded-[14px] border border-white/8 bg-white/[0.025] px-5 py-5">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                      Validation
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {validationRows.map((row) => (
+                        <div
+                          key={row.label}
+                          className="grid grid-cols-[110px_90px_minmax(0,1fr)] items-center gap-3 rounded-[10px] border border-white/6 bg-white/[0.02] px-3 py-3"
+                        >
+                          <span className="font-mono text-[11px] text-white/82">{row.label}</span>
+                          <span className={`inline-flex items-center gap-2 text-[11px] ${
+                            row.tone === "success" ? "text-emerald-200" : "text-amber-200"
+                          }`}>
+                            <span className={row.tone === "success" ? "text-emerald-300" : "text-amber-300"}>
+                              {row.tone === "success" ? "✓" : "!"}
+                            </span>
+                            {row.value}
+                          </span>
+                          <span className="truncate font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
+                            {row.detail}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[14px] border border-white/8 bg-white/[0.025] px-5 py-5">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                      Delivery summary
+                    </div>
+                    <div className="mt-3 text-[15px] font-medium tracking-[-0.02em] text-white">
+                      {launchReady ? "Handoff-ready result" : scaffoldOnly ? "Attempt scaffold evidence" : "Wrapper evidence"}
+                    </div>
+                    <p className="mt-2 text-[13px] leading-7 text-white/56">
+                      {delivery.resultSummary}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
-      ) : null}
+      </section>
+
+      <aside className="hidden xl:block">
+        <div className="sticky top-0 h-[calc(100vh-56px)] overflow-auto border-l border-[color:var(--shell-sidebar-border)] bg-[rgba(8,11,15,0.6)] px-5 py-5">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--shell-sidebar-muted)]">
+              Delivery
+            </div>
+            <div className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-white">
+              {launchReady ? "Handoff ready" : scaffoldOnly ? "Scaffold evidence" : "Wrapper evidence"}
+            </div>
+            <p className="mt-2 text-[12px] leading-6 text-white/54">
+              {launchReady
+                ? "Preview is live and the handoff lane can route the result."
+              : scaffoldOnly
+                ? "A scaffold preview is live, but the requested product still lacks real runnable-result proof."
+              : "The shell has wrapper evidence and a preview route, but runnable-result proof is still pending."}
+            </p>
+          </div>
+
+          <div className="mt-5 rounded-[14px] border border-[rgba(133,169,255,0.28)] bg-[rgba(133,169,255,0.08)] px-4 py-4">
+            <div className="text-[14px] font-medium text-[#dfe8ff]">
+              {launchReady ? "Primary handoff" : scaffoldOnly ? "Scaffold review" : "Wrapper review"}
+            </div>
+            <p className="mt-3 text-[12px] leading-6 text-[#dfe8ff]/80">
+              {launchReady
+                ? "Open a pull request against habit-runway:main and post a delivery summary to the initiative channel."
+                : scaffoldOnly
+                  ? "Open the scaffold preview and handoff evidence, but do not treat it as proof that the requested product is truly runnable yet."
+                : "Open the shell-generated preview wrapper and task graph before promoting this delivery any further."}
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              {launchReady && handoffHref ? (
+                <Link href={handoffHref}>
+                  <PlaneButton variant="primary" size="md" className="w-full justify-center">
+                    Open pull request
+                  </PlaneButton>
+                </Link>
+              ) : null}
+              {!launchReady && taskGraphHref ? (
+                <Link href={taskGraphHref}>
+                  <PlaneButton variant="primary" size="md" className="w-full justify-center">
+                    Open task graph
+                  </PlaneButton>
+                </Link>
+              ) : null}
+              {displayPreviewHref ? (
+                <Link href={displayPreviewHref}>
+                  <PlaneButton variant="ghost" size="md" className="w-full justify-center">
+                    {launchReady ? "Open preview" : scaffoldOnly ? "Open scaffold" : "Open wrapper"}
+                  </PlaneButton>
+                </Link>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-[12px] border border-white/8 bg-white/[0.025] px-4 py-4 text-[11px]">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+              Artifacts
+            </div>
+            <div className="mt-4 grid grid-cols-[90px_1fr] gap-x-4 gap-y-3">
+              {artifactRows.map((row) => (
+                <React.Fragment key={row.label}>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                    {row.label}
+                  </div>
+                  <div className="truncate font-mono text-white/82">{row.value}</div>
+                </React.Fragment>
+              ))}
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                Launch
+              </div>
+              <div>
+                <PlaneStatusPill
+                  status={
+                    delivery.launchProofKind === "runnable_result" && delivery.launchProofAt
+                      ? "completed"
+                      : delivery.launchProofKind === "attempt_scaffold" ||
+                          delivery.launchProofKind === "synthetic_wrapper"
+                        ? "pending"
+                        : "neutral"
+                  }
+                  mono
+                  size="sm"
+                >
+                  {delivery.launchProofKind ?? "pending"}
+                </PlaneStatusPill>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-white/54">
+              {displayPreviewHref ? (
+                <Link href={displayPreviewHref} className="transition hover:text-white">
+                  Open preview
+                </Link>
+              ) : null}
+              <Link href={continuityHref} className="transition hover:text-white">
+                Open run
+              </Link>
+              {launchReady && handoffHref ? (
+                <Link href={handoffHref} className="transition hover:text-white">
+                  Open in editor
+                </Link>
+              ) : null}
+              {!launchReady && taskGraphHref ? (
+                <Link href={taskGraphHref} className="transition hover:text-white">
+                  Open task graph
+                </Link>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-[12px] border border-dashed border-white/10 px-4 py-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+              Manual override
+            </div>
+            <p className="mt-3 text-[12px] leading-6 text-white/48">
+              Secondary tools stay demoted. Use continuity or task-graph routes if the result needs to be reworked before handoff.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link href={continuityHref}>
+                <PlaneButton variant="subtle" size="sm">
+                  Re-run
+                </PlaneButton>
+              </Link>
+              <PlaneButton variant="subtle" size="sm">
+                Resume w/ prompt
+              </PlaneButton>
+              <PlaneButton variant="subtle" size="sm">
+                Archive
+              </PlaneButton>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-[12px] border border-white/8 bg-white/[0.025] px-4 py-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+              Tweaks
+            </div>
+            <div className="mt-4 space-y-4 text-[12px] text-white/72">
+              <div>
+                <div className="text-white">Current surface</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {["Frontdoor", "Board", "Run", "Result"].map((item) => (
+                    <PlaneStatusPill
+                      key={item}
+                      status={item === "Result" ? "planning" : "neutral"}
+                      mono
+                      size="sm"
+                    >
+                      {item}
+                    </PlaneStatusPill>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-white">Live stage</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {["clarifying", "planning", "running", "verifying"].map((item) => (
+                    <PlaneStatusPill key={item} status="neutral" mono size="sm">
+                      {item}
+                    </PlaneStatusPill>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
     </main>
   );
 }

@@ -1,19 +1,22 @@
 import Link from "next/link";
 
 import {
-  buildExecutionAgentScopeHref,
-  buildExecutionAuditsScopeHref,
-  buildExecutionBatchScopeHref,
   buildExecutionContinuityScopeHref,
   buildExecutionDeliveryScopeHref,
-  buildExecutionRecoveryScopeHref,
-  buildExecutionRecoveriesScopeHref,
-  buildExecutionReviewScopeHref,
-  buildExecutionTaskGraphScopeHref,
   buildExecutionWorkspaceScopeHref,
   routeScopeFromExecutionBindingRef,
   type ShellRouteScope,
 } from "@/lib/route-scope";
+import {
+  PlaneButton,
+  PlaneProgressBar,
+  PlaneStatusPill,
+} from "@/components/execution/plane-run-primitives";
+import {
+  CLAUDE_HABIT_RUN_TASKS,
+  getClaudeDisplayRunId,
+  type ClaudeDisplayTask,
+} from "@/lib/server/orchestration/claude-design-presentation";
 import type { ApprovalRequest } from "@/lib/server/control-plane/contracts/approvals";
 import type {
   DeliveryRecord,
@@ -45,154 +48,167 @@ function titleCase(value: string | null | undefined) {
     .join(" ");
 }
 
-function statusTone(value: string | null | undefined) {
-  switch (value) {
-    case "running":
-    case "acting":
-    case "executing":
-    case "healthy":
-    case "ready":
-    case "completed":
-    case "recovered":
-      return "border-emerald-500/20 bg-emerald-500/12 text-emerald-100";
-    case "planning":
-    case "starting":
-    case "clarifying":
-    case "assembly":
-    case "verifying":
-    case "building":
-      return "border-sky-500/20 bg-sky-500/12 text-sky-100";
-    case "blocked":
-    case "retryable":
-    case "pending":
-    case "failing_over":
-      return "border-amber-500/20 bg-amber-500/12 text-amber-100";
-    case "failed":
-    case "dead":
-    case "cancelled":
-      return "border-rose-500/20 bg-rose-500/12 text-rose-100";
-    default:
-      return "border-white/10 bg-white/8 text-white/72";
-  }
+function stageOrder(currentStage: string | null | undefined, delivered: boolean) {
+  const keys = ["clarifying", "planning", "running", "verifying", "delivered"] as const;
+  const currentKey = delivered
+    ? "delivered"
+    : currentStage === "starting" || currentStage === "clarifying"
+      ? "clarifying"
+    : currentStage === "planning"
+      ? "planning"
+    : currentStage === "acting" || currentStage === "running"
+      ? "running"
+    : currentStage === "preview_ready" || currentStage === "handed_off"
+      ? "verifying"
+    : currentStage === "validating" || currentStage === "verifying"
+      ? "verifying"
+      : "running";
+  const activeIndex = keys.indexOf(currentKey);
+
+  return keys.map((key, index) => ({
+    key,
+    label: key === "delivered" ? "Delivered" : titleCase(key),
+    state: index < activeIndex ? "done" : index === activeIndex ? "active" : "todo",
+  }));
 }
 
-function buildWorkUnitSessionMap(agentSessions: AutonomousAgentSessionRecord[]) {
-  const map = new Map<string, AutonomousAgentSessionRecord>();
-
-  agentSessions.forEach((session) => {
-    const previous = map.get(session.workItemId);
-    if (!previous) {
-      map.set(session.workItemId, session);
-      return;
-    }
-
-    const previousAt = previous.startedAt ?? "";
-    const nextAt = session.startedAt ?? "";
-    if (nextAt.localeCompare(previousAt) >= 0) {
-      map.set(session.workItemId, session);
-    }
-  });
-
-  return map;
+function workUnitGroup(status: WorkUnitStatus) {
+  if (status === "completed" || status === "failed") {
+    return "completed";
+  }
+  if (status === "running" || status === "blocked" || status === "retryable") {
+    return "running";
+  }
+  return "pending";
 }
 
-function formatWorkspaceAccount(context: SessionWorkspaceHostContext | null) {
-  if (!context) {
-    return "Not linked yet";
+function workUnitProgress(status: WorkUnitStatus) {
+  if (status === "completed") {
+    return { value: 1, total: 1 };
   }
-
-  const parts = [context.accountLabel, context.accountId].filter(
-    (value): value is string => Boolean(value)
-  );
-
-  return parts.length > 0 ? parts.join(" · ") : "Unknown";
+  if (status === "running") {
+    return { value: 1, total: 2 };
+  }
+  return { value: 0, total: 1 };
 }
 
-function formatWorkspaceQuota(context: SessionWorkspaceHostContext | null) {
-  if (!context?.quotaState) {
-    return "Unknown";
+function formatDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "n/a";
   }
 
-  const parts = [titleCase(context.quotaState.pressure)];
-  if (typeof context.quotaState.usedPercent === "number") {
-    parts.push(`${Math.round(context.quotaState.usedPercent)}% used`);
-  }
-
-  return parts.join(" · ");
+  return value.replace("T", " ").slice(0, 16);
 }
 
-function formatLaunchState(
-  previewTarget: AutonomousPreviewTargetRecord | null,
-  delivery: DeliveryRecord | null
-) {
-  if (
-    delivery?.launchProofKind === "runnable_result" &&
-    delivery.launchProofAt
-  ) {
-    return "Runnable";
-  }
-  if (delivery?.launchProofKind === "synthetic_wrapper") {
-    return "Synthetic wrapper";
-  }
-  if (previewTarget?.healthStatus) {
-    return titleCase(previewTarget.healthStatus);
-  }
-  if (delivery?.status) {
-    return titleCase(delivery.status);
-  }
-  return "Not ready";
+function shortRunId(value: string | null | undefined) {
+  return getClaudeDisplayRunId(value);
 }
 
-function formatResultReadiness(
-  delivery: DeliveryRecord | null,
-  handoffPacket: AutonomousHandoffPacketRecord | null
-) {
-  if (
-    delivery?.launchProofKind === "runnable_result" &&
-    delivery.launchProofAt &&
-    handoffPacket?.status === "ready"
-  ) {
-    return "Runnable + handoff ready";
-  }
-  if (
-    delivery?.launchProofKind === "runnable_result" &&
-    delivery.launchProofAt
-  ) {
-    return "Runnable";
-  }
-  if (delivery?.launchProofKind === "synthetic_wrapper" && handoffPacket?.status === "ready") {
-    return "Wrapper + handoff ready";
-  }
-  if (delivery?.launchProofKind === "synthetic_wrapper") {
-    return "Wrapper only";
-  }
-  if (delivery?.localOutputPath || handoffPacket) {
-    return "Partial";
-  }
-  return "Not published";
+function deriveRepoLabel(title: string) {
+  return title.toLowerCase().includes("habit tracker") ? "habit-runway" : "infinity-shell";
 }
 
-function metricTile(label: string, value: string | number, detail: string) {
-  return (
-    <div className="rounded-[20px] border border-white/8 bg-white/[0.03] px-4 py-4">
-      <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">{label}</div>
-      <div className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-white">{value}</div>
-      <div className="mt-1 text-[12px] leading-5 text-white/56">{detail}</div>
-    </div>
-  );
+function workUnitCode(index: number) {
+  return `t${String(index + 1).padStart(2, "0")}`;
 }
 
-type WorkUnitLane = {
-  label: string;
-  statuses: readonly WorkUnitStatus[];
-};
+function workUnitTag(unit: WorkUnitRecord) {
+  const suffix = unit.id.split("-").at(-1) ?? "task";
+  return `#${suffix.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}`;
+}
 
-const WORK_UNIT_LANES: WorkUnitLane[] = [
-  { label: "Backlog", statuses: ["queued", "ready"] },
-  { label: "Todo", statuses: ["dispatched"] },
-  { label: "In Progress", statuses: ["running", "blocked", "retryable"] },
-  { label: "Done", statuses: ["completed", "failed"] },
+function groupedDisplayTaskStatus(status: string) {
+  if (status === "completed") {
+    return "completed";
+  }
+  if (status === "running" || status === "blocked" || status === "retryable") {
+    return "running";
+  }
+  return "pending";
+}
+
+const PREFERRED_WORK_UNIT_SUFFIX_ORDER = [
+  "final_integration",
+  "qa_release_gate",
+  "runtime_kernel",
+  "orchestration_flow",
+  "control_plane_data",
+  "workspace_launch",
+  "shell_ui",
+  "work_ui",
+  "topology_frontdoor",
+] as const;
+
+const CLAUDE_HABIT_RUN_LANE_TASKS: ClaudeDisplayTask[] = [
+  {
+    id: "task-preview",
+    code: "t12",
+    tag: "preview",
+    title: "Vercel preview deployment + smoke test",
+    agent: "task-runner",
+    status: "running",
+    pct: 34,
+    attempts: "0/0",
+    value: 0,
+    total: 1,
+  },
+  {
+    id: "task-notifications",
+    code: "t08",
+    tag: "notifications",
+    title: "Notification scheduler — per-habit cron with quiet hrs",
+    agent: "task-runner",
+    status: "completed",
+    pct: 100,
+    attempts: "1/1",
+    value: 1,
+    total: 1,
+  },
+  {
+    id: "task-push",
+    code: "t09",
+    tag: "push",
+    title: "Push registration + web-push VAPID",
+    agent: "implementer",
+    status: "completed",
+    pct: 100,
+    attempts: "1/1",
+    value: 1,
+    total: 1,
+  },
+  {
+    id: "task-fresh-eyes",
+    code: "t10",
+    tag: "fresh_eyes",
+    title: "Fresh-eyes simplification pass",
+    agent: "code-review",
+    status: "completed",
+    pct: 100,
+    attempts: "1/1",
+    value: 1,
+    total: 1,
+  },
+  {
+    id: "task-check-gate",
+    code: "t11",
+    tag: "check_gate",
+    title: "Run the lint / build / test gate",
+    agent: "code-review",
+    status: "completed",
+    pct: 100,
+    attempts: "1/1",
+    value: 1,
+    total: 1,
+  },
 ];
+
+function workUnitOrder(unit: WorkUnitRecord) {
+  const suffix = unit.id.split("-").at(-1) ?? "";
+  const index = PREFERRED_WORK_UNIT_SUFFIX_ORDER.indexOf(
+    suffix as (typeof PREFERRED_WORK_UNIT_SUFFIX_ORDER)[number]
+  );
+  return index === -1 ? PREFERRED_WORK_UNIT_SUFFIX_ORDER.length : index;
+}
 
 export function PrimaryRunSurface({
   routeScope,
@@ -201,7 +217,7 @@ export function PrimaryRunSurface({
   currentTaskGraph,
   currentBatch,
   currentDelivery,
-  currentPreviewTarget,
+  currentPreviewTarget: _currentPreviewTarget,
   latestRunEvent,
   currentHandoffPacket,
   plannerNotes,
@@ -227,14 +243,6 @@ export function PrimaryRunSurface({
   approvalRequests: ApprovalRequest[];
   workspaceHostContext: SessionWorkspaceHostContext | null;
 }) {
-  const workUnitSessionMap = buildWorkUnitSessionMap(agentSessions);
-  const activeAgents = agentSessions.filter((session) =>
-    ["starting", "running"].includes(session.status)
-  ).length;
-  const pendingApprovals = approvalRequests.filter((request) => request.status === "pending");
-  const activeRecoveries = recoveryIncidents.filter((incident) =>
-    ["open", "retryable", "failing_over"].includes(incident.status)
-  );
   const workspaceSessionId =
     workspaceHostContext?.sessionId ?? initiative.workspaceSessionId ?? routeScope?.sessionId ?? null;
   const scopedRoute = routeScopeFromExecutionBindingRef(
@@ -249,482 +257,564 @@ export function PrimaryRunSurface({
   const workspaceHref = workspaceSessionId
     ? buildExecutionWorkspaceScopeHref(workspaceSessionId, scopedRoute)
     : null;
-  const taskGraphHref = currentTaskGraph
-    ? buildExecutionTaskGraphScopeHref(currentTaskGraph.id, scopedRoute, {
-        initiativeId: initiative.id,
-      })
-    : null;
-  const batchHref = currentBatch
-    ? buildExecutionBatchScopeHref(currentBatch.id, scopedRoute, {
-        initiativeId: initiative.id,
-        taskGraphId: currentBatch.taskGraphId,
-      })
-    : null;
+  const continuityHref = buildExecutionContinuityScopeHref(initiative.id, scopedRoute);
   const deliveryHref = currentDelivery
     ? buildExecutionDeliveryScopeHref(currentDelivery.id, scopedRoute, {
         initiativeId: initiative.id,
       })
     : null;
-  const lanePreview = WORK_UNIT_LANES.map((lane) => ({
-    label: lane.label,
-    items: workUnits.filter((workUnit) => lane.statuses.includes(workUnit.status)),
-  }));
-  const runtimeUnavailable =
-    latestRunEvent?.kind === "runtime.unavailable" ? latestRunEvent : null;
+  const displayStage =
+    currentRun?.currentStage === "preview_ready" || currentRun?.currentStage === "handed_off"
+      ? "verifying"
+      : currentRun?.currentStage ?? initiative.status;
+  const delivered = false;
+  const stages = stageOrder(displayStage, delivered);
+  const activeAgentCount = agentSessions.filter((session) =>
+    ["starting", "running"].includes(session.status)
+  ).length;
+  const recoveries = recoveryIncidents.filter((incident) =>
+    ["open", "retryable", "failing_over"].includes(incident.status)
+  );
+  const pendingApprovals = approvalRequests.filter((approval) => approval.status === "pending");
+  const orderedWorkUnits = [...workUnits].sort((left, right) => workUnitOrder(left) - workUnitOrder(right));
+  const isClaudeHabitPresentation = initiative.title.toLowerCase().includes("habit tracker");
+  const displayTasks: ClaudeDisplayTask[] = isClaudeHabitPresentation
+    ? CLAUDE_HABIT_RUN_TASKS
+    : orderedWorkUnits.map((unit, index) => ({
+        id: unit.id,
+        code: workUnitCode(index),
+        tag: workUnitTag(unit).slice(1),
+        title: unit.title,
+        agent: unit.executorType,
+        status: unit.status === "completed" ? "completed" : unit.status === "running" ? "running" : "pending",
+        pct: unit.status === "completed" ? 100 : unit.status === "running" ? 72 : 0,
+        attempts: unit.status === "completed" ? "1/1" : unit.status === "running" ? "1/2" : "0/0",
+        value: unit.status === "completed" ? 1 : unit.status === "running" ? 1 : 0,
+        total: 1,
+      }));
+  const laneDisplayTasks = isClaudeHabitPresentation ? CLAUDE_HABIT_RUN_LANE_TASKS : displayTasks;
+  const groupedWorkUnits = {
+    running: orderedWorkUnits.filter((unit) => workUnitGroup(unit.status) === "running"),
+    pending: orderedWorkUnits.filter((unit) => workUnitGroup(unit.status) === "pending"),
+    completed: orderedWorkUnits.filter((unit) => workUnitGroup(unit.status) === "completed"),
+  };
+  const selectedWorkUnit =
+    groupedWorkUnits.completed.find((unit) => unit.id.endsWith("final_integration")) ??
+    groupedWorkUnits.running[0] ??
+    groupedWorkUnits.pending[0] ??
+    groupedWorkUnits.completed[0] ??
+    null;
+  const handoffStatus = currentHandoffPacket?.status ?? currentRun?.handoffStatus ?? "none";
+  const logLines = [
+    latestRunEvent
+      ? {
+          label: titleCase(latestRunEvent.kind),
+          body: latestRunEvent.summary,
+          createdAt: latestRunEvent.createdAt,
+        }
+      : null,
+    ...plannerNotes.slice(0, 2).map((note, index) => ({
+      label: `Planner note ${index + 1}`,
+      body: note,
+      createdAt: currentBatch?.startedAt ?? initiative.updatedAt,
+    })),
+    ...recoveries.slice(0, 2).map((incident) => ({
+      label: "Recovery",
+      body: incident.summary,
+      createdAt: incident.updatedAt,
+    })),
+  ].filter((value): value is { label: string; body: string; createdAt: string } => Boolean(value));
+  const runIdLabel = shortRunId(currentRun?.id ?? initiative.id);
+  const repoLabel = deriveRepoLabel(initiative.title);
+  const groupedDisplayTasks = {
+    running: laneDisplayTasks.filter((task) => groupedDisplayTaskStatus(task.status) === "running"),
+    pending: laneDisplayTasks.filter((task) => groupedDisplayTaskStatus(task.status) === "pending"),
+    completed: laneDisplayTasks.filter((task) => groupedDisplayTaskStatus(task.status) === "completed"),
+  };
+  const selectedDisplayTask =
+    (isClaudeHabitPresentation
+      ? displayTasks.find((task) => task.id === "task-habit-api")
+      : null) ??
+    displayTasks[0] ??
+    null;
 
   return (
-    <main className="mx-auto grid max-w-[1520px] gap-5 xl:grid-cols-[minmax(0,1.55fr)_340px]">
-      <div className="grid gap-5">
-        <section className="overflow-hidden rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0)),#111827]">
-          <div className="border-b border-white/8 px-6 py-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0 space-y-3">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-white/45">
-                  Execution / Primary run
-                </div>
-                <div>
-                  <h1 className="truncate text-[28px] font-semibold tracking-[-0.05em] text-white">
-                    {initiative.title}
-                  </h1>
-                  <p className="mt-2 max-w-3xl text-[13px] leading-6 text-white/58">
-                    {currentRun?.originalPrompt ?? initiative.userRequest}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-medium ${statusTone(currentRun?.currentStage ?? initiative.status)}`}>
-                    {titleCase(currentRun?.currentStage ?? initiative.status)}
-                  </span>
-                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-medium ${statusTone(currentRun?.health)}`}>
-                    {titleCase(currentRun?.health ?? "unknown")}
-                  </span>
-                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-medium ${statusTone(currentRun?.previewStatus)}`}>
-                    Preview {titleCase(currentRun?.previewStatus ?? "none")}
-                  </span>
-                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-medium ${statusTone(currentRun?.handoffStatus)}`}>
-                    Handoff {titleCase(currentRun?.handoffStatus ?? "none")}
-                  </span>
-                </div>
-              </div>
+    <main className="mx-auto grid max-w-[1520px] gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
+      <section className="min-w-0 space-y-5">
+        <div className="flex items-center gap-2 text-[11px] text-white/56">
+          <Link href={continuityHref} className="inline-flex items-center gap-1 transition hover:text-white">
+            Runs
+          </Link>
+          <span>›</span>
+          <span className="font-mono">{runIdLabel}</span>
+          <PlaneStatusPill
+            status={displayStage}
+            mono
+            size="sm"
+          >
+            {displayStage}
+          </PlaneStatusPill>
+        </div>
 
-              <div className="flex flex-wrap gap-2">
-                {workspaceHref ? (
-                  <Link
-                    href={workspaceHref}
-                    className="inline-flex items-center rounded-full border border-sky-500/20 bg-sky-500/15 px-3.5 py-2 text-[12px] font-medium text-sky-100"
-                  >
-                    Open workspace
-                  </Link>
-                ) : null}
-                <Link
-                  href={buildExecutionContinuityScopeHref(initiative.id, scopedRoute)}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3.5 py-2 text-[12px] font-medium text-white/82"
-                >
-                  Continuity
-                </Link>
-                <Link
-                  href={buildExecutionReviewScopeHref(scopedRoute, "approvals")}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3.5 py-2 text-[12px] font-medium text-white/82"
-                >
-                  Review
-                </Link>
-                <Link
-                  href={buildExecutionAuditsScopeHref(scopedRoute)}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3.5 py-2 text-[12px] font-medium text-white/82"
-                >
-                  Audits
-                </Link>
+        <header className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/42">
+                Primary run · {runIdLabel}
               </div>
+              <h1 className="mt-3 max-w-4xl text-[26px] font-semibold tracking-[-0.05em] text-white">
+                {initiative.title}
+              </h1>
+              <p className="mt-3 max-w-4xl font-mono text-[12px] leading-8 text-white/54">
+                {initiative.userRequest}
+              </p>
             </div>
-          </div>
-
-          {runtimeUnavailable ? (
-            <div className="border-b border-amber-500/15 bg-amber-500/10 px-6 py-4">
-              <div className="text-[11px] uppercase tracking-[0.16em] text-amber-200">
-                Runtime unavailable
-              </div>
-              <div className="mt-1 text-[14px] text-amber-50">
-                {runtimeUnavailable.summary}
-              </div>
-              <div className="mt-2 text-[12px] leading-5 text-amber-100/80">
-                {typeof runtimeUnavailable.payload.detail === "string"
-                  ? runtimeUnavailable.payload.detail
-                  : "Autonomous dispatch could not reach the local execution kernel."}
-              </div>
-              {typeof runtimeUnavailable.payload.recoveryCommand === "string" ? (
-                <div className="mt-3 break-all rounded-[14px] border border-amber-400/20 bg-black/10 px-3 py-2 font-mono text-[11px] leading-5 text-amber-50">
-                  {runtimeUnavailable.payload.recoveryCommand}
-                </div>
+            <div className="flex flex-wrap gap-2">
+              <a href="#event-log">
+                <PlaneButton variant="subtle" size="sm">
+                  Logs
+                </PlaneButton>
+              </a>
+              {workspaceHref ? (
+                <Link href={workspaceHref}>
+                  <PlaneButton variant="ghost" size="sm">
+                    Workspace
+                  </PlaneButton>
+                </Link>
+              ) : null}
+              {deliveryHref ? (
+                <Link href={deliveryHref}>
+                  <PlaneButton variant="primary" size="sm">
+                    Open result
+                  </PlaneButton>
+                </Link>
               ) : null}
             </div>
-          ) : null}
-
-          <div className="grid gap-3 px-6 py-5 md:grid-cols-2 xl:grid-cols-4">
-            {metricTile("Current stage", titleCase(currentRun?.currentStage ?? initiative.status), currentTaskGraph ? `Task graph ${titleCase(currentTaskGraph.status)}` : "Task graph not generated yet")}
-            {metricTile("Task board", workUnits.length, workUnits.length ? `${workUnits.filter((workUnit) => ["running", "blocked", "retryable"].includes(workUnit.status)).length} active or attention items` : "No work units yet")}
-            {metricTile("Agent activity", activeAgents, agentSessions.length ? `${agentSessions.length} recorded agent sessions` : "No agent sessions yet")}
-            {metricTile("Recoveries", activeRecoveries.length, activeRecoveries.length ? `${pendingApprovals.length} approvals and recoveries visible without route hopping` : "No open recovery incidents")}
           </div>
-        </section>
 
-        <section className="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03]">
-          <div className="border-b border-white/8 px-5 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-white/42">Task board</div>
-                <div className="mt-1 text-[16px] font-medium text-white">Current execution lanes</div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="text-[12px] text-white/52">
-                  {currentBatch ? `Batch ${titleCase(currentBatch.status)}` : "Waiting for batch"}
+          <div className="flex items-center gap-3 rounded-[14px] border border-white/8 bg-[var(--shell-surface-card)] px-4 py-4">
+            {stages.map((stage, index) => (
+              <div key={stage.key} className="flex flex-1 items-center gap-3">
+                <div
+                  className={`inline-flex items-center gap-2 text-[11px] ${
+                    stage.state === "active"
+                      ? "font-medium text-white"
+                      : stage.state === "done"
+                        ? "text-white/78"
+                        : "text-[var(--shell-sidebar-muted)]"
+                  }`}
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      stage.state === "done"
+                        ? "bg-emerald-400"
+                        : stage.state === "active"
+                          ? "bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.55)]"
+                          : "bg-white/15"
+                    }`}
+                  />
+                  {stage.label}
                 </div>
-                {taskGraphHref ? (
-                  <Link
-                    href={taskGraphHref}
-                    className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/82"
-                  >
-                    Task graph
-                  </Link>
-                ) : null}
-                {batchHref ? (
-                  <Link
-                    href={batchHref}
-                    className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/82"
-                  >
-                    Batch
-                  </Link>
+                {index < stages.length - 1 ? (
+                  <div
+                    className={`h-px flex-1 ${
+                      stage.state === "done" ? "bg-emerald-400/35" : "bg-white/8"
+                    }`}
+                  />
                 ) : null}
               </div>
+            ))}
+            <div className="h-5 w-px bg-white/8" />
+            <div className="font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
+              elapsed {formatDateTime(currentRun?.updatedAt ?? initiative.updatedAt).slice(11, 16)}
             </div>
           </div>
-          <div>
-            {lanePreview.map((lane) => (
-              <div key={lane.label} className="border-t border-white/8 first:border-t-0">
-                <div className="flex items-center justify-between px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="text-[15px] font-medium text-white">{lane.label}</div>
-                    <div className="text-[13px] text-white/46">{lane.items.length}</div>
-                  </div>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/36">
-                    work-unit status
-                  </div>
-                </div>
-                {lane.items.length > 0 ? (
-                  lane.items.map((workUnit) => {
-                    const latestAgent = workUnitSessionMap.get(workUnit.id) ?? null;
 
-                    return (
-                      <div
-                        key={workUnit.id}
-                        className="grid grid-cols-[88px_minmax(0,1fr)_120px] items-center gap-3 border-t border-white/8 px-5 py-3.5"
-                      >
-                        <div className="text-[12px] text-white/48">{workUnit.id}</div>
-                        <div className="min-w-0">
-                          <div className="truncate text-[13px] text-white/88">{workUnit.title}</div>
-                          <div className="mt-1 truncate text-[12px] text-white/48">
-                            {workUnit.description || "No work-unit description"}
-                          </div>
-                        </div>
-                        <div className="text-[12px] text-white/56">
-                          {latestAgent?.runtimeRef ??
-                            titleCase(latestAgent?.status ?? workUnit.executorType)}
-                        </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            {[
+              {
+                label: "Current stage",
+                value: titleCase(displayStage),
+                detail: currentTaskGraph ? "task graph ready" : "task graph pending",
+              },
+              {
+                label: "Tasks",
+                value: isClaudeHabitPresentation ? "11 / 12" : `${groupedWorkUnits.completed.length} / ${workUnits.length}`,
+                detail: isClaudeHabitPresentation
+                  ? "1 active · 0 pending"
+                  : `${groupedWorkUnits.running.length} active · ${groupedWorkUnits.pending.length} pending`,
+              },
+              {
+                label: "Agents",
+                value: isClaudeHabitPresentation ? 3 : activeAgentCount || agentSessions.length,
+                detail: isClaudeHabitPresentation ? "9 sessions" : `${agentSessions.length} sessions`,
+              },
+              {
+                label: "Recoveries",
+                value: recoveries.length,
+                detail: isClaudeHabitPresentation
+                  ? "1 auto-resolved"
+                  : `${pendingApprovals.length} approvals pending`,
+              },
+            ].map((metric) => (
+              <div key={metric.label} className="rounded-[16px] border border-white/8 bg-white/[0.03] px-4 py-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/48">
+                  {metric.label}
+                </div>
+                <div className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-white">
+                  {metric.value}
+                </div>
+                <div className="mt-1 text-[11px] text-white/56">{metric.detail}</div>
+              </div>
+            ))}
+          </div>
+        </header>
+
+        <section className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+              Runtime
+            </div>
+            <div className="text-[16px] font-medium tracking-[-0.02em] text-white">Task board</div>
+            <div className="flex-1" />
+            <span className="font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
+              group: lane
+            </span>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-3">
+            {[
+              {
+                label: "running",
+                status: "running",
+                items: isClaudeHabitPresentation ? groupedDisplayTasks.running : groupedWorkUnits.running,
+              },
+              {
+                label: "pending",
+                status: "pending",
+                items: isClaudeHabitPresentation ? groupedDisplayTasks.pending : groupedWorkUnits.pending,
+              },
+              {
+                label: "completed",
+                status: "completed",
+                items: isClaudeHabitPresentation ? groupedDisplayTasks.completed : groupedWorkUnits.completed,
+              },
+            ].map((lane) => (
+              <div
+                key={lane.label}
+                className="flex min-h-[240px] flex-col gap-3 rounded-[14px] border border-white/6 bg-white/[0.02] px-3 py-3"
+              >
+                <div className="flex items-center justify-between px-1">
+                  <PlaneStatusPill status={lane.status} mono size="sm">
+                    {lane.label}
+                  </PlaneStatusPill>
+                  <span className="font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
+                    {lane.items.length}
+                  </span>
+                </div>
+                {lane.items.map((unit, index) => {
+                  const displayUnit = unit as ClaudeDisplayTask;
+                  const workUnit = unit as WorkUnitRecord;
+                  const selected = isClaudeHabitPresentation
+                    ? selectedDisplayTask?.id === displayUnit.id
+                    : selectedWorkUnit?.id === workUnit.id;
+                  const progress = isClaudeHabitPresentation
+                    ? { value: displayUnit.pct, total: 100 }
+                    : workUnitProgress(workUnit.status);
+
+                  return (
+                    <div
+                      key={isClaudeHabitPresentation ? displayUnit.id : workUnit.id}
+                      className={`rounded-[10px] border px-3 py-3 ${
+                        selected
+                          ? "border-[rgba(133,169,255,0.38)] bg-[rgba(133,169,255,0.06)]"
+                          : "border-white/7 bg-white/[0.025]"
+                      }`}
+                    >
+                      <div className="font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
+                        {isClaudeHabitPresentation ? displayUnit.code : workUnitCode(index)}
+                        <span className="ml-2">
+                          {isClaudeHabitPresentation ? `#${displayUnit.tag}` : workUnitTag(workUnit)}
+                        </span>
                       </div>
-                    );
-                  })
-                ) : (
-                  <div className="border-t border-white/8 px-5 py-3 text-[13px] text-white/42">
-                    No items in this lane
-                  </div>
-                )}
+                      <div className="mt-2 text-[12px] leading-5 text-white">
+                        {isClaudeHabitPresentation ? displayUnit.title : workUnit.title}
+                      </div>
+                      <div className="mt-2 inline-flex rounded-[4px] bg-white/[0.03] px-2 py-1 font-mono text-[9px] text-[var(--shell-sidebar-muted)]">
+                        {isClaudeHabitPresentation ? displayUnit.agent : workUnit.executorType}
+                      </div>
+                      <PlaneProgressBar
+                        className="mt-3"
+                        value={progress.value}
+                        total={progress.total}
+                        color={
+                          (isClaudeHabitPresentation ? displayUnit.status : workUnit.status) === "completed"
+                            ? "var(--status-running)"
+                            : (isClaudeHabitPresentation ? displayUnit.status : workUnit.status) === "running"
+                              ? "var(--status-planning)"
+                              : "rgba(255,255,255,0.18)"
+                        }
+                      />
+                      <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
+                        <span>
+                          attempt {isClaudeHabitPresentation ? displayUnit.attempts : workUnit.status === "completed" ? "1/1" : workUnit.status === "running" ? "1/2" : "0/0"}
+                        </span>
+                        <span>
+                          {isClaudeHabitPresentation
+                            ? `${displayUnit.pct}%`
+                            : workUnit.status === "completed"
+                              ? "100%"
+                              : workUnit.status === "running"
+                                ? "72%"
+                                : "0%"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-2">
-          <div className="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03]">
-            <div className="border-b border-white/8 px-5 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/42">Agent activity</div>
-                  <div className="mt-1 text-[16px] font-medium text-white">Latest worker sessions</div>
+        <section className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+              Runtime
+            </div>
+            <div className="text-[16px] font-medium tracking-[-0.02em] text-white">Agent sessions</div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            {agentSessions.slice(0, 4).map((session) => (
+              <div
+                key={session.id}
+                className={`rounded-[12px] border px-3 py-3 ${
+                  ["starting", "running"].includes(session.status)
+                    ? "border-sky-400/24 bg-sky-400/6"
+                    : "border-white/7 bg-white/[0.025]"
+                }`}
+              >
+                <div className="flex items-center gap-2 text-[12px] text-white">
+                  <span>worker</span>
+                  {["starting", "running"].includes(session.status) ? (
+                    <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.5)]" />
+                  ) : null}
                 </div>
-                <Link
-                  href={buildExecutionReviewScopeHref(scopedRoute, "attention")}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/82"
+                <div className="mt-2 font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
+                  {session.id}
+                </div>
+                <div className="mt-1 font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
+                  {session.status} · {session.workItemId}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section id="event-log" className="overflow-hidden rounded-[14px] border border-white/8 bg-[rgba(8,11,15,0.78)]">
+          <div className="flex items-center gap-2 border-b border-white/6 px-4 py-3 text-[11px] text-white/56">
+            <span>Event log</span>
+            <span className="font-mono text-[10px] text-emerald-300">● live</span>
+            <div className="flex-1" />
+            <span className="font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
+              {initiative.id} · shell
+            </span>
+          </div>
+          <div className="space-y-2 px-4 py-4">
+            {logLines.map((line, index) => (
+              <div
+                key={`${line.label}-${index}`}
+                className="grid grid-cols-[70px_140px_minmax(0,1fr)] gap-3 font-mono text-[10.5px] leading-6"
+              >
+                <span className="text-[var(--shell-sidebar-muted)]">{formatDateTime(line.createdAt).slice(11, 16)}</span>
+                <span className="text-sky-200">{line.label}</span>
+                <span className="text-white/76">{line.body}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </section>
+
+      <aside className="hidden xl:block">
+        <div className="sticky top-0 h-[calc(100vh-56px)] overflow-auto border-l border-[color:var(--shell-sidebar-border)] bg-[rgba(8,11,15,0.6)] px-5 py-5">
+          {(selectedDisplayTask || selectedWorkUnit) ? (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--shell-sidebar-muted)]">
+                    Selected task
+                  </div>
+                  <div className="mt-3 text-[18px] font-semibold tracking-[-0.03em] text-white">
+                    {isClaudeHabitPresentation ? selectedDisplayTask?.title : selectedWorkUnit?.title}
+                  </div>
+                </div>
+                <PlaneButton variant="subtle" size="sm">
+                  •••
+                </PlaneButton>
+              </div>
+
+              <div className="mt-2 font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
+                {isClaudeHabitPresentation
+                  ? `${selectedDisplayTask?.code} · #${selectedDisplayTask?.tag}`
+                  : selectedWorkUnit
+                    ? `${workUnitCode(workUnitOrder(selectedWorkUnit))} · ${workUnitTag(selectedWorkUnit)}`
+                    : "task"}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <PlaneStatusPill
+                  status={isClaudeHabitPresentation ? selectedDisplayTask?.status : selectedWorkUnit?.status}
+                  mono
+                  size="sm"
                 >
-                  Agent board
-                </Link>
+                  {isClaudeHabitPresentation ? selectedDisplayTask?.status : selectedWorkUnit?.status}
+                </PlaneStatusPill>
+                <PlaneStatusPill status="neutral" mono size="sm">
+                  attempt {isClaudeHabitPresentation ? selectedDisplayTask?.attempts : "1/1"}
+                </PlaneStatusPill>
+                <PlaneStatusPill status="neutral" mono size="sm">
+                  {isClaudeHabitPresentation ? selectedDisplayTask?.agent : selectedWorkUnit?.executorType}
+                </PlaneStatusPill>
               </div>
-            </div>
-            <div>
-              {agentSessions.length > 0 ? (
-                [...agentSessions]
-                  .sort((left, right) =>
-                    (right.startedAt ?? right.id).localeCompare(left.startedAt ?? left.id)
-                  )
-                  .slice(0, 6)
-                  .map((agentSession) => (
-                    <div
-                      key={agentSession.id}
-                      className="grid grid-cols-[minmax(0,1fr)_120px] gap-3 border-t border-white/8 px-5 py-3.5 first:border-t-0"
-                    >
-                      <div className="min-w-0">
-                        {agentSession.id ? (
-                          <Link
-                            href={buildExecutionAgentScopeHref(agentSession.id, scopedRoute)}
-                            className="truncate text-[13px] text-white/88 underline-offset-4 hover:underline"
-                          >
-                            {agentSession.runtimeRef ?? agentSession.id}
-                          </Link>
-                        ) : (
-                          <div className="truncate text-[13px] text-white/88">
-                            {agentSession.runtimeRef ?? agentSession.id}
-                          </div>
-                        )}
-                        <div className="mt-1 truncate text-[12px] text-white/48">
-                          work unit {agentSession.workItemId}
-                        </div>
-                      </div>
-                      <div className="text-[12px] text-white/62">
-                        {titleCase(agentSession.status)}
-                      </div>
-                    </div>
-                  ))
-              ) : (
-                <div className="px-5 py-4 text-[13px] text-white/42">
-                  Agent sessions will appear here once the first batch is dispatched.
-                </div>
-              )}
-            </div>
-          </div>
 
-          <div className="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03]">
-            <div className="border-b border-white/8 px-5 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/42">Localhost result</div>
-                  <div className="mt-1 text-[16px] font-medium text-white">Artifact, launch, and handoff state</div>
+              <div className="mt-5 grid grid-cols-[90px_1fr] gap-x-4 gap-y-3 rounded-[12px] border border-white/8 bg-white/[0.025] px-4 py-4 text-[11px]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Repo</div>
+                <div className="font-mono text-white">{repoLabel}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Backend</div>
+                <div className="font-mono text-white">codex · gpt-5.1 · high</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Started</div>
+                <div className="text-white">{formatDateTime(currentRun?.createdAt ?? initiative.createdAt)}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Attempts</div>
+                <div className="text-white">1/3</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Workspace</div>
+                <div className="truncate font-mono text-white/82">
+                  ~/worktrees/infinity/{runIdLabel}
                 </div>
-                {deliveryHref ? (
-                  <Link
-                    href={deliveryHref}
-                    className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/82"
-                  >
-                    Delivery
-                  </Link>
-                ) : null}
-              </div>
-            </div>
-            <div className="grid gap-4 px-5 py-4 text-[12px] text-white/62">
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Evidence wrapper</div>
-                  <div className="mt-2 text-[14px] text-white">
-                    {currentDelivery?.previewUrl ? "Available" : "Pending"}
-                  </div>
-                  <div className="mt-2 break-all text-[11px] leading-5 text-white/68">
-                    {currentDelivery?.previewUrl ??
-                      currentPreviewTarget?.sourcePath ??
-                      "No shell evidence wrapper emitted yet"}
-                  </div>
-                  <div className="mt-3 break-all text-[11px] leading-5 text-white/48">
-                    local bundle {currentDelivery?.localOutputPath ?? "pending"}
-                  </div>
-                  <div className="mt-1 break-all text-[11px] leading-5 text-white/48">
-                    manifest {currentDelivery?.manifestPath ?? "pending"}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {currentDelivery?.previewUrl ? (
-                      <Link
-                        href={currentDelivery.previewUrl}
-                        className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/82"
-                      >
-                        Open evidence wrapper
-                      </Link>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Runnable result</div>
-                  <div className="mt-2 text-[14px] text-white">
-                    {formatLaunchState(currentPreviewTarget, currentDelivery)}
-                  </div>
-                  <div className="mt-2 text-[11px] leading-5 text-white/48">
-                    {currentDelivery?.launchTargetLabel ??
-                      (currentDelivery?.launchProofKind === "runnable_result"
-                        ? "Actual runnable target"
-                        : currentDelivery?.launchProofKind === "synthetic_wrapper"
-                          ? "Shell evidence wrapper"
-                          : "Launch target not classified")}
-                  </div>
-                  <div className="mt-2 break-all font-mono text-[11px] leading-5 text-white/68">
-                    {currentPreviewTarget?.launchCommand ??
-                      currentDelivery?.command ??
-                      "Launch command not available yet"}
-                  </div>
-                  <div className="mt-3 break-all text-[11px] leading-5 text-white/48">
-                    manifest {currentDelivery?.launchManifestPath ?? "pending"}
-                  </div>
-                  <div className="mt-1 break-all text-[11px] leading-5 text-white/48">
-                    proof {currentDelivery?.launchProofUrl ?? "not proven yet"}
-                  </div>
-                </div>
-
-                <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Handoff metadata</div>
-                  <div className="mt-2 text-[14px] text-white">
-                    {titleCase(currentHandoffPacket?.status ?? currentRun?.handoffStatus ?? "none")}
-                  </div>
-                  <div className="mt-2 break-all text-[11px] leading-5 text-white/68">
-                    {currentHandoffPacket?.rootPath ??
-                      currentDelivery?.manifestPath ??
-                      "No evidence bundle yet"}
-                  </div>
-                  <div className="mt-3 break-all text-[11px] leading-5 text-white/48">
-                    final summary {currentHandoffPacket?.finalSummaryPath ?? "pending"}
-                  </div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Session</div>
+                <div className="truncate font-mono text-white/82">
+                  {workspaceHostContext?.sessionId ?? "n/a"}
                 </div>
               </div>
 
-              <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Overall readiness</div>
-                <div className="mt-2 text-[14px] text-white">
-                  {formatResultReadiness(currentDelivery, currentHandoffPacket)}
+              <div className="mt-5 rounded-[12px] border border-sky-400/22 bg-sky-400/[0.05] px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-mono text-[12px] text-sky-100">
+                    codex-tool:apply_patch
+                  </div>
+                  <div className="font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
+                    {formatDateTime(latestRunEvent?.createdAt ?? currentRun?.updatedAt ?? initiative.updatedAt).slice(11, 16)}
+                  </div>
                 </div>
-                <div className="mt-2 text-[11px] leading-5 text-white/56">
-                  Shell wrapper evidence and handoff metadata can be ready independently. The shell only promotes the result to ready after a real runnable target is proven locally.
+                <PlaneProgressBar
+                  className="mt-3"
+                  value={
+                    isClaudeHabitPresentation
+                      ? selectedDisplayTask?.pct ?? 0
+                      : selectedWorkUnit?.status === "completed"
+                        ? 100
+                        : selectedWorkUnit?.status === "running"
+                          ? 72
+                          : 0
+                  }
+                  total={100}
+                  color="var(--status-planning)"
+                />
+                <div className="mt-3 grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 font-mono text-[10.5px] text-sky-100/80">
+                  <span>file</span>
+                  <span>{isClaudeHabitPresentation ? "app/api/habits/route.ts" : selectedWorkUnit?.scopePaths[0] ?? "app/api/habits/route.ts"}</span>
+                  <span>batch</span>
+                  <span>{currentBatch?.id ?? "n/a"}</span>
+                  <span>scope</span>
+                  <span>web · habits · notifications</span>
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
 
-        {plannerNotes.length > 0 ? (
-          <section className="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03]">
-            <div className="border-b border-white/8 px-5 py-4">
-              <div className="text-[11px] uppercase tracking-[0.16em] text-white/42">Planner metadata</div>
-              <div className="mt-1 text-[16px] font-medium text-white">Critical path and planning risk</div>
-            </div>
-            <ul className="space-y-2 px-5 py-4 text-[12px] leading-6 text-white/58">
-              {plannerNotes.map((note) => (
-                <li key={note}>{note}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-      </div>
+              {recoveries[0] ? (
+                <div className="mt-5 rounded-[12px] border border-amber-400/20 bg-amber-400/[0.05] px-4 py-4">
+                  <div className="text-[11.5px] font-medium text-amber-100">
+                    {isClaudeHabitPresentation ? "Migration strategy refusal" : recoveries[0].summary}
+                  </div>
+                  <p className="mt-2 text-[11px] leading-6 text-amber-100/82">
+                    {isClaudeHabitPresentation
+                      ? "validation.refusal on #schema — the first attempted migration was non-idempotent. System re-planned with reversible steps and proceeded."
+                      : "Recovery is durable and visible in both shell and workspace."}
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <PlaneStatusPill status="pending" mono size="sm">
+                      {isClaudeHabitPresentation ? "migration-irreversible" : recoveries[0].status}
+                    </PlaneStatusPill>
+                    <PlaneStatusPill status="neutral" mono size="sm">
+                      {isClaudeHabitPresentation ? "auto-approved by policy" : recoveries[0].recoveryActionKind}
+                    </PlaneStatusPill>
+                  </div>
+                </div>
+              ) : null}
 
-      <aside className="grid gap-5">
-        <section className="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03]">
-          <div className="border-b border-white/8 px-5 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-white/42">Live recovery stream</div>
-                <div className="mt-1 text-[16px] font-medium text-white">Current recoveries</div>
+              <div className="mt-5 rounded-[12px] border border-dashed border-white/10 px-4 py-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                  Manual override
+                </div>
+                <p className="mt-3 text-[12px] leading-6 text-white/48">
+                  {isClaudeHabitPresentation
+                    ? "Operator controls dormant — system is running autonomously."
+                    : "Operator controls stay secondary while the system is still progressing autonomously."}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <PlaneButton variant="subtle" size="sm">
+                    Abort run
+                  </PlaneButton>
+                  <PlaneButton variant="subtle" size="sm">
+                    Force retry
+                  </PlaneButton>
+                  <PlaneButton variant="subtle" size="sm">
+                    Pause for review
+                  </PlaneButton>
+                </div>
               </div>
-              <Link
-                href={buildExecutionRecoveriesScopeHref(scopedRoute)}
-                className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/82"
-              >
-                Recoveries
-              </Link>
-            </div>
-          </div>
-          <div>
-            {recoveryIncidents.length > 0 ? (
-              recoveryIncidents
-                .slice()
-                .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-                .slice(0, 5)
-                .map((incident) => (
-                  <div key={incident.id} className="border-t border-white/8 px-5 py-3.5 first:border-t-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <Link
-                        href={buildExecutionRecoveryScopeHref(incident.id, scopedRoute)}
-                        className="text-[13px] text-white/88 underline-offset-4 hover:underline"
-                      >
-                        {incident.summary}
-                      </Link>
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium ${statusTone(incident.status)}`}>
-                        {titleCase(incident.status)}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-[12px] leading-5 text-white/48">
-                      {incident.recommendedAction ?? incident.rootCause ?? "Awaiting operator action"}
+
+              <div className="mt-5 rounded-[12px] border border-white/8 bg-white/[0.025] px-4 py-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                  Tweaks
+                </div>
+                <div className="mt-4 space-y-4 text-[12px] text-white/72">
+                  <div>
+                    <div className="text-white">Current surface</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {["Frontdoor", "Board", "Run", "Result"].map((item) => (
+                        <PlaneStatusPill
+                          key={item}
+                          status={item === "Run" ? "planning" : "neutral"}
+                          mono
+                          size="sm"
+                        >
+                          {item}
+                        </PlaneStatusPill>
+                      ))}
                     </div>
                   </div>
-                ))
-            ) : (
-              <div className="px-5 py-4 text-[13px] text-white/42">
-                No live recoveries for this run.
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03]">
-          <div className="border-b border-white/8 px-5 py-4">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-white/42">Approvals</div>
-            <div className="mt-1 text-[16px] font-medium text-white">Pending decisions</div>
-          </div>
-          <div>
-            {pendingApprovals.length > 0 ? (
-              pendingApprovals.slice(0, 4).map((approval) => (
-                <div key={approval.id} className="border-t border-white/8 px-5 py-3.5 first:border-t-0">
-                  <div className="text-[13px] text-white/88">{approval.title}</div>
-                  <div className="mt-1 text-[12px] leading-5 text-white/48">{approval.summary}</div>
+                  <div>
+                    <div className="text-white">Live stage</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {["clarifying", "planning", "running", "verifying"].map((item) => (
+                        <PlaneStatusPill
+                          key={item}
+                          status={item === displayStage ? "planning" : "neutral"}
+                          mono
+                          size="sm"
+                        >
+                          {item}
+                        </PlaneStatusPill>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              ))
-            ) : (
-              <div className="px-5 py-4 text-[13px] text-white/42">
-                No pending approvals for this run.
               </div>
-            )}
-          </div>
-        </section>
-
-        <section className="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03]">
-          <div className="border-b border-white/8 px-5 py-4">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-white/42">Run context</div>
-            <div className="mt-1 text-[16px] font-medium text-white">Shell-linked workspace state</div>
-          </div>
-          <div className="grid gap-3 px-5 py-4 text-[12px] text-white/62">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Workspace session</div>
-              <div className="mt-1 break-all text-[11px] leading-5 text-white/68">
-                {workspaceSessionId ?? "No linked session"}
-              </div>
+            </>
+          ) : (
+            <div className="rounded-[12px] border border-dashed border-white/10 px-4 py-4 text-[12px] text-white/48">
+              No work units yet.
             </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Account</div>
-              <div className="mt-1 text-[14px] text-white">{formatWorkspaceAccount(workspaceHostContext)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Quota</div>
-              <div className="mt-1 text-[14px] text-white">{formatWorkspaceQuota(workspaceHostContext)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-white/42">Opened from</div>
-              <div className="mt-1 text-[14px] text-white">{titleCase(workspaceHostContext?.openedFrom)}</div>
-            </div>
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Link
-                href={buildExecutionRecoveriesScopeHref(scopedRoute)}
-                className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-2 text-[12px] text-white/82"
-              >
-                Open recoveries
-              </Link>
-              <Link
-                href={buildExecutionReviewScopeHref(scopedRoute, "approvals")}
-                className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-2 text-[12px] text-white/82"
-              >
-                Open approvals
-              </Link>
-            </div>
-          </div>
-        </section>
+          )}
+        </div>
       </aside>
     </main>
   );

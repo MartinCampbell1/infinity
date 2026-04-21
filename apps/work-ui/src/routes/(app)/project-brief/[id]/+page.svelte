@@ -374,18 +374,18 @@
 							{/if}
 							<button
 								type="submit"
-								class="rounded-full border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+								class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
 								disabled={saveState === 'saving'}
 							>
 								Save as reviewing
 							</button>
 							<button
 								type="button"
-								class="rounded-full border border-white/10 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+								class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
 								on:click={() => saveBrief('approved')}
 								disabled={saveState === 'saving'}
 							>
-								Force approval
+								Apply approval override
 							</button>
 						</div>
 					</form>
@@ -434,11 +434,11 @@
 								{#if briefStatus === 'approved' && !taskGraph}
 									<button
 										type="button"
-										class="rounded-full border border-white/10 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+										class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
 										on:click={triggerPlanner}
 										disabled={saveState === 'saving'}
 									>
-										Trigger planner override
+										Trigger planner recovery
 									</button>
 								{/if}
 								{#if taskGraphShellHref && !shellReturnHref}
@@ -452,10 +452,10 @@
 								{/if}
 								{#if projectRunHref && projectResultHref}
 									<a
-										class="rounded-full border border-white/10 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-800"
+										class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-slate-900"
 										href={projectRunHref}
 									>
-										Open local drill-down
+										Open local support view
 									</a>
 								{/if}
 							</div>

@@ -1,6 +1,236 @@
 import { cn } from "@founderos/ui/lib/utils";
 import type { ReactNode } from "react";
 
+const PLANE_STATUS_STYLES = {
+  running: {
+    background: "var(--status-running-bg)",
+    border: "var(--status-running-border)",
+    color: "var(--status-running-fg)",
+  },
+  completed: {
+    background: "var(--status-running-bg)",
+    border: "var(--status-running-border)",
+    color: "var(--status-running-fg)",
+  },
+  ready: {
+    background: "var(--status-running-bg)",
+    border: "var(--status-running-border)",
+    color: "var(--status-running-fg)",
+  },
+  planning: {
+    background: "var(--status-planning-bg)",
+    border: "var(--status-planning-border)",
+    color: "var(--status-planning-fg)",
+  },
+  starting: {
+    background: "var(--status-planning-bg)",
+    border: "var(--status-planning-border)",
+    color: "var(--status-planning-fg)",
+  },
+  clarifying: {
+    background: "var(--status-planning-bg)",
+    border: "var(--status-planning-border)",
+    color: "var(--status-planning-fg)",
+  },
+  verifying: {
+    background: "var(--status-planning-bg)",
+    border: "var(--status-planning-border)",
+    color: "var(--status-planning-fg)",
+  },
+  building: {
+    background: "var(--status-planning-bg)",
+    border: "var(--status-planning-border)",
+    color: "var(--status-planning-fg)",
+  },
+  pending: {
+    background: "var(--status-pending-bg)",
+    border: "var(--status-pending-border)",
+    color: "var(--status-pending-fg)",
+  },
+  retryable: {
+    background: "var(--status-pending-bg)",
+    border: "var(--status-pending-border)",
+    color: "var(--status-pending-fg)",
+  },
+  blocked: {
+    background: "var(--status-pending-bg)",
+    border: "var(--status-pending-border)",
+    color: "var(--status-pending-fg)",
+  },
+  failed: {
+    background: "var(--status-failed-bg)",
+    border: "var(--status-failed-border)",
+    color: "var(--status-failed-fg)",
+  },
+  cancelled: {
+    background: "var(--status-failed-bg)",
+    border: "var(--status-failed-border)",
+    color: "var(--status-failed-fg)",
+  },
+  neutral: {
+    background: "var(--status-neutral-bg)",
+    border: "var(--status-neutral-border)",
+    color: "var(--status-neutral-fg)",
+  },
+} as const satisfies Record<string, { background: string; border: string; color: string }>;
+
+export function PlaneStatusPill({
+  status = "neutral",
+  children,
+  mono = false,
+  size = "md",
+  className,
+}: {
+  status?: string | null;
+  children?: ReactNode;
+  mono?: boolean;
+  size?: "sm" | "md";
+  className?: string;
+}) {
+  const resolved = status ? status.toLowerCase() : "neutral";
+  const style = PLANE_STATUS_STYLES[resolved as keyof typeof PLANE_STATUS_STYLES] ?? PLANE_STATUS_STYLES.neutral;
+
+  return (
+    <span
+      className={cn("inline-flex items-center gap-1.5 rounded-full border", className)}
+      style={{
+        background: style.background,
+        borderColor: style.border,
+        color: style.color,
+        fontFamily: mono ? "var(--font-mono)" : "inherit",
+        fontSize: size === "sm" ? 10 : 11,
+        fontWeight: mono ? 400 : 500,
+        letterSpacing: mono ? "0.02em" : "0",
+        padding: size === "sm" ? "3px 8px" : "4px 10px",
+        textTransform: mono ? "lowercase" : "none",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children ?? resolved}
+    </span>
+  );
+}
+
+export function PlaneKbd({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <span className={cn("ids-kbd", className)}>{children}</span>;
+}
+
+export function PlaneProgressBar({
+  value,
+  total,
+  color = "var(--status-planning)",
+  className,
+}: {
+  value: number;
+  total: number;
+  color?: string;
+  className?: string;
+}) {
+  const percent = Math.min(100, Math.max(0, (value / Math.max(total, 1)) * 100));
+
+  return (
+    <div
+      className={cn("overflow-hidden rounded-full bg-white/[0.06]", className)}
+      style={{ height: 3 }}
+    >
+      <div
+        style={{
+          width: `${percent}%`,
+          height: "100%",
+          background: color,
+          transition: "width var(--transition-fade)",
+        }}
+      />
+    </div>
+  );
+}
+
+export function PlaneButton({
+  variant = "ghost",
+  size = "md",
+  children,
+  icon,
+  disabled = false,
+  className,
+  onClick,
+}: {
+  variant?: "primary" | "ghost" | "subtle" | "topbar";
+  size?: "sm" | "md" | "lg";
+  children: ReactNode;
+  icon?: ReactNode;
+  disabled?: boolean;
+  className?: string;
+  onClick?: () => void;
+}) {
+  const sizeClass =
+    size === "sm"
+      ? "h-[26px] px-[10px] text-[11px]"
+      : size === "lg"
+        ? "h-[38px] px-[18px] text-[13px]"
+        : "h-[32px] px-[14px] text-[12px]";
+  const variantClass =
+    variant === "primary"
+      ? "border-[color:var(--shell-nav-active-border)] bg-[rgba(133,169,255,0.14)] text-[#dfe8ff]"
+      : variant === "subtle"
+        ? "border-transparent bg-transparent text-[var(--muted-foreground)]"
+        : variant === "topbar"
+          ? "border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--muted-foreground)]"
+          : "border-[color:var(--shell-control-border)] bg-[rgba(255,255,255,0.03)] text-white/82";
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-2 rounded-full border font-medium transition disabled:cursor-not-allowed disabled:opacity-40",
+        sizeClass,
+        variantClass,
+        className
+      )}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+export function PlaneIconButton({
+  children,
+  active = false,
+  size = 36,
+  className,
+}: {
+  children: ReactNode;
+  active?: boolean;
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "inline-flex items-center justify-center rounded-[14px] border border-[color:var(--shell-control-border)] text-[var(--shell-sidebar-muted)] transition",
+        className
+      )}
+      style={{
+        width: size,
+        height: size,
+        background: active ? "var(--shell-control-hover)" : "var(--shell-control-bg)",
+        color: active ? "var(--foreground)" : "var(--shell-sidebar-muted)",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function PlaneRunHeader({
   eyebrow,
   title,

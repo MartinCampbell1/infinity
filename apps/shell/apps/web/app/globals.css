@@ -38,6 +38,49 @@
   --shell-surface-elevated: rgba(20, 20, 20, 0.98);
   --shadow-card: none;
   --shadow-elevated: none;
+  --status-running: #49d18d;
+  --status-running-bg: rgba(73, 209, 141, 0.12);
+  --status-running-border: rgba(73, 209, 141, 0.22);
+  --status-running-fg: #bef0d6;
+  --status-planning: #38bdf8;
+  --status-planning-bg: rgba(56, 189, 248, 0.12);
+  --status-planning-border: rgba(56, 189, 248, 0.22);
+  --status-planning-fg: #cfe8fb;
+  --status-pending: #f59e0b;
+  --status-pending-bg: rgba(245, 158, 11, 0.12);
+  --status-pending-border: rgba(245, 158, 11, 0.22);
+  --status-pending-fg: #fde3b5;
+  --status-failed: #f43f5e;
+  --status-failed-bg: rgba(244, 63, 94, 0.12);
+  --status-failed-border: rgba(244, 63, 94, 0.22);
+  --status-failed-fg: #fbcbd4;
+  --status-neutral-bg: rgba(255, 255, 255, 0.06);
+  --status-neutral-border: rgba(255, 255, 255, 0.1);
+  --status-neutral-fg: rgba(255, 255, 255, 0.72);
+  --shell-topbar-height: 56px;
+  --shadow-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --radius-pill: 9999px;
+  --radius-nav: 10px;
+  --radius-input: 14px;
+  --radius-tile: 18px;
+  --radius-card: 20px;
+  --radius-runtime-card: 16px;
+  --radius-hero: 24px;
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 14px;
+  --space-7: 16px;
+  --space-8: 20px;
+  --space-9: 24px;
+  --space-10: 32px;
+  --space-11: 40px;
+  --transition-base: 120ms ease;
+  --transition-fade: 150ms ease;
+  --font-heading: var(--font-sans);
+  --font-features: "ss01" on, "ss02" on, "cv05" on;
 }
 
 html {
@@ -49,7 +92,8 @@ body {
   margin: 0;
   background: var(--shell-app-bg);
   color: var(--foreground);
-  font-feature-settings: "ss01" on, "ss02" on, "cv05" on;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -178,6 +222,119 @@ iframe {
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+.ids-root {
+  background: var(--shell-app-bg);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-features);
+  -webkit-font-smoothing: antialiased;
+}
+
+.ids-h1 {
+  font-family: var(--font-heading, var(--font-sans));
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+  color: var(--foreground);
+}
+
+.ids-h2 {
+  font-family: var(--font-heading, var(--font-sans));
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+.ids-h3 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  color: var(--foreground);
+}
+
+.ids-title {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+
+.ids-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+
+.ids-body-muted {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.ids-caption {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
+.ids-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.ids-stat {
+  font-family: var(--font-heading, var(--font-sans));
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--foreground);
+}
+
+.ids-mono,
+.ids-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.ids-id {
+  text-transform: lowercase;
+}
+
+.ids-link {
+  color: inherit;
+  text-decoration: none;
+  text-underline-offset: 4px;
+}
+
+.ids-link:hover {
+  text-decoration: underline;
+}
+
+.ids-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--shell-sidebar-muted);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--shell-control-border);
+  border-radius: 6px;
 }
 
 .shell-sidebar-chip-row {
@@ -365,15 +522,14 @@ iframe {
 .shell-surface-card {
   background: var(--shell-surface-card);
   border: 1px solid color-mix(in srgb, var(--border) 96%, transparent);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(12px);
 }
 
 .shell-surface-elevated {
   background: var(--shell-surface-elevated);
   border: 1px solid color-mix(in srgb, var(--border) 96%, transparent);
-  border-radius: 18px;
+  border-radius: var(--radius-hero);
   box-shadow: var(--shadow-elevated);
 }
 
