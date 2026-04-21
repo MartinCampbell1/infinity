@@ -14,3 +14,4 @@ coverage/
 .omc/
 output/
 .tmp_*.png
+handoff-packets/validation/
