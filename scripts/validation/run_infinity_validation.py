@@ -131,6 +131,10 @@ LOCAL_MODULE_SPECIFIER_PATTERN = re.compile(
     r"""(?:import|export)\s+(?:[^;'"]*?\sfrom\s+)?["']([^"']+)["']""",
     re.MULTILINE,
 )
+DYNAMIC_LOCAL_MODULE_SPECIFIER_PATTERN = re.compile(
+    r"""(?:import|require)\(\s*["']([^"']+)["']\s*\)""",
+    re.MULTILINE,
+)
 PRIMARY_EXECUTION_ROUTE_SURFACES = [
     (
         "app/(shell)/execution/page.tsx",
@@ -197,6 +201,10 @@ def resolve_shell_module_specifier(
 
 def iter_local_module_specifiers(content: str):
     for match in LOCAL_MODULE_SPECIFIER_PATTERN.finditer(content):
+        specifier = match.group(1).strip()
+        if specifier.startswith("@/") or specifier.startswith("."):
+            yield specifier
+    for match in DYNAMIC_LOCAL_MODULE_SPECIFIER_PATTERN.finditer(content):
         specifier = match.group(1).strip()
         if specifier.startswith("@/") or specifier.startswith("."):
             yield specifier
