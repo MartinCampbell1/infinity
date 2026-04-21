@@ -1,5 +1,6 @@
 import React from "react";
 
+import { ExecutionHandoffActionPanel } from "@/components/execution/execution-handoff-action-panel";
 import {
   buildExecutionHandoffsScopeHref,
   readShellRouteScopeFromQueryRecord,
@@ -167,6 +168,12 @@ export default async function ExecutionHandoffPage({
           </ExecutionDetailList>
         </ExecutionDetailSection>
       ) : null}
+
+      <ExecutionHandoffActionPanel
+        handoff={handoff}
+        routeScope={routeScope}
+        title={title}
+      />
 
       <ExecutionDetailSection title="Actions">
         <div className="flex flex-wrap gap-3">
