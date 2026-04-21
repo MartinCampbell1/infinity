@@ -1,0 +1,10 @@
+{"type":"thread.started","timestamp":"2026-04-11T09:15:00.000Z","thread_id":"thread_codex_recovery","projectName":"Project Atlas","title":"Approval and recovery flow"}
+{"type":"turn.started","timestamp":"2026-04-11T09:15:01.000Z","turn_id":"turn_002","phase":"acting"}
+{"type":"item","timestamp":"2026-04-11T09:15:02.000Z","item":{"type":"approval","status":"in_progress","approval_id":"appr_1001","summary":"Run destructive migration?"}}
+{"type":"turn.failed","timestamp":"2026-04-11T09:15:03.000Z","turn_id":"turn_002","phase":"blocked","status":"failed"}
+{"type":"error","timestamp":"2026-04-11T09:15:04.000Z","message":"Approval timeout"}
+{"type":"recovery.started","timestamp":"2026-04-11T09:15:05.000Z","reason":"fallback account retry","status":"in_progress"}
+{"type":"account.switched","timestamp":"2026-04-11T09:15:06.000Z","accountId":"acct_fallback"}
+{"type":"item","timestamp":"2026-04-11T09:15:07.000Z","item":{"type":"approval","status":"completed","approval_id":"appr_1001","summary":"Approved for session"}}
+{"type":"recovery.completed","timestamp":"2026-04-11T09:15:08.000Z","status":"completed"}
+{"type":"turn.completed","timestamp":"2026-04-11T09:15:09.000Z","turn_id":"turn_003","phase":"completed","status":"completed"}

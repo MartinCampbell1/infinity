@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Infinity Screenshot Manifest",
+  "type": "object",
+  "required": ["run_id", "generated_at", "screenshots"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "screenshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["screen_id", "path", "scenario"],
+        "properties": {
+          "screen_id": { "type": "string" },
+          "path": { "type": "string" },
+          "url": { "type": ["string", "null"] },
+          "scenario": { "type": "string" },
+          "notes": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

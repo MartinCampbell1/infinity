@@ -1,0 +1,39 @@
+# Functional Report
+
+Run ID: `2026-04-18T23-14-29Z`
+Generated: `2026-04-18T23:16:29.650858+00:00`
+Status: `passed`
+
+## Checks
+- `shell_lint` — `passed`
+  - Command passed in 9.13s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-18T23-14-29Z/logs/shell_lint.log
+- `shell_typecheck` — `passed`
+  - Command passed in 3.77s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-18T23-14-29Z/logs/shell_typecheck.log
+- `shell_test` — `passed`
+  - Command passed in 2.63s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-18T23-14-29Z/logs/shell_test.log
+- `work_ui_check` — `passed`
+  - Command passed in 17.42s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-18T23-14-29Z/logs/work_ui_check.log
+- `work_ui_test` — `passed`
+  - Command passed in 2.17s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-18T23-14-29Z/logs/work_ui_test.log
+- `work_ui_build` — `passed`
+  - Command passed in 29.53s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-18T23-14-29Z/logs/work_ui_build.log
+
+## Scenarios
+- `happy_path` — `passed`
+  - {"initiative_id": "initiative-1776554145419-b2a0pttx", "brief_id": "brief-1776554145438-6sb8gmik", "task_graph_id": "task-graph-initiative-1776554145419-b2a0pttx-brief-1776554145438-6sb8gmik", "batch_ids": ["batch-1776554145715-dhrxtfek", "batch-1776554145672-s350ymjt", "batch-1776554145596-ip9awsca", "batch-1776554145504-epkpr0dz", "batch-1776554145457-9613emyo"], "delivery_id": "delivery-1776554145839-0oqeb1i3", "delivery_status": "ready", "preview_ready": true, "handoff_ready": true, "autonomous_one_prompt": true, "shell_first_cta_visible": true, "manual_stage_labels": {"workui_home_embedded": [], "workui_project_brief": [], "workui_project_run": [], "workui_project_result_passed": []}, "preview_url": "http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776554145839-7optvm8d", "handoff_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776554145419-b2a0pttx/delivery-1776554145839-0oqeb1i3/HANDOFF.md", "result_url": "http://127.0.0.1:3101/project-result/initiative-1776554145419-b2a0pttx?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3737&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0xOFQyMzoxNTo1Mi4zOThaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0xOFQyMzoyMDo1Mi4zOThaIn0.1FhpmywBbBz5rKRyZY2R_sXjoUFm0Noi59Ew9CDK5W0"}
+- `failure_recovery_path` — `passed`
+  - {"initiative_id": "initiative-1776554153180-q4jprf18", "task_graph_id": "task-graph-initiative-1776554153180-q4jprf18-brief-1776554153189-6q8q39sk", "delivery_id": "delivery-1776554156308-s90ouz0w", "recovered_batches": ["batch-1776554155762-bsf62lqi", "batch-1776554155830-e91p76ab", "batch-1776554155933-ebw9k3sf", "batch-1776554156099-jn718znb"], "recovery_override_used": true}
+
+## Artifacts
+- `route-matrix.json`
+- `api-exposure-checklist.json`
+- `screenshot-manifest.json`
+- `autonomous-proof.json`
+- `critic-brief.md`
+
+## Autonomous Evidence
+- shell first: `True`
+- autonomous one prompt: `True`
+- preview ready: `True`
+- handoff ready: `True`
+- failure recovery override used: `True`

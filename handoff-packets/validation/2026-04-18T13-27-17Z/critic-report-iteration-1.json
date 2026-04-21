@@ -1,0 +1,27 @@
+{
+  "overall_score": 8.1,
+  "cluster_scores": {
+    "entry_and_navigation": 8.4,
+    "user_flow": 8.0,
+    "operator_flow": 8.5,
+    "error_states": 7.4,
+    "visual_consistency": 8.3
+  },
+  "findings": [
+    {
+      "severity": "medium",
+      "screen_id": "workui_result_blocked_verification",
+      "problem": "The blocked-state banners repeat the same sentence twice, so the failure explanation reads like duplicated copy instead of a clean state message.",
+      "why_it_hurts": "Blocked screens need to be the easiest ones to scan. The duplicated wording makes the state feel buggy and slows operator triage.",
+      "required_fix": "Deduplicate the banner text and keep verification and delivery reasons distinct and single-sentence."
+    },
+    {
+      "severity": "low",
+      "screen_id": "shell_delivery_ready",
+      "problem": "The delivery route lands on a bare 'Delivery not found' dead-end without a contextual recovery action.",
+      "why_it_hurts": "Even when the object is missing, operators need an obvious next step instead of a terminal error page.",
+      "required_fix": "Add a clear recovery CTA such as back to project run, open batch, or open task graph, or ensure the linked delivery is materialized before navigation."
+    }
+  ],
+  "pass": true
+}

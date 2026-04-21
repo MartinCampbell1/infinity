@@ -1,0 +1,150 @@
+{
+  "run_id": "2026-04-18T14-19-18Z",
+  "generated_at": "2026-04-18T14:20:42.745071+00:00",
+  "api_exposure": [
+    {
+      "route": "/api/control/orchestration/initiatives",
+      "owner_surface": "work-ui",
+      "exposure": "user-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": true
+    },
+    {
+      "route": "/api/control/orchestration/briefs",
+      "owner_surface": "work-ui",
+      "exposure": "user-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": true
+    },
+    {
+      "route": "/api/control/orchestration/task-graphs",
+      "owner_surface": "shell",
+      "exposure": "mixed",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": false
+    },
+    {
+      "route": "/api/control/orchestration/work-units",
+      "owner_surface": "shell",
+      "exposure": "operator-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": false
+    },
+    {
+      "route": "/api/control/orchestration/batches",
+      "owner_surface": "shell",
+      "exposure": "mixed",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": true
+    },
+    {
+      "route": "/api/control/orchestration/supervisor/actions",
+      "owner_surface": "shell",
+      "exposure": "operator-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": true
+    },
+    {
+      "route": "/api/control/orchestration/assembly",
+      "owner_surface": "work-ui",
+      "exposure": "user-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": true
+    },
+    {
+      "route": "/api/control/orchestration/verification",
+      "owner_surface": "work-ui",
+      "exposure": "user-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": true
+    },
+    {
+      "route": "/api/control/orchestration/delivery",
+      "owner_surface": "work-ui",
+      "exposure": "user-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": true
+    },
+    {
+      "route": "/api/control/orchestration/continuity",
+      "owner_surface": "shell",
+      "exposure": "mixed",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": false
+    },
+    {
+      "route": "/api/control/accounts",
+      "owner_surface": "shell",
+      "exposure": "operator-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": false
+    },
+    {
+      "route": "/api/control/accounts/quotas",
+      "owner_surface": "shell",
+      "exposure": "operator-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": false
+    },
+    {
+      "route": "/api/control/execution/approvals",
+      "owner_surface": "shell",
+      "exposure": "operator-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": false
+    },
+    {
+      "route": "/api/control/execution/approvals/[approvalId]/respond",
+      "owner_surface": "shell",
+      "exposure": "operator-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": true
+    },
+    {
+      "route": "/api/control/execution/recoveries",
+      "owner_surface": "shell",
+      "exposure": "operator-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": false
+    },
+    {
+      "route": "/api/control/execution/recoveries/[recoveryId]",
+      "owner_surface": "shell",
+      "exposure": "operator-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": true
+    },
+    {
+      "route": "/api/control/execution/audits",
+      "owner_surface": "shell",
+      "exposure": "operator-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": false
+    },
+    {
+      "route": "/api/shell/execution/events",
+      "owner_surface": "shell",
+      "exposure": "operator-facing",
+      "entrypoint_present": true,
+      "outcome_present": true,
+      "mutation_verified": false
+    }
+  ]
+}

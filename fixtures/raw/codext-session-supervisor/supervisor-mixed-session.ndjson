@@ -1,0 +1,5 @@
+{"timestamp":"2026-04-11T09:45:00.000Z","event":"session.bound","sessionId":"sess_mixed_01","runtime":"codex","externalId":"thread_codex_recovery"}
+{"timestamp":"2026-04-11T09:45:01.000Z","event":"session.bound","sessionId":"sess_mixed_01","runtime":"hermes","externalId":"hermes_session_77"}
+{"timestamp":"2026-04-11T09:45:02.000Z","event":"approval.forwarded","sessionId":"sess_mixed_01","approvalId":"appr_h_01","target":"shell"}
+{"timestamp":"2026-04-11T09:45:03.000Z","event":"recovery.decision","sessionId":"sess_mixed_01","mode":"fallback_account","accountId":"acct_fallback"}
+{"timestamp":"2026-04-11T09:45:04.000Z","event":"recovery.completed","sessionId":"sess_mixed_01","summary":"fallback account accepted"}

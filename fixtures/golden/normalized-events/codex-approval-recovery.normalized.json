@@ -1,0 +1,50 @@
+{
+  "normalizationInput": {
+    "normalizer": "normalizeCodexJsonlEvents",
+    "sessionId": "sess_codex_recovery",
+    "projectId": "proj_atlas",
+    "groupId": null
+  },
+  "events": [
+    {
+      "id": "sess_codex_recovery:codex_jsonl:session.started:2026-04-11T09:15:00.000Z:0",
+      "kind": "session.started"
+    },
+    {
+      "id": "sess_codex_recovery:codex_jsonl:turn.started:2026-04-11T09:15:01.000Z:1",
+      "kind": "turn.started"
+    },
+    {
+      "id": "sess_codex_recovery:codex_jsonl:approval.requested:2026-04-11T09:15:02.000Z:2",
+      "kind": "approval.requested"
+    },
+    {
+      "id": "sess_codex_recovery:codex_jsonl:turn.failed:2026-04-11T09:15:03.000Z:3",
+      "kind": "turn.failed"
+    },
+    {
+      "id": "sess_codex_recovery:codex_jsonl:error.raised:2026-04-11T09:15:04.000Z:4",
+      "kind": "error.raised"
+    },
+    {
+      "id": "sess_codex_recovery:codex_jsonl:recovery.started:2026-04-11T09:15:05.000Z:5",
+      "kind": "recovery.started"
+    },
+    {
+      "id": "sess_codex_recovery:codex_jsonl:account.switched:2026-04-11T09:15:06.000Z:6",
+      "kind": "account.switched"
+    },
+    {
+      "id": "sess_codex_recovery:codex_jsonl:approval.resolved:2026-04-11T09:15:07.000Z:7",
+      "kind": "approval.resolved"
+    },
+    {
+      "id": "sess_codex_recovery:codex_jsonl:recovery.completed:2026-04-11T09:15:08.000Z:8",
+      "kind": "recovery.completed"
+    },
+    {
+      "id": "sess_codex_recovery:codex_jsonl:turn.completed:2026-04-11T09:15:09.000Z:9",
+      "kind": "turn.completed"
+    }
+  ]
+}

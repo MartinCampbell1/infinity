@@ -1,0 +1,27 @@
+{
+  "required_desktop": [
+    "workui_home_embedded",
+    "shell_root_frontdoor",
+    "workui_project_brief",
+    "shell_task_graph",
+    "shell_batch_supervision",
+    "shell_approvals",
+    "shell_recoveries",
+    "shell_audits",
+    "workui_project_run",
+    "workui_project_result_passed",
+    "shell_delivery_ready"
+  ],
+  "required_failure": [
+    "workui_run_blocked",
+    "workui_result_blocked_verification",
+    "workui_result_blocked_delivery",
+    "shell_retryable_recovery",
+    "shell_pending_approval"
+  ],
+  "required_standalone": [
+    "workui_root_standalone",
+    "workui_auth_or_redirect_state",
+    "shell_root_entry_standalone"
+  ]
+}

@@ -1,0 +1,30 @@
+# Functional Report
+
+Run ID: `2026-04-20T15-49-44Z`
+Generated: `2026-04-20T15:50:41.005712+00:00`
+Status: `passed`
+
+## Checks
+
+## Scenarios
+- `happy_path` — `passed`
+  - {"initiative_id": "initiative-1776700196971-0oalaqkt", "brief_id": "brief-1776700197002-fqhy6zob", "task_graph_id": "task-graph-initiative-1776700196971-0oalaqkt-brief-1776700197002-fqhy6zob", "batch_ids": ["batch-1776700197246-e62lhep1", "batch-1776700197209-k9g7sxq1", "batch-1776700197172-tsdtf47f", "batch-1776700197104-1b6on0rm", "batch-1776700197056-u9y21fpb", "batch-1776700197015-n3pdd7jj"], "delivery_id": "delivery-1776700197353-j5r18kkn", "delivery_status": "ready", "preview_ready": true, "launch_ready": true, "handoff_ready": true, "autonomous_one_prompt": true, "root_frontdoor": {"requested_entry_path": "/", "resolved_url": "http://127.0.0.1:3737/", "stays_on_root_entry": true, "composer_visible": true, "shell_anchor_visible": true, "secondary_actions_visible": true}, "manual_stage_labels": {"workui_project_brief": [], "workui_project_run": [], "workui_project_result_passed": []}, "preview_url": "http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776700197353-uf7yq01r", "launch_manifest_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776700196971-0oalaqkt/delivery-1776700197353-j5r18kkn/launch-manifest.json", "launch_ready_url": "http://127.0.0.1:56462/preview.html", "launch_recorded_proof_url": "http://127.0.0.1:56434/preview.html", "handoff_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776700196971-0oalaqkt/delivery-1776700197353-j5r18kkn/HANDOFF.md", "result_url": "http://127.0.0.1:3101/project-result/initiative-1776700196971-0oalaqkt?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3737&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0yMFQxNTo1MDowNy45MThaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0yMFQxNTo1NTowNy45MThaIn0.SyX3kB7DN59JiXeJjY2IT-I1f_Cyqz9GQQ5Pzb3UHo8"}
+- `failure_recovery_path` — `passed`
+  - {"initiative_id": "initiative-1776700208763-51mctuf5", "task_graph_id": "task-graph-initiative-1776700208763-51mctuf5-brief-1776700208773-edzewc8l", "delivery_id": "delivery-1776700212255-5n8mlyie", "recovered_batches": ["batch-1776700211719-mymjqo3q", "batch-1776700211788-1fb9ew3q", "batch-1776700211900-6arwkxbt", "batch-1776700212019-0swco43r", "batch-1776700212109-xzn1j5pf"], "recovery_override_used": true}
+
+## Artifacts
+- `route-matrix.json`
+- `api-exposure-checklist.json`
+- `screenshot-manifest.json`
+- `autonomous-proof.json`
+- `critic-brief.md`
+
+## Autonomous Evidence
+- root frontdoor composer visible: `True`
+- root frontdoor shell anchor visible: `True`
+- root frontdoor secondary actions visible: `True`
+- root frontdoor stays on /: `True`
+- autonomous one prompt: `True`
+- preview ready: `True`
+- handoff ready: `True`
+- failure recovery override used: `True`

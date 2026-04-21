@@ -1,0 +1,149 @@
+{
+  "page_routes": {
+    "root_entry": [
+      "/"
+    ],
+    "embedded_core": [
+      "/",
+      "/project-intake",
+      "/project-brief/[id]",
+      "/project-run/[id]",
+      "/project-result/[id]"
+    ],
+    "shell_operator": [
+      "/execution",
+      "/execution/runs",
+      "/execution/spec",
+      "/execution/planner",
+      "/execution/tasks",
+      "/execution/sessions",
+      "/execution/agents",
+      "/execution/agents/[runtimeAgentId]",
+      "/execution/accounts",
+      "/execution/issues",
+      "/execution/refusals",
+      "/execution/approvals",
+      "/execution/events",
+      "/execution/validation",
+      "/execution/deliveries",
+      "/execution/previews",
+      "/execution/handoffs",
+      "/execution/handoffs/[handoffId]",
+      "/execution/recoveries",
+      "/execution/audits",
+      "/execution/continuity/[initiativeId]",
+      "/execution/task-graphs/[taskGraphId]",
+      "/execution/batches/[batchId]",
+      "/execution/delivery/[deliveryId]"
+    ],
+    "standalone_auth_gated": [
+      "/",
+      "/auth"
+    ]
+  },
+  "api_families": [
+    {
+      "route": "/api/control/orchestration/initiatives",
+      "owner_surface": "work-ui",
+      "exposure": "user-facing"
+    },
+    {
+      "route": "/api/control/orchestration/briefs",
+      "owner_surface": "work-ui",
+      "exposure": "user-facing"
+    },
+    {
+      "route": "/api/control/orchestration/task-graphs",
+      "owner_surface": "shell",
+      "exposure": "mixed"
+    },
+    {
+      "route": "/api/control/orchestration/work-units",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    },
+    {
+      "route": "/api/control/orchestration/batches",
+      "owner_surface": "shell",
+      "exposure": "mixed"
+    },
+    {
+      "route": "/api/control/orchestration/supervisor/actions",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    },
+    {
+      "route": "/api/control/orchestration/assembly",
+      "owner_surface": "work-ui",
+      "exposure": "user-facing"
+    },
+    {
+      "route": "/api/control/orchestration/verification",
+      "owner_surface": "work-ui",
+      "exposure": "user-facing"
+    },
+    {
+      "route": "/api/control/orchestration/delivery",
+      "owner_surface": "work-ui",
+      "exposure": "user-facing"
+    },
+    {
+      "route": "/api/control/orchestration/previews/[previewId]",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    },
+    {
+      "route": "/api/control/orchestration/continuity",
+      "owner_surface": "shell",
+      "exposure": "mixed"
+    },
+    {
+      "route": "/api/control/accounts",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    },
+    {
+      "route": "/api/control/accounts/quotas",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    },
+    {
+      "route": "/api/control/execution/approvals",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    },
+    {
+      "route": "/api/control/execution/approvals/[approvalId]/respond",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    },
+    {
+      "route": "/api/control/execution/recoveries",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    },
+    {
+      "route": "/api/control/execution/recoveries/[recoveryId]",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    },
+    {
+      "route": "/api/control/execution/audits",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    },
+    {
+      "route": "/api/shell/execution/events",
+      "owner_surface": "shell",
+      "exposure": "operator-facing"
+    }
+  ],
+  "internal_only": [
+    "/api/control/execution/workspace/[sessionId]/launch-token",
+    "/api/control/execution/workspace/[sessionId]/bootstrap",
+    "/api/control/execution/workspace/[sessionId]/session",
+    "/api/control/execution/workspace/[sessionId]/session-bearer",
+    "/api/control/execution/workspace/[sessionId]/runtime",
+    "/api/control/execution/workspace/rollout-status"
+  ]
+}

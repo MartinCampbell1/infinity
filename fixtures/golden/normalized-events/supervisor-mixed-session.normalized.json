@@ -1,0 +1,35 @@
+{
+  "normalizationInput": {
+    "normalizer": "normalizeSupervisorNdjsonEvents",
+    "sessionId": null,
+    "projectId": "proj_atlas",
+    "groupId": null
+  },
+  "events": [
+    {
+      "id": "sess_mixed_01:manual:session.updated:2026-04-11T09:45:00.000Z:0",
+      "kind": "session.updated",
+      "summary": "Session binding updated"
+    },
+    {
+      "id": "sess_mixed_01:manual:session.updated:2026-04-11T09:45:01.000Z:1",
+      "kind": "session.updated",
+      "summary": "Session binding updated"
+    },
+    {
+      "id": "sess_mixed_01:manual:approval.requested:2026-04-11T09:45:02.000Z:2",
+      "kind": "approval.requested",
+      "summary": "Approval forwarded to shell"
+    },
+    {
+      "id": "sess_mixed_01:manual:recovery.started:2026-04-11T09:45:03.000Z:3",
+      "kind": "recovery.started",
+      "summary": "fallback_account"
+    },
+    {
+      "id": "sess_mixed_01:manual:recovery.completed:2026-04-11T09:45:04.000Z:4",
+      "kind": "recovery.completed",
+      "summary": "fallback account accepted"
+    }
+  ]
+}

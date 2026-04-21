@@ -1,0 +1,32 @@
+{
+  "run_id": "2026-04-20T14-02-58Z",
+  "generated_at": "2026-04-20T14:03:57.317288+00:00",
+  "root_frontdoor": {
+    "requested_entry_path": "/",
+    "resolved_url": "http://127.0.0.1:3737/",
+    "stays_on_root_entry": true,
+    "composer_visible": true,
+    "shell_anchor_visible": true,
+    "secondary_actions_visible": true
+  },
+  "shell_first": {
+    "autonomous_one_prompt": true
+  },
+  "manual_stage_labels": {
+    "workui_project_brief": [],
+    "workui_project_run": [],
+    "workui_project_result_passed": []
+  },
+  "preview_ready": true,
+  "handoff_ready": true,
+  "handoff_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776693792818-2gvnft0a/delivery-1776693793352-gbjisy58/HANDOFF.md",
+  "preview_url": "http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776693793352-vyipm3l6",
+  "failure_recovery_override_used": true,
+  "recovered_batches": [
+    "batch-1776693810214-0wbe9tl5",
+    "batch-1776693810311-0g7lh9r6",
+    "batch-1776693810429-4bfjxjqu",
+    "batch-1776693810573-tnkcwqxs",
+    "batch-1776693810674-tcfskz0v"
+  ]
+}

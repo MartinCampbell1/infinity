@@ -1,0 +1,387 @@
+@import "@founderos/ui/globals.css";
+
+:root {
+  color-scheme: dark;
+  --background: #131313;
+  --foreground: #edf0f3;
+  --card: #1b1b1b;
+  --card-foreground: #edf2f7;
+  --popover: #121821;
+  --popover-foreground: #edf2f7;
+  --primary: #85a9ff;
+  --primary-foreground: #08111f;
+  --secondary: #1c1c1c;
+  --secondary-foreground: #dbe4f0;
+  --muted: #181818;
+  --muted-foreground: #8f949b;
+  --accent: #1e1e1e;
+  --accent-foreground: #edf2f7;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.09);
+  --ring: rgba(133, 169, 255, 0.38);
+  --shell-sidebar-width: 236px;
+  --shell-icon-rail-width: 56px;
+  --shell-app-bg: #111111;
+  --shell-app-glow: rgba(255, 255, 255, 0.02);
+  --shell-sidebar-bg: #111111;
+  --shell-sidebar-border: rgba(255, 255, 255, 0.07);
+  --shell-sidebar-muted: #7c8087;
+  --shell-topbar-bg: rgba(17, 17, 17, 0.94);
+  --shell-topbar-border: rgba(255, 255, 255, 0.07);
+  --shell-control-bg: rgba(255, 255, 255, 0.03);
+  --shell-control-border: rgba(255, 255, 255, 0.07);
+  --shell-control-hover: rgba(255, 255, 255, 0.045);
+  --shell-nav-active: rgba(255, 255, 255, 0.055);
+  --shell-nav-active-border: rgba(133, 169, 255, 0.24);
+  --shell-panel-muted: rgba(255, 255, 255, 0.035);
+  --shell-surface-card: rgba(24, 24, 24, 0.96);
+  --shell-surface-elevated: rgba(20, 20, 20, 0.98);
+  --shadow-card: none;
+  --shadow-elevated: none;
+}
+
+html {
+  background: var(--shell-app-bg);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--shell-app-bg);
+  color: var(--foreground);
+  font-feature-settings: "ss01" on, "ss02" on, "cv05" on;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(133, 169, 255, 0.24);
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(126, 138, 155, 0.34) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  background-color: rgba(126, 138, 155, 0.3);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+iframe {
+  border: 0;
+}
+
+.shell-app-shell {
+  background: var(--shell-app-bg);
+}
+
+.shell-icon-rail {
+  width: var(--shell-icon-rail-width);
+  background: rgba(8, 11, 15, 0.92);
+}
+
+.shell-rail-brand,
+.shell-rail-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--shell-sidebar-muted);
+  background: transparent;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.shell-rail-brand {
+  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--shell-control-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.shell-rail-button:hover {
+  color: var(--foreground);
+  background: var(--shell-control-hover);
+  border-color: var(--shell-control-border);
+}
+
+.shell-rail-button[data-active="true"] {
+  color: var(--foreground);
+  background: var(--shell-nav-active);
+  border-color: var(--shell-nav-active-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.shell-sidebar-panel {
+  width: var(--shell-sidebar-width);
+  border-color: var(--shell-sidebar-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015) 0%, rgba(255, 255, 255, 0) 96px),
+    var(--shell-sidebar-bg);
+  overflow: hidden;
+}
+
+.shell-sidebar-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shell-sidebar-badge,
+.shell-sidebar-chip,
+.shell-topbar-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--shell-control-border);
+  border-radius: 999px;
+  background: var(--shell-control-bg);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.shell-sidebar-badge {
+  padding: 5px 9px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-sidebar-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-inline: 4px;
+}
+
+.shell-sidebar-chip {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.shell-nav-item {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.shell-nav-item:hover {
+  background: var(--shell-control-hover);
+  border-color: var(--shell-control-border);
+}
+
+.shell-nav-item[data-active="true"] {
+  background: var(--shell-nav-active);
+  border-color: var(--shell-nav-active-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.shell-nav-item[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 18px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+.shell-content-area {
+  padding: 14px 16px 20px;
+}
+
+@media (min-width: 640px) {
+  .shell-content-area {
+    padding: 14px 20px 24px;
+  }
+}
+
+.shell-main-column {
+  background: transparent;
+}
+
+.shell-topbar {
+  box-shadow: none;
+}
+
+.shell-topbar-layout {
+  display: grid;
+  align-items: center;
+}
+
+@media (min-width: 960px) {
+  .shell-topbar-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 420px) minmax(0, 1fr);
+  }
+}
+
+.shell-search-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--shell-control-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  justify-self: center;
+}
+
+.shell-search-shortcut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--shell-control-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 10px;
+  color: var(--shell-sidebar-muted);
+}
+
+.shell-topbar-pill {
+  padding: 6px 10px;
+  font-size: 10px;
+}
+
+.shell-topbar-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(133, 169, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(133, 169, 255, 0.14);
+  color: #dfe8ff;
+  font-size: 10px;
+  font-weight: 600;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.shell-topbar-action:hover {
+  border-color: rgba(133, 169, 255, 0.28);
+  background: rgba(133, 169, 255, 0.2);
+}
+
+.shell-main-canvas {
+  min-height: calc(100vh - 112px);
+}
+
+.shell-list-row {
+  transition: background-color 120ms ease;
+}
+
+.shell-list-row:hover {
+  background: var(--shell-control-hover);
+}
+
+.shell-page-title {
+  font-family: var(--font-heading, var(--font-sans));
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--foreground);
+}
+
+.shell-section-header {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--shell-sidebar-muted);
+}
+
+.shell-stat-value {
+  font-family: var(--font-heading, var(--font-sans));
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--foreground);
+}
+
+@media (min-width: 640px) {
+  .shell-stat-value {
+    font-size: 28px;
+  }
+}
+
+.shell-surface-panel {
+  background: color-mix(in srgb, var(--background) 92%, var(--border));
+}
+
+.shell-runtime-card,
+.shell-surface-card {
+  background: var(--shell-surface-card);
+  border: 1px solid color-mix(in srgb, var(--border) 96%, transparent);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(12px);
+}
+
+.shell-surface-elevated {
+  background: var(--shell-surface-elevated);
+  border: 1px solid color-mix(in srgb, var(--border) 96%, transparent);
+  border-radius: 18px;
+  box-shadow: var(--shadow-elevated);
+}
+
+.shell-status-dot-active {
+  background: #49d18d;
+  box-shadow: 0 0 8px rgba(73, 209, 141, 0.4);
+}
+
+.shell-status-dot-inactive {
+  background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+}

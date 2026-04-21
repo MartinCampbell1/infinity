@@ -1,0 +1,61 @@
+{
+  "run_id": "2026-04-20T17-38-13Z",
+  "generated_at": "2026-04-20T17:39:22.050526+00:00",
+  "status": "passed",
+  "checks": [],
+  "scenarios": [
+    {
+      "name": "happy_path",
+      "status": "passed",
+      "detail": "{\"initiative_id\": \"initiative-1776706712621-lnl6a0ry\", \"brief_id\": \"brief-1776706712720-agcuq19y\", \"task_graph_id\": \"task-graph-initiative-1776706712621-lnl6a0ry-brief-1776706712720-agcuq19y\", \"batch_ids\": [\"batch-1776706713052-iiasp7gh\", \"batch-1776706712996-3u955wt7\", \"batch-1776706712945-prfwipj0\", \"batch-1776706712862-p4tnm9ki\", \"batch-1776706712803-zdhe4ssf\", \"batch-1776706712742-4j8wex85\"], \"delivery_id\": \"delivery-1776706713194-xmo27fa4\", \"delivery_status\": \"ready\", \"preview_ready\": true, \"launch_ready\": true, \"handoff_ready\": true, \"autonomous_one_prompt\": true, \"root_frontdoor\": {\"requested_entry_path\": \"/\", \"resolved_url\": \"http://127.0.0.1:3737/\", \"stays_on_root_entry\": true, \"composer_visible\": true, \"shell_anchor_visible\": true, \"secondary_actions_visible\": true}, \"manual_stage_labels\": {\"workui_project_brief\": [], \"workui_project_run\": [], \"workui_project_result_passed\": []}, \"preview_url\": \"http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776706713194-y2ffgobi\", \"launch_manifest_path\": \"/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776706712621-lnl6a0ry/delivery-1776706713194-xmo27fa4/launch-manifest.json\", \"launch_ready_url\": \"http://127.0.0.1:56508/preview.html\", \"launch_recorded_proof_url\": \"http://127.0.0.1:56450/preview.html\", \"handoff_path\": \"/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776706712621-lnl6a0ry/delivery-1776706713194-xmo27fa4/HANDOFF.md\", \"result_url\": \"http://127.0.0.1:3102/project-result/initiative-1776706712621-lnl6a0ry?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3737&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0yMFQxNzozODo0OS4yMDhaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0yMFQxNzo0Mzo0OS4yMDhaIn0.8UxQf0cTDVypARjw-HPh6YTEsOPFoBby6ip3ksQimc8\"}"
+    },
+    {
+      "name": "failure_recovery_path",
+      "status": "passed",
+      "detail": "{\"initiative_id\": \"initiative-1776706730323-xvfq0tnt\", \"task_graph_id\": \"task-graph-initiative-1776706730323-xvfq0tnt-brief-1776706730336-6sip2g13\", \"delivery_id\": \"delivery-1776706734978-025b513d\", \"recovered_batches\": [\"batch-1776706734006-trny9hyz\", \"batch-1776706734099-m5my79s2\", \"batch-1776706734313-tbfgceba\", \"batch-1776706734537-53ixkjuz\", \"batch-1776706734645-vm5hnp96\"], \"recovery_override_used\": true}"
+    }
+  ],
+  "evidence": {
+    "run_id": "2026-04-20T17-38-13Z",
+    "generated_at": "2026-04-20T17:39:22.048521+00:00",
+    "root_frontdoor": {
+      "requested_entry_path": "/",
+      "resolved_url": "http://127.0.0.1:3737/",
+      "stays_on_root_entry": true,
+      "composer_visible": true,
+      "shell_anchor_visible": true,
+      "secondary_actions_visible": true
+    },
+    "shell_first": {
+      "autonomous_one_prompt": true
+    },
+    "manual_stage_labels": {
+      "workui_project_brief": [],
+      "workui_project_run": [],
+      "workui_project_result_passed": []
+    },
+    "preview_ready": true,
+    "launch_ready": true,
+    "handoff_ready": true,
+    "handoff_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776706712621-lnl6a0ry/delivery-1776706713194-xmo27fa4/HANDOFF.md",
+    "preview_url": "http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776706713194-y2ffgobi",
+    "launch_manifest_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776706712621-lnl6a0ry/delivery-1776706713194-xmo27fa4/launch-manifest.json",
+    "launch_ready_url": "http://127.0.0.1:56508/preview.html",
+    "launch_recorded_proof_url": "http://127.0.0.1:56450/preview.html",
+    "failure_recovery_override_used": true,
+    "recovered_batches": [
+      "batch-1776706734006-trny9hyz",
+      "batch-1776706734099-m5my79s2",
+      "batch-1776706734313-tbfgceba",
+      "batch-1776706734537-53ixkjuz",
+      "batch-1776706734645-vm5hnp96"
+    ]
+  },
+  "artifacts": [
+    "route-matrix.json",
+    "api-exposure-checklist.json",
+    "screenshot-manifest.json",
+    "autonomous-proof.json",
+    "critic-brief.md"
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "run_id": "2026-04-20T14-10-33Z",
+  "generated_at": "2026-04-20T14:11:39.499259+00:00",
+  "status": "passed",
+  "checks": [],
+  "scenarios": [
+    {
+      "name": "happy_path",
+      "status": "passed",
+      "detail": "{\"initiative_id\": \"initiative-1776694250763-h9l5791h\", \"brief_id\": \"brief-1776694250809-euek12op\", \"task_graph_id\": \"task-graph-initiative-1776694250763-h9l5791h-brief-1776694250809-euek12op\", \"batch_ids\": [\"batch-1776694251156-b3x5hwa4\", \"batch-1776694251085-zx9ckc50\", \"batch-1776694251033-iwe5s1do\", \"batch-1776694250945-7ud8fo2v\", \"batch-1776694250885-swnoqjvb\", \"batch-1776694250832-rj4h0spj\"], \"delivery_id\": \"delivery-1776694251310-effd7kmk\", \"delivery_status\": \"ready\", \"preview_ready\": true, \"handoff_ready\": true, \"autonomous_one_prompt\": true, \"root_frontdoor\": {\"requested_entry_path\": \"/\", \"resolved_url\": \"http://127.0.0.1:3737/\", \"stays_on_root_entry\": true, \"composer_visible\": true, \"shell_anchor_visible\": true, \"secondary_actions_visible\": true}, \"manual_stage_labels\": {\"workui_project_brief\": [], \"workui_project_run\": [], \"workui_project_result_passed\": []}, \"preview_url\": \"http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776694251310-z4skcmcy\", \"handoff_path\": \"/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776694250763-h9l5791h/delivery-1776694251310-effd7kmk/HANDOFF.md\", \"result_url\": \"http://127.0.0.1:3101/project-result/initiative-1776694250763-h9l5791h?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3737&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0yMFQxNDoxMTowNi4wMTBaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0yMFQxNDoxNjowNi4wMTBaIn0.Ljow-haYVxtt_wGOvBSF6BiEixzNGRk8tP26_UukKns\"}"
+    },
+    {
+      "name": "failure_recovery_path",
+      "status": "passed",
+      "detail": "{\"initiative_id\": \"initiative-1776694267064-qfc2pjk3\", \"task_graph_id\": \"task-graph-initiative-1776694267064-qfc2pjk3-brief-1776694267077-rwm10dks\", \"delivery_id\": \"delivery-1776694271795-ri8ebwug\", \"recovered_batches\": [\"batch-1776694270646-o0fl3s7q\", \"batch-1776694270818-pk70ui0i\", \"batch-1776694271021-4x84fk9f\", \"batch-1776694271285-729lhcmq\", \"batch-1776694271478-1sz5k1ol\"], \"recovery_override_used\": true}"
+    }
+  ],
+  "evidence": {
+    "run_id": "2026-04-20T14-10-33Z",
+    "generated_at": "2026-04-20T14:11:39.497375+00:00",
+    "root_frontdoor": {
+      "requested_entry_path": "/",
+      "resolved_url": "http://127.0.0.1:3737/",
+      "stays_on_root_entry": true,
+      "composer_visible": true,
+      "shell_anchor_visible": true,
+      "secondary_actions_visible": true
+    },
+    "shell_first": {
+      "autonomous_one_prompt": true
+    },
+    "manual_stage_labels": {
+      "workui_project_brief": [],
+      "workui_project_run": [],
+      "workui_project_result_passed": []
+    },
+    "preview_ready": true,
+    "handoff_ready": true,
+    "handoff_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776694250763-h9l5791h/delivery-1776694251310-effd7kmk/HANDOFF.md",
+    "preview_url": "http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776694251310-z4skcmcy",
+    "failure_recovery_override_used": true,
+    "recovered_batches": [
+      "batch-1776694270646-o0fl3s7q",
+      "batch-1776694270818-pk70ui0i",
+      "batch-1776694271021-4x84fk9f",
+      "batch-1776694271285-729lhcmq",
+      "batch-1776694271478-1sz5k1ol"
+    ]
+  },
+  "artifacts": [
+    "route-matrix.json",
+    "api-exposure-checklist.json",
+    "screenshot-manifest.json",
+    "autonomous-proof.json",
+    "critic-brief.md"
+  ]
+}

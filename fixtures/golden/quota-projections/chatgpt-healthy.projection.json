@@ -1,0 +1,17 @@
+{
+  "raw_source": "../../raw/codex-app-server-rate-limits/read-chatgpt-healthy.json",
+  "accountId": "account-chatgpt-01",
+  "authMode": "chatgpt",
+  "snapshot": {
+    "source": "openai_app_server",
+    "buckets": [
+      { "limitId": "req_5h", "usedPercent": 32 },
+      { "limitId": "tok_5h", "usedPercent": 41 }
+    ]
+  },
+  "capacity": {
+    "pressure": "low",
+    "schedulable": true,
+    "reasonCodes": ["rate_limit_pressure"]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "sessionId": "sess_mixed_01",
+  "expectedSummary": {
+    "status": "recovered",
+    "phase": "completed",
+    "externalSessionId": "hermes_session_77",
+    "pendingApprovals": 1,
+    "toolActivityCount": 0,
+    "retryCount": 1,
+    "recoveryState": "recovered",
+    "quotaPressure": "unknown",
+    "unreadOperatorSignals": 3,
+    "updatedAt": "2026-04-11T09:45:04.000Z"
+  },
+  "expectedGroupProjection": {
+    "id": "ungrouped",
+    "totalSessions": 1,
+    "activeSessions": 1,
+    "completedSessions": 0,
+    "failedSessions": 0,
+    "retryableSessions": 0,
+    "pendingApprovals": 1,
+    "unreadOperatorSignals": 3
+  }
+}

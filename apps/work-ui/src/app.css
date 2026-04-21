@@ -1,0 +1,4 @@
+@import "tailwindcss";
+
+@source "./lib/**/*.{svelte,ts,js}";
+@source "./routes/**/*.{svelte,ts,js}";

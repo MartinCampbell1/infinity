@@ -1,0 +1,92 @@
+{
+  "run_id": "2026-04-20T13-07-22Z",
+  "generated_at": "2026-04-20T13:10:10.234443+00:00",
+  "status": "failed",
+  "checks": [
+    {
+      "name": "shell_lint",
+      "status": "passed",
+      "detail": "Command passed in 12.46s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-20T13-07-22Z/logs/shell_lint.log"
+    },
+    {
+      "name": "shell_typecheck",
+      "status": "passed",
+      "detail": "Command passed in 5.26s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-20T13-07-22Z/logs/shell_typecheck.log"
+    },
+    {
+      "name": "shell_test",
+      "status": "failed",
+      "detail": "Command failed in 3.06s. See /Users/martin/infinity/handoff-packets/validation/2026-04-20T13-07-22Z/logs/shell_test.log"
+    },
+    {
+      "name": "shell_build",
+      "status": "passed",
+      "detail": "Command passed in 11.93s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-20T13-07-22Z/logs/shell_build.log"
+    },
+    {
+      "name": "work_ui_check",
+      "status": "passed",
+      "detail": "Command passed in 20.64s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-20T13-07-22Z/logs/work_ui_check.log"
+    },
+    {
+      "name": "work_ui_test",
+      "status": "passed",
+      "detail": "Command passed in 3.38s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-20T13-07-22Z/logs/work_ui_test.log"
+    },
+    {
+      "name": "work_ui_build",
+      "status": "passed",
+      "detail": "Command passed in 50.72s. Log: /Users/martin/infinity/handoff-packets/validation/2026-04-20T13-07-22Z/logs/work_ui_build.log"
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "happy_path",
+      "status": "passed",
+      "detail": "{\"initiative_id\": \"initiative-1776690565928-9a9boe55\", \"brief_id\": \"brief-1776690565945-n0wz7skl\", \"task_graph_id\": \"task-graph-initiative-1776690565928-9a9boe55-brief-1776690565945-n0wz7skl\", \"batch_ids\": [\"batch-1776690566190-d7zibrqm\", \"batch-1776690566148-jlyg6cj4\", \"batch-1776690566073-vhaiupbl\", \"batch-1776690566009-0v45bitt\", \"batch-1776690565963-83dymo1l\"], \"delivery_id\": \"delivery-1776690566305-f005wacz\", \"delivery_status\": \"ready\", \"preview_ready\": true, \"handoff_ready\": true, \"autonomous_one_prompt\": true, \"root_frontdoor\": {\"requested_entry_path\": \"/\", \"resolved_url\": \"http://127.0.0.1:3737/\", \"redirected_to_execution\": false, \"composer_visible\": true, \"shell_anchor_visible\": true, \"secondary_actions_visible\": true}, \"manual_stage_labels\": {\"workui_project_brief\": [], \"workui_project_run\": [], \"workui_project_result_passed\": []}, \"preview_url\": \"http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776690566305-c768nj08\", \"handoff_path\": \"/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776690565928-9a9boe55/delivery-1776690566305-f005wacz/HANDOFF.md\", \"result_url\": \"http://127.0.0.1:3101/project-result/initiative-1776690565928-9a9boe55?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3737&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0yMFQxMzowOTozMy43MTRaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0yMFQxMzoxNDozMy43MTRaIn0.XPHOjN3yxuqBRwh1PUDEkE2U7ZFU-zIOARbnPuAp19Y\"}"
+    },
+    {
+      "name": "failure_recovery_path",
+      "status": "passed",
+      "detail": "{\"initiative_id\": \"initiative-1776690574551-sm2lkhgq\", \"task_graph_id\": \"task-graph-initiative-1776690574551-sm2lkhgq-brief-1776690574562-mwli5scw\", \"delivery_id\": \"delivery-1776690577503-dyeq0618\", \"recovered_batches\": [\"batch-1776690577100-q8z4xein\", \"batch-1776690577161-j3xuddew\", \"batch-1776690577244-fhoa3qip\", \"batch-1776690577360-2d4o6tf9\"], \"recovery_override_used\": true}"
+    }
+  ],
+  "evidence": {
+    "run_id": "2026-04-20T13-07-22Z",
+    "generated_at": "2026-04-20T13:10:10.232346+00:00",
+    "root_frontdoor": {
+      "requested_entry_path": "/",
+      "resolved_url": "http://127.0.0.1:3737/",
+      "redirected_to_execution": false,
+      "composer_visible": true,
+      "shell_anchor_visible": true,
+      "secondary_actions_visible": true
+    },
+    "shell_first": {
+      "autonomous_one_prompt": true
+    },
+    "manual_stage_labels": {
+      "workui_project_brief": [],
+      "workui_project_run": [],
+      "workui_project_result_passed": []
+    },
+    "preview_ready": true,
+    "handoff_ready": true,
+    "handoff_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776690565928-9a9boe55/delivery-1776690566305-f005wacz/HANDOFF.md",
+    "preview_url": "http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776690566305-c768nj08",
+    "failure_recovery_override_used": true,
+    "recovered_batches": [
+      "batch-1776690577100-q8z4xein",
+      "batch-1776690577161-j3xuddew",
+      "batch-1776690577244-fhoa3qip",
+      "batch-1776690577360-2d4o6tf9"
+    ]
+  },
+  "artifacts": [
+    "route-matrix.json",
+    "api-exposure-checklist.json",
+    "screenshot-manifest.json",
+    "autonomous-proof.json",
+    "critic-brief.md"
+  ]
+}

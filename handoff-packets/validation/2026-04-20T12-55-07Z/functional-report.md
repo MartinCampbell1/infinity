@@ -1,0 +1,30 @@
+# Functional Report
+
+Run ID: `2026-04-20T12-55-07Z`
+Generated: `2026-04-20T12:56:28.719182+00:00`
+Status: `passed`
+
+## Checks
+
+## Scenarios
+- `happy_path` — `passed`
+  - {"initiative_id": "initiative-1776689733681-kld8bi5o", "brief_id": "brief-1776689733738-iivv0us0", "task_graph_id": "task-graph-initiative-1776689733681-kld8bi5o-brief-1776689733738-iivv0us0", "batch_ids": ["batch-1776689734118-3y7m0bhv", "batch-1776689734060-0wfm3wi8", "batch-1776689733946-vjct892p", "batch-1776689733817-quhenc2q", "batch-1776689733755-bmvgigs7"], "delivery_id": "delivery-1776689734288-0qcja5pd", "delivery_status": "ready", "preview_ready": true, "handoff_ready": true, "autonomous_one_prompt": true, "root_frontdoor": {"requested_entry_path": "/", "resolved_url": "http://127.0.0.1:3737/", "redirected_to_execution": false, "composer_visible": true, "shell_anchor_visible": true, "secondary_actions_visible": true}, "manual_stage_labels": {"workui_project_brief": [], "workui_project_run": [], "workui_project_result_passed": []}, "preview_url": "http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776689734288-0wncgfha", "handoff_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776689733681-kld8bi5o/delivery-1776689734288-0qcja5pd/HANDOFF.md", "result_url": "http://127.0.0.1:3101/project-result/initiative-1776689733681-kld8bi5o?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3737&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0yMFQxMjo1NTo1MS45MzFaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0yMFQxMzowMDo1MS45MzFaIn0.f8U2hDyXbeThvboGNm6tMFrpOrbZKxe9qh7Is-fV23A"}
+- `failure_recovery_path` — `passed`
+  - {"initiative_id": "initiative-1776689753164-4kr7oc1l", "task_graph_id": "task-graph-initiative-1776689753164-4kr7oc1l-brief-1776689753179-to9y24v2", "delivery_id": "delivery-1776689757346-fr9gyuly", "recovered_batches": ["batch-1776689756867-pp0gr1pv", "batch-1776689756948-qphkc079", "batch-1776689757039-5htaaacm", "batch-1776689757159-ivtqoq4l"], "recovery_override_used": true}
+
+## Artifacts
+- `route-matrix.json`
+- `api-exposure-checklist.json`
+- `screenshot-manifest.json`
+- `autonomous-proof.json`
+- `critic-brief.md`
+
+## Autonomous Evidence
+- root frontdoor composer visible: `True`
+- root frontdoor shell anchor visible: `True`
+- root frontdoor secondary actions visible: `True`
+- root frontdoor redirected to /execution: `False`
+- autonomous one prompt: `True`
+- preview ready: `True`
+- handoff ready: `True`
+- failure recovery override used: `True`

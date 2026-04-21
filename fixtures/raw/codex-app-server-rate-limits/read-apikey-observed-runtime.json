@@ -1,0 +1,15 @@
+{
+  "source": "app-server",
+  "endpoint": "account/rateLimits/read",
+  "captured_at": "2026-04-11T13:10:00Z",
+  "scenario": "auth-mode-diff",
+  "accountId": "account-apikey-01",
+  "authMode": "apikey",
+  "runtime_capacity": {
+    "capacity_model": "usage_priced",
+    "throttle_level": "medium",
+    "blocked": false,
+    "concurrent_sessions": 3,
+    "next_billing_reset_at": "2026-05-01T00:00:00.000Z"
+  }
+}

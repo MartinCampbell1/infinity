@@ -1,0 +1,146 @@
+{
+  "run_id": "2026-04-19T03-53-07Z",
+  "generated_at": "2026-04-19T03:54:01.776735+00:00",
+  "screenshots": [
+    {
+      "screen_id": "shell_root_frontdoor",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_root_frontdoor.png",
+      "url": "http://127.0.0.1:3738/execution",
+      "scenario": "happy_path",
+      "notes": "Requested http://127.0.0.1:3738/ and resolved to http://127.0.0.1:3738/execution."
+    },
+    {
+      "screen_id": "workui_home_embedded",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/workui_home_embedded.png",
+      "url": "http://127.0.0.1:3103/?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3738&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0xOVQwMzo1MzoxOC4zMjBaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0xOVQwMzo1ODoxOC4zMjBaIn0.DtXntjVP1HxLkBVvNvuuvbpR6vcBD068KvRNTnYDkAo",
+      "scenario": "happy_path",
+      "notes": null
+    },
+    {
+      "screen_id": "workui_project_brief",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/workui_project_brief.png",
+      "url": "http://127.0.0.1:3103/project-brief/brief-1776570797829-u8jslfmb?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3738&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0xOVQwMzo1MzoyMS4yNDZaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0xOVQwMzo1ODoyMS4yNDZaIn0.NTrTo3_DH4IAVSeBTN3ADhwLZD8xlWWT7IrwG2nwlps",
+      "scenario": "happy_path",
+      "notes": null
+    },
+    {
+      "screen_id": "shell_task_graph",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_task_graph.png",
+      "url": "http://127.0.0.1:3738/execution/task-graphs/task-graph-initiative-1776570797814-8dhpdpk3-brief-1776570797829-u8jslfmb?initiative_id=initiative-1776570797814-8dhpdpk3",
+      "scenario": "happy_path",
+      "notes": null
+    },
+    {
+      "screen_id": "shell_batch_supervision",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_batch_supervision.png",
+      "url": "http://127.0.0.1:3738/execution/batches/batch-1776570798062-5lk3rujc?initiative_id=initiative-1776570797814-8dhpdpk3&task_graph_id=task-graph-initiative-1776570797814-8dhpdpk3-brief-1776570797829-u8jslfmb",
+      "scenario": "happy_path",
+      "notes": null
+    },
+    {
+      "screen_id": "workui_project_run",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/workui_project_run.png",
+      "url": "http://127.0.0.1:3103/project-run/initiative-1776570797814-8dhpdpk3?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3738&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0xOVQwMzo1MzoyMy42MzBaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0xOVQwMzo1ODoyMy42MzBaIn0.aHtqw9ZtI4xpoiVcSHvJIVrV0bMF4sV_qKOopd8R29E",
+      "scenario": "happy_path",
+      "notes": null
+    },
+    {
+      "screen_id": "workui_project_result_passed",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/workui_project_result_passed.png",
+      "url": "http://127.0.0.1:3103/project-result/initiative-1776570797814-8dhpdpk3?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3738&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0xOVQwMzo1MzoyNC4zOTFaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0xOVQwMzo1ODoyNC4zOTFaIn0.xSpryr1F11JRkD1hEsreQ-Ym8VSJ9G8UmZDSBrQNhn4",
+      "scenario": "happy_path",
+      "notes": null
+    },
+    {
+      "screen_id": "shell_retryable_recovery",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_retryable_recovery.png",
+      "url": "http://127.0.0.1:3738/execution/batches/batch-1776570805203-athc40pk?initiative_id=initiative-1776570805160-612idg3k&task_graph_id=task-graph-initiative-1776570805160-612idg3k-brief-1776570805172-v008t50i",
+      "scenario": "failure_path",
+      "notes": null
+    },
+    {
+      "screen_id": "workui_run_blocked",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/workui_run_blocked.png",
+      "url": "http://127.0.0.1:3103/project-run/initiative-1776570805160-612idg3k?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3738&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0xOVQwMzo1MzoyNS45ODJaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0xOVQwMzo1ODoyNS45ODJaIn0.2LDeeLgFWs3cDCZI-b7rCPAhhfrFaPU5g0rQWfVCNoY",
+      "scenario": "failure_path",
+      "notes": null
+    },
+    {
+      "screen_id": "workui_result_blocked_verification",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/workui_result_blocked_verification.png",
+      "url": "http://127.0.0.1:3103/project-result/initiative-1776570805160-612idg3k?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3738&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0xOVQwMzo1MzoyNi43NDRaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0xOVQwMzo1ODoyNi43NDRaIn0.UXDEF0CoNPuo0QsBnP0mzOeN7MG9SF0nLrhUtio7kxs",
+      "scenario": "failure_path",
+      "notes": null
+    },
+    {
+      "screen_id": "workui_result_blocked_delivery",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/workui_result_blocked_delivery.png",
+      "url": "http://127.0.0.1:3103/project-result/initiative-1776570805160-612idg3k?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3738&embedded=1&launch_token=eyJ2IjoxLCJwcm9qZWN0SWQiOiJwcm9qZWN0LWJvcmVhbGlzIiwic2Vzc2lvbklkIjoic2Vzc2lvbi0yMDI2LTA0LTExLTAwMiIsImdyb3VwSWQiOiJncm91cC1jb3JlLTAyIiwiYWNjb3VudElkIjoiYWNjb3VudC1jaGF0Z3B0LTAyIiwid29ya3NwYWNlSWQiOiJ3b3Jrc3BhY2UtYm9yZWFsaXMtcmV2aWV3Iiwib3BlbmVkRnJvbSI6ImV4ZWN1dGlvbl9ib2FyZCIsImlzc3VlZEF0IjoiMjAyNi0wNC0xOVQwMzo1MzoyNi43NDRaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNC0xOVQwMzo1ODoyNi43NDRaIn0.UXDEF0CoNPuo0QsBnP0mzOeN7MG9SF0nLrhUtio7kxs",
+      "scenario": "failure_path",
+      "notes": "Same screen shows both blocked verification and blocked delivery."
+    },
+    {
+      "screen_id": "shell_root_frontdoor",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_root_frontdoor.png",
+      "url": "http://127.0.0.1:3738/execution",
+      "scenario": "shell_operator",
+      "notes": "Requested http://127.0.0.1:3738/ and resolved to http://127.0.0.1:3738/execution."
+    },
+    {
+      "screen_id": "shell_pending_approval",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_pending_approval.png",
+      "url": "http://127.0.0.1:3738/execution/approvals",
+      "scenario": "operator_states",
+      "notes": null
+    },
+    {
+      "screen_id": "shell_approvals",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_approvals.png",
+      "url": "http://127.0.0.1:3738/execution/approvals",
+      "scenario": "shell_operator",
+      "notes": null
+    },
+    {
+      "screen_id": "shell_recoveries",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_recoveries.png",
+      "url": "http://127.0.0.1:3738/execution/recoveries",
+      "scenario": "shell_operator",
+      "notes": null
+    },
+    {
+      "screen_id": "shell_audits",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_audits.png",
+      "url": "http://127.0.0.1:3738/execution/audits",
+      "scenario": "shell_operator",
+      "notes": null
+    },
+    {
+      "screen_id": "shell_delivery_ready",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_delivery_ready.png",
+      "url": "http://127.0.0.1:3738/execution/delivery/delivery-1776570798186-ucopa4a6?initiative_id=initiative-1776570797814-8dhpdpk3",
+      "scenario": "happy_path",
+      "notes": null
+    },
+    {
+      "screen_id": "workui_root_standalone",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/workui_root_standalone.png",
+      "url": "http://127.0.0.1:3103/auth",
+      "scenario": "standalone",
+      "notes": null
+    },
+    {
+      "screen_id": "workui_auth_or_redirect_state",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/workui_auth_or_redirect_state.png",
+      "url": "http://127.0.0.1:3103/auth",
+      "scenario": "standalone",
+      "notes": null
+    },
+    {
+      "screen_id": "shell_root_entry_standalone",
+      "path": "/Users/martin/infinity/handoff-packets/validation/2026-04-19T03-53-07Z/screenshots/shell_root_entry_standalone.png",
+      "url": "http://127.0.0.1:3738/execution",
+      "scenario": "standalone",
+      "notes": "Requested http://127.0.0.1:3738/ and resolved to http://127.0.0.1:3738/execution."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "normalizationInput": {
+    "normalizer": "normalizeHermesSseEvents",
+    "sessionId": "sess_hermes_happy",
+    "projectId": "proj_atlas",
+    "groupId": null
+  },
+  "events": [
+    {
+      "id": "sess_hermes_happy:hermes_sse:session.started:2026-04-11T09:30:00.000Z:0",
+      "kind": "session.started"
+    },
+    {
+      "id": "sess_hermes_happy:hermes_sse:session.updated:2026-04-11T09:30:01.000Z:1",
+      "kind": "session.updated"
+    },
+    {
+      "id": "sess_hermes_happy:hermes_sse:agent.message.delta:2026-04-11T09:30:02.000Z:2",
+      "kind": "agent.message.delta"
+    },
+    {
+      "id": "sess_hermes_happy:hermes_sse:tool.started:2026-04-11T09:30:03.000Z:3",
+      "kind": "tool.started"
+    },
+    {
+      "id": "sess_hermes_happy:hermes_sse:tool.completed:2026-04-11T09:30:04.000Z:4",
+      "kind": "tool.completed"
+    },
+    {
+      "id": "sess_hermes_happy:hermes_sse:approval.requested:2026-04-11T09:30:05.000Z:5",
+      "kind": "approval.requested"
+    },
+    {
+      "id": "sess_hermes_happy:hermes_sse:approval.resolved:2026-04-11T09:30:06.000Z:6",
+      "kind": "approval.resolved"
+    },
+    {
+      "id": "sess_hermes_happy:hermes_sse:agent.message.completed:2026-04-11T09:30:07.000Z:7",
+      "kind": "agent.message.completed"
+    },
+    {
+      "id": "sess_hermes_happy:hermes_sse:turn.completed:2026-04-11T09:30:08.000Z:8",
+      "kind": "turn.completed"
+    }
+  ]
+}

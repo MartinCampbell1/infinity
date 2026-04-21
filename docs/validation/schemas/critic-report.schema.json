@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Infinity Critic Report",
+  "type": "object",
+  "required": ["overall_score", "cluster_scores", "findings", "pass"],
+  "properties": {
+    "overall_score": { "type": "number" },
+    "cluster_scores": {
+      "type": "object",
+      "required": [
+        "entry_and_navigation",
+        "user_flow",
+        "operator_flow",
+        "error_states",
+        "visual_consistency"
+      ],
+      "properties": {
+        "entry_and_navigation": { "type": "number" },
+        "user_flow": { "type": "number" },
+        "operator_flow": { "type": "number" },
+        "error_states": { "type": "number" },
+        "visual_consistency": { "type": "number" }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "severity",
+          "screen_id",
+          "problem",
+          "why_it_hurts",
+          "required_fix"
+        ],
+        "properties": {
+          "severity": { "type": "string" },
+          "screen_id": { "type": "string" },
+          "problem": { "type": "string" },
+          "why_it_hurts": { "type": "string" },
+          "required_fix": { "type": "string" }
+        }
+      }
+    },
+    "pass": { "type": "boolean" }
+  }
+}

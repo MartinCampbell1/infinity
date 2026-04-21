@@ -1,0 +1,61 @@
+import { NextResponse } from "next/server";
+
+import {
+  buildWorkUnitDetailResponse,
+  updateOrchestrationWorkUnit,
+} from "../../../../../../lib/server/orchestration/work-units";
+import { runAutonomousLoopSafely } from "../../../../../../lib/server/orchestration/autonomy";
+import { isUpdateWorkUnitRequest } from "../../../../../../lib/server/control-plane/contracts/orchestration";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ workUnitId: string }> }
+) {
+  const { workUnitId } = await params;
+  const response = await buildWorkUnitDetailResponse(workUnitId);
+
+  if (!response) {
+    return NextResponse.json(
+      {
+        detail: `Work unit ${workUnitId} is not present in the shell orchestration directory.`,
+      },
+      { status: 404 }
+    );
+  }
+
+  await runAutonomousLoopSafely(response.taskGraph?.initiativeId ?? null);
+
+  return NextResponse.json(response);
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ workUnitId: string }> }
+) {
+  const { workUnitId } = await params;
+  const body = await request.json().catch(() => null);
+
+  if (!isUpdateWorkUnitRequest(body)) {
+    return NextResponse.json(
+      {
+        detail:
+          "Work unit updates accept optional title, description, executorType, scopePaths, dependencies, acceptanceCriteria, estimatedComplexity, status, and latestAttemptId.",
+      },
+      { status: 400 }
+    );
+  }
+
+  const response = await updateOrchestrationWorkUnit(workUnitId, body);
+  if (!response) {
+    return NextResponse.json(
+      {
+        detail: `Work unit ${workUnitId} is not present in the shell orchestration directory.`,
+      },
+      { status: 404 }
+    );
+  }
+
+  return NextResponse.json(response);
+}

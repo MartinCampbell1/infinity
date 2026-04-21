@@ -1,0 +1,24 @@
+{
+  "run_id": "2026-04-18T14-19-18Z",
+  "generated_at": "2026-04-18T14:20:42.745851+00:00",
+  "status": "passed",
+  "checks": [],
+  "scenarios": [
+    {
+      "name": "happy_path",
+      "status": "passed",
+      "detail": "{\"initiative_id\": \"initiative-1776521964785-8yri3vn7\", \"brief_id\": \"brief-1776521964806-0ybzsast\", \"task_graph_id\": \"task-graph-initiative-1776521964785-8yri3vn7\", \"batch_ids\": [\"batch-1776521969566-dc0tvkrh\", \"batch-1776521975944-9c8ba92q\"], \"delivery_id\": \"delivery-1776521987236-3kd9o49t\", \"result_url\": \"http://127.0.0.1:3101/project-result/initiative-1776521964785-8yri3vn7?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3737&embedded=1\"}"
+    },
+    {
+      "name": "failure_recovery_path",
+      "status": "passed",
+      "detail": "{\"initiative_id\": \"initiative-1776521989110-xw9xvo5j\", \"recovered_batches\": [\"batch-1776522002455-j7d3ztik\", \"batch-1776522008589-cx3v200a\"]}"
+    }
+  ],
+  "artifacts": [
+    "route-matrix.json",
+    "api-exposure-checklist.json",
+    "screenshot-manifest.json",
+    "critic-brief.md"
+  ]
+}

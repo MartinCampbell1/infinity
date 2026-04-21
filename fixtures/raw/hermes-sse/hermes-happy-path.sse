@@ -1,0 +1,26 @@
+event: session.started
+data: {"timestamp":"2026-04-11T09:30:00.000Z","summary":"Hermes session opened","phase":"planning"}
+
+event: workspace.ready
+data: {"timestamp":"2026-04-11T09:30:01.000Z","summary":"Workspace handshake complete"}
+
+event: message.delta
+data: {"timestamp":"2026-04-11T09:30:02.000Z","text":"Streaming partial answer","status":"in_progress","phase":"acting"}
+
+event: tool.started
+data: {"timestamp":"2026-04-11T09:30:03.000Z","toolName":"search_code","status":"in_progress","phase":"acting"}
+
+event: tool.completed
+data: {"timestamp":"2026-04-11T09:30:04.000Z","toolName":"search_code","status":"completed","phase":"acting"}
+
+event: approval.requested
+data: {"timestamp":"2026-04-11T09:30:05.000Z","approvalId":"appr_h_01","summary":"Confirm command execution","status":"in_progress","phase":"blocked"}
+
+event: approval.resolved
+data: {"timestamp":"2026-04-11T09:30:06.000Z","approvalId":"appr_h_01","summary":"Approved once","status":"completed","phase":"acting"}
+
+event: message.completed
+data: {"timestamp":"2026-04-11T09:30:07.000Z","text":"Applied patch and verified output","status":"completed","phase":"validating"}
+
+event: turn.completed
+data: {"timestamp":"2026-04-11T09:30:08.000Z","summary":"Turn completed","status":"completed","phase":"completed"}

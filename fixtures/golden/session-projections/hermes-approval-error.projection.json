@@ -1,0 +1,24 @@
+{
+  "sessionId": "sess_hermes_error",
+  "expectedSummary": {
+    "status": "completed",
+    "phase": "completed",
+    "title": "Hermes blocked run",
+    "pendingApprovals": 1,
+    "retryCount": 1,
+    "recoveryState": "recovered",
+    "unreadOperatorSignals": 4,
+    "lastErrorAt": "2026-04-11T10:00:02.000Z",
+    "updatedAt": "2026-04-11T10:00:05.000Z"
+  },
+  "expectedGroupProjection": {
+    "id": "ungrouped",
+    "totalSessions": 1,
+    "activeSessions": 0,
+    "completedSessions": 1,
+    "failedSessions": 0,
+    "retryableSessions": 0,
+    "pendingApprovals": 1,
+    "unreadOperatorSignals": 4
+  }
+}

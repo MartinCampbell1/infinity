@@ -1,0 +1,14 @@
+{"type":"thread.started","timestamp":"2026-04-11T09:00:00.000Z","thread_id":"thread_codex_happy","projectName":"Project Atlas","title":"Normalize events deterministically"}
+{"type":"turn.started","timestamp":"2026-04-11T09:00:02.000Z","turn_id":"turn_001","phase":"planning"}
+{"type":"item","timestamp":"2026-04-11T09:00:03.000Z","item":{"type":"agent_message","status":"in_progress","phase":"commentary","text":"Planning normalization adapters"}}
+{"type":"item","timestamp":"2026-04-11T09:00:04.000Z","item":{"type":"agent_message","status":"completed","phase":"planning","text":"Plan complete"}}
+{"type":"item","timestamp":"2026-04-11T09:00:05.000Z","item":{"type":"command_execution","status":"in_progress","command":"rg --files apps/web/lib/server/control-plane"}}
+{"type":"item","timestamp":"2026-04-11T09:00:06.000Z","item":{"type":"command_execution","status":"completed","command":"rg --files apps/web/lib/server/control-plane"}}
+{"type":"item","timestamp":"2026-04-11T09:00:07.000Z","item":{"type":"tool_call","status":"in_progress","tool_name":"apply_patch"}}
+{"type":"item","timestamp":"2026-04-11T09:00:08.000Z","item":{"type":"tool_call","status":"completed","tool_name":"apply_patch"}}
+{"type":"item","timestamp":"2026-04-11T09:00:09.000Z","item":{"type":"file_change","path":"apps/web/lib/server/control-plane/events/normalizers.ts"}}
+{"type":"phase.changed","timestamp":"2026-04-11T09:00:10.000Z","phase":"validating","summary":"Validation started"}
+{"type":"turn.completed","timestamp":"2026-04-11T09:00:11.000Z","turn_id":"turn_001","phase":"completed","status":"completed"}
+{"type":"session.updated","timestamp":"2026-04-11T09:00:12.000Z","title":"Deterministic adapters shipped","model":"gpt-5"}
+{"type":"quota.updated","timestamp":"2026-04-11T09:00:13.000Z","pressure":"medium","usedPercent":62}
+{"type":"account.switched","timestamp":"2026-04-11T09:00:14.000Z","accountId":"acct_main"}

@@ -1,0 +1,122 @@
+{
+  "normalizationInput": {
+    "normalizer": "normalizeCodexJsonlEvents",
+    "sessionId": "sess_codex_happy",
+    "projectId": "proj_atlas",
+    "groupId": null
+  },
+  "events": [
+    {
+      "id": "sess_codex_happy:codex_jsonl:session.started:2026-04-11T09:00:00.000Z:0",
+      "kind": "session.started",
+      "timestamp": "2026-04-11T09:00:00.000Z",
+      "status": "unknown",
+      "phase": null,
+      "summary": "Session started"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:turn.started:2026-04-11T09:00:02.000Z:1",
+      "kind": "turn.started",
+      "timestamp": "2026-04-11T09:00:02.000Z",
+      "status": "in_progress",
+      "phase": "planning",
+      "summary": "Turn started"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:agent.message.delta:2026-04-11T09:00:03.000Z:2",
+      "kind": "agent.message.delta",
+      "timestamp": "2026-04-11T09:00:03.000Z",
+      "status": "in_progress",
+      "phase": null,
+      "summary": "Planning normalization adapters"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:agent.message.completed:2026-04-11T09:00:04.000Z:3",
+      "kind": "agent.message.completed",
+      "timestamp": "2026-04-11T09:00:04.000Z",
+      "status": "completed",
+      "phase": null,
+      "summary": "Plan complete"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:command.started:2026-04-11T09:00:05.000Z:4",
+      "kind": "command.started",
+      "timestamp": "2026-04-11T09:00:05.000Z",
+      "status": "in_progress",
+      "phase": null,
+      "summary": "rg --files apps/web/lib/server/control-plane"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:command.completed:2026-04-11T09:00:06.000Z:5",
+      "kind": "command.completed",
+      "timestamp": "2026-04-11T09:00:06.000Z",
+      "status": "completed",
+      "phase": null,
+      "summary": "rg --files apps/web/lib/server/control-plane"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:tool.started:2026-04-11T09:00:07.000Z:6",
+      "kind": "tool.started",
+      "timestamp": "2026-04-11T09:00:07.000Z",
+      "status": "in_progress",
+      "phase": null,
+      "summary": "apply_patch"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:tool.completed:2026-04-11T09:00:08.000Z:7",
+      "kind": "tool.completed",
+      "timestamp": "2026-04-11T09:00:08.000Z",
+      "status": "completed",
+      "phase": null,
+      "summary": "apply_patch"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:file.changed:2026-04-11T09:00:09.000Z:8",
+      "kind": "file.changed",
+      "timestamp": "2026-04-11T09:00:09.000Z",
+      "status": "unknown",
+      "phase": null,
+      "summary": "apps/web/lib/server/control-plane/events/normalizers.ts"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:phase.changed:2026-04-11T09:00:10.000Z:9",
+      "kind": "phase.changed",
+      "timestamp": "2026-04-11T09:00:10.000Z",
+      "status": "unknown",
+      "phase": "validating",
+      "summary": "Validation started"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:turn.completed:2026-04-11T09:00:11.000Z:10",
+      "kind": "turn.completed",
+      "timestamp": "2026-04-11T09:00:11.000Z",
+      "status": "completed",
+      "phase": "completed",
+      "summary": "Turn completed"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:session.updated:2026-04-11T09:00:12.000Z:11",
+      "kind": "session.updated",
+      "timestamp": "2026-04-11T09:00:12.000Z",
+      "status": "unknown",
+      "phase": null,
+      "summary": "Session updated"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:quota.updated:2026-04-11T09:00:13.000Z:12",
+      "kind": "quota.updated",
+      "timestamp": "2026-04-11T09:00:13.000Z",
+      "status": "unknown",
+      "phase": null,
+      "summary": "Quota updated"
+    },
+    {
+      "id": "sess_codex_happy:codex_jsonl:account.switched:2026-04-11T09:00:14.000Z:13",
+      "kind": "account.switched",
+      "timestamp": "2026-04-11T09:00:14.000Z",
+      "status": "unknown",
+      "phase": null,
+      "summary": "Account switched"
+    }
+  ]
+}

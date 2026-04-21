@@ -1,0 +1,28 @@
+{
+  "sessionId": "sess_codex_recovery",
+  "expectedSummary": {
+    "status": "completed",
+    "phase": "completed",
+    "title": "Approval and recovery flow",
+    "projectName": "Project Atlas",
+    "accountId": "acct_fallback",
+    "pendingApprovals": 0,
+    "toolActivityCount": 0,
+    "retryCount": 1,
+    "recoveryState": "recovered",
+    "quotaPressure": "unknown",
+    "unreadOperatorSignals": 5,
+    "lastErrorAt": "2026-04-11T09:15:04.000Z",
+    "updatedAt": "2026-04-11T09:15:09.000Z"
+  },
+  "expectedGroupProjection": {
+    "id": "ungrouped",
+    "totalSessions": 1,
+    "activeSessions": 0,
+    "completedSessions": 1,
+    "failedSessions": 0,
+    "retryableSessions": 0,
+    "pendingApprovals": 0,
+    "unreadOperatorSignals": 5
+  }
+}

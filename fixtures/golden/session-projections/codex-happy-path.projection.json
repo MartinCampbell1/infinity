@@ -1,0 +1,31 @@
+{
+  "sessionId": "sess_codex_happy",
+  "expectedSummary": {
+    "status": "completed",
+    "phase": "completed",
+    "title": "Deterministic adapters shipped",
+    "projectName": "Project Atlas",
+    "model": "gpt-5",
+    "accountId": "acct_main",
+    "pendingApprovals": 0,
+    "toolActivityCount": 1,
+    "retryCount": 0,
+    "recoveryState": "none",
+    "quotaPressure": "medium",
+    "unreadOperatorSignals": 0,
+    "lastMessageAt": "2026-04-11T09:00:04.000Z",
+    "lastToolAt": "2026-04-11T09:00:08.000Z",
+    "lastErrorAt": null,
+    "updatedAt": "2026-04-11T09:00:14.000Z"
+  },
+  "expectedGroupProjection": {
+    "id": "ungrouped",
+    "totalSessions": 1,
+    "activeSessions": 0,
+    "completedSessions": 1,
+    "failedSessions": 0,
+    "retryableSessions": 0,
+    "pendingApprovals": 0,
+    "unreadOperatorSignals": 0
+  }
+}

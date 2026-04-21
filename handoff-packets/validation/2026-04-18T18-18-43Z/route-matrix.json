@@ -1,0 +1,29 @@
+{
+  "run_id": "2026-04-18T18-18-43Z",
+  "generated_at": "2026-04-18T18:21:09.311505+00:00",
+  "page_routes": {
+    "embedded_core": [
+      "/",
+      "/project-intake",
+      "/project-brief/[id]",
+      "/project-run/[id]",
+      "/project-result/[id]"
+    ],
+    "shell_operator": [
+      "/execution",
+      "/execution/sessions",
+      "/execution/accounts",
+      "/execution/approvals",
+      "/execution/recoveries",
+      "/execution/audits",
+      "/execution/continuity/[initiativeId]",
+      "/execution/task-graphs/[taskGraphId]",
+      "/execution/batches/[batchId]",
+      "/execution/delivery/[deliveryId]"
+    ],
+    "standalone_auth_gated": [
+      "/",
+      "/auth"
+    ]
+  }
+}

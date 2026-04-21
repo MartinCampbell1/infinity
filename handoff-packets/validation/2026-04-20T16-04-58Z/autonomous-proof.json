@@ -1,0 +1,36 @@
+{
+  "run_id": "2026-04-20T16-04-58Z",
+  "generated_at": "2026-04-20T16:06:12.263659+00:00",
+  "root_frontdoor": {
+    "requested_entry_path": "/",
+    "resolved_url": "http://127.0.0.1:3737/",
+    "stays_on_root_entry": true,
+    "composer_visible": true,
+    "shell_anchor_visible": true,
+    "secondary_actions_visible": true
+  },
+  "shell_first": {
+    "autonomous_one_prompt": true
+  },
+  "manual_stage_labels": {
+    "workui_project_brief": [],
+    "workui_project_run": [],
+    "workui_project_result_passed": []
+  },
+  "preview_ready": true,
+  "launch_ready": true,
+  "handoff_ready": true,
+  "handoff_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776701119009-vy3vgk3i/delivery-1776701119487-v2cdk7l4/HANDOFF.md",
+  "preview_url": "http://127.0.0.1:3737/api/control/orchestration/previews/preview-1776701119487-zs8jo1wq",
+  "launch_manifest_path": "/Users/martin/infinity/.local-state/orchestration/deliveries/initiative-1776701119009-vy3vgk3i/delivery-1776701119487-v2cdk7l4/launch-manifest.json",
+  "launch_ready_url": "http://127.0.0.1:62902/preview.html",
+  "launch_recorded_proof_url": "http://127.0.0.1:62834/preview.html",
+  "failure_recovery_override_used": true,
+  "recovered_batches": [
+    "batch-1776701139796-e71q2oxf",
+    "batch-1776701139993-h3fdyxo3",
+    "batch-1776701140373-292ovimg",
+    "batch-1776701140779-v89ozvx3",
+    "batch-1776701141004-wnhk33vt"
+  ]
+}

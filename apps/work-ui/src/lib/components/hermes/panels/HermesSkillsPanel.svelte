@@ -1,0 +1,290 @@
+<!-- @ts-nocheck -->
+<script lang="ts">
+	// @ts-nocheck
+	import { getContext, onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
+
+	import { getSkillItems, toggleSkillById } from '$lib/apis/skills';
+	import Pagination from '$lib/components/common/Pagination.svelte';
+	import Search from '$lib/components/icons/Search.svelte';
+	import Spinner from '$lib/components/common/Spinner.svelte';
+	import Switch from '$lib/components/common/Switch.svelte';
+	import Badge from '$lib/components/common/Badge.svelte';
+	import XMark from '$lib/components/icons/XMark.svelte';
+	import ViewSelector from '$lib/components/workspace/common/ViewSelector.svelte';
+
+	const i18n = getContext<any>('i18n');
+	const SKILLS_PER_PAGE = 30;
+
+	// TODO(21st): Replace this stopgap local panel pattern with a 21st.dev-derived micro-surface once MCP auth is fixed.
+
+	export let active = false;
+
+	let loaded = false;
+	let loading = false;
+	let query = '';
+	let items: any[] = [];
+	let total = 0;
+	let viewOption = '';
+	let page = 1;
+	let pendingSkillIds: string[] = [];
+	let queryReloadScheduled = false;
+	let lastLoadedViewOption = '';
+	let lastLoadedPage = 1;
+	let searchDebounceTimer: ReturnType<typeof setTimeout>;
+	$: currentViewLabel =
+		viewOption === 'created'
+			? $i18n.t('Created by you')
+			: viewOption === 'shared'
+				? $i18n.t('Shared with you')
+				: $i18n.t('All');
+
+	const loadSkills = async () => {
+		loading = true;
+
+		const res = await getSkillItems(localStorage.token, query, viewOption, page).catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+
+		items = res?.items ?? [];
+		total = res?.total ?? 0;
+		loaded = true;
+		queryReloadScheduled = false;
+		lastLoadedViewOption = viewOption;
+		lastLoadedPage = page;
+		loading = false;
+	};
+
+	const scheduleLoad = () => {
+		clearTimeout(searchDebounceTimer);
+		queryReloadScheduled = true;
+		page = 1;
+		searchDebounceTimer = setTimeout(() => {
+			if (active) {
+				loadSkills();
+			} else {
+				queryReloadScheduled = false;
+			}
+		}, 250);
+	};
+
+	const getOwnerLabel = (skill: any) => {
+		return skill?.user?.name ?? skill?.user?.email ?? $i18n.t('Deleted User');
+	};
+
+	const handleViewChange = (nextViewOption: string) => {
+		viewOption = nextViewOption;
+		page = 1;
+
+		if (active) {
+			loadSkills();
+		}
+	};
+
+	const isSkillPending = (skillId: string) => pendingSkillIds.includes(skillId);
+
+	const setSkillPending = (skillId: string, pending: boolean) => {
+		pendingSkillIds = pending
+			? pendingSkillIds.includes(skillId)
+				? pendingSkillIds
+				: [...pendingSkillIds, skillId]
+			: pendingSkillIds.filter((id) => id !== skillId);
+	};
+
+	const updateSkillState = (skillId: string, isActive: boolean) => {
+		items = items.map((skill) =>
+			skill.id === skillId ? { ...skill, is_active: isActive } : skill
+		);
+	};
+
+	const handleToggleSkill = async (skill: any) => {
+		if (!skill?.write_access || isSkillPending(skill.id)) {
+			return;
+		}
+
+		const nextState = !!skill.is_active;
+		const previousState = !nextState;
+
+		setSkillPending(skill.id, true);
+
+		try {
+			await toggleSkillById(localStorage.token, skill.id);
+		} catch (error) {
+			updateSkillState(skill.id, previousState);
+			toast.error(`${error}`);
+		} finally {
+			setSkillPending(skill.id, false);
+		}
+	};
+
+	$: if (active && !loaded && !loading) {
+		loadSkills();
+	}
+
+	$: if (
+		active &&
+		loaded &&
+		!loading &&
+		!queryReloadScheduled &&
+		(viewOption !== lastLoadedViewOption || page !== lastLoadedPage)
+	) {
+		loadSkills();
+	}
+
+	onDestroy(() => {
+		clearTimeout(searchDebounceTimer);
+	});
+</script>
+
+<div class="flex h-full min-h-0 flex-col px-2 py-2">
+	<div class="flex items-center gap-2 px-2 pb-2">
+		<div class="flex flex-1 items-center rounded-xl border border-white/8 bg-slate-900/70 px-3 py-2">
+			<div class="mr-2 text-slate-400">
+				<Search className="size-3.5" />
+			</div>
+			<input
+				class="w-full bg-transparent text-sm text-slate-100 outline-hidden placeholder:text-slate-500"
+				bind:value={query}
+				placeholder={$i18n.t('Search Skills')}
+				on:input={scheduleLoad}
+			/>
+
+			{#if query}
+				<button
+					type="button"
+					class="ml-2 rounded-full p-1 text-slate-400 transition hover:bg-slate-700/60 hover:text-slate-200"
+					on:click={() => {
+						query = '';
+						scheduleLoad();
+					}}
+				>
+					<XMark className="size-3.5" strokeWidth="2" />
+				</button>
+			{/if}
+		</div>
+
+		<div class="w-36 shrink-0">
+			<ViewSelector value={viewOption} onChange={handleViewChange} />
+		</div>
+	</div>
+
+	<div
+		class="flex items-center justify-between gap-2 px-2 pb-2 text-[11px] text-slate-400"
+	>
+		<div>
+			{#if loading && !loaded}
+				{$i18n.t('Loading')}...
+			{:else}
+				{$i18n.t('Visible library skills')} · {total}
+			{/if}
+		</div>
+
+		<div class="flex items-center gap-2">
+			<div class="hidden sm:block">
+				{$i18n.t('Filter')}: {currentViewLabel}
+			</div>
+			<a
+				class="rounded-full border border-white/10 bg-slate-800/80 px-2.5 py-1 font-medium text-slate-200 transition hover:bg-slate-700/80"
+				href="/workspace/skills"
+			>
+				{$i18n.t('Manage in workspace')}
+			</a>
+			{#if loading && loaded}
+				<div class="flex items-center gap-1.5">
+					<Spinner className="size-3" />
+					<div>{$i18n.t('Loading...')}</div>
+				</div>
+			{/if}
+		</div>
+	</div>
+
+	<div class="flex-1 min-h-0 overflow-y-auto px-1 pb-2">
+		{#if loading && !loaded}
+			<div class="flex h-24 items-center justify-center">
+				<Spinner className="size-4" />
+			</div>
+		{:else if items.length === 0}
+			<div class="px-3 py-8 text-center text-sm text-slate-400">
+				{#if query || viewOption}
+					{$i18n.t('No results found')}
+				{:else}
+					{$i18n.t('No skills found')}
+				{/if}
+			</div>
+		{:else}
+			<div class="flex flex-col gap-1.5">
+				{#each items as skill (skill.id)}
+					<div
+						class="rounded-xl border border-white/8 bg-slate-900/70 px-3 py-2.5 transition hover:bg-slate-800/70 {isSkillPending(
+							skill.id
+						)
+							? 'opacity-80'
+							: ''}"
+					>
+						<div class="flex items-start justify-between gap-3">
+							<button
+								type="button"
+								class="min-w-0 flex-1 text-left"
+								on:click={() => goto(`/workspace/skills/edit?id=${encodeURIComponent(skill.id)}`)}
+							>
+								<div class="flex items-center gap-2">
+									<div class="line-clamp-1 text-sm font-medium text-slate-100">
+										{skill.name}
+									</div>
+									{#if !skill.is_active}
+										<Badge type="muted" content={$i18n.t('Inactive')} />
+									{/if}
+									{#if !skill.write_access}
+										<Badge type="muted" content={$i18n.t('Read Only')} />
+									{/if}
+								</div>
+
+								{#if skill.description}
+									<div class="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
+										{skill.description}
+									</div>
+								{/if}
+
+								<div
+									class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-400"
+								>
+									<div>{$i18n.t('By {{name}}', { name: getOwnerLabel(skill) })}</div>
+									<div class="size-1 rounded-full bg-slate-600"></div>
+									<div>{$i18n.t(skill.is_active ? 'Enabled' : 'Disabled')}</div>
+								</div>
+							</button>
+
+							{#if skill.write_access}
+								<div class="flex shrink-0 items-center gap-2 text-slate-400">
+									{#if isSkillPending(skill.id)}
+										<div class="text-slate-400">
+											<Spinner className="size-3" />
+										</div>
+									{/if}
+
+									<button
+										type="button"
+										class="disabled:cursor-wait disabled:opacity-60"
+										disabled={isSkillPending(skill.id)}
+										on:click|stopPropagation|preventDefault
+									>
+										<Switch
+											bind:state={skill.is_active}
+											on:change={() => handleToggleSkill(skill)}
+										/>
+									</button>
+								</div>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</div>
+
+	{#if total > SKILLS_PER_PAGE}
+		<Pagination bind:page count={total} perPage={SKILLS_PER_PAGE} />
+	{/if}
+</div>

@@ -1,0 +1,27 @@
+{
+  "sessionId": "sess_hermes_happy",
+  "expectedSummary": {
+    "status": "completed",
+    "phase": "completed",
+    "title": "Hermes session opened",
+    "pendingApprovals": 0,
+    "toolActivityCount": 1,
+    "retryCount": 0,
+    "recoveryState": "none",
+    "quotaPressure": "unknown",
+    "unreadOperatorSignals": 2,
+    "lastMessageAt": "2026-04-11T09:30:07.000Z",
+    "lastToolAt": "2026-04-11T09:30:04.000Z",
+    "updatedAt": "2026-04-11T09:30:08.000Z"
+  },
+  "expectedGroupProjection": {
+    "id": "ungrouped",
+    "totalSessions": 1,
+    "activeSessions": 0,
+    "completedSessions": 1,
+    "failedSessions": 0,
+    "retryableSessions": 0,
+    "pendingApprovals": 0,
+    "unreadOperatorSignals": 2
+  }
+}

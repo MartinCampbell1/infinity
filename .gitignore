@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+.svelte-kit/
+.control-plane-state/
+.local-state/
+.venv/
+.pytest_cache/
+coverage/
+*.log
+.DS_Store
+.omc/
+output/
+.tmp_*.png

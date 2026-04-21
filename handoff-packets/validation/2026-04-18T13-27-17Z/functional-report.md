@@ -1,0 +1,19 @@
+# Functional Report
+
+Run ID: `2026-04-18T13-27-17Z`
+Generated: `2026-04-18T13:28:42.722936+00:00`
+Status: `passed`
+
+## Checks
+
+## Scenarios
+- `happy_path` — `passed`
+  - {"initiative_id": "initiative-1776518843746-n558gisc", "brief_id": "brief-1776518843773-kkfx5ft8", "task_graph_id": "task-graph-initiative-1776518843746-n558gisc", "batch_ids": ["batch-1776518848546-y42wblzi", "batch-1776518855311-awymp3s9"], "delivery_id": "delivery-1776518866584-jjd2pe9v ", "result_url": "http://127.0.0.1:3101/project-result/initiative-1776518843746-n558gisc?founderos_launch=1&project_id=project-borealis&session_id=session-2026-04-11-002&group_id=group-core-02&account_id=account-chatgpt-02&workspace_id=workspace-borealis-review&opened_from=execution_board&host_origin=http%3A%2F%2F127.0.0.1%3A3737&embedded=1"}
+- `failure_recovery_path` — `passed`
+  - {"initiative_id": "initiative-1776518868528-sk2m55nq", "recovered_batches": ["batch-1776518881923-n8p95pmk", "batch-1776518888082-vmcyhcia"]}
+
+## Artifacts
+- `route-matrix.json`
+- `api-exposure-checklist.json`
+- `screenshot-manifest.json`
+- `critic-brief.md`

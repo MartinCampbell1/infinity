@@ -1,0 +1,24 @@
+{
+  "source": "app-server",
+  "endpoint": "account/rateLimits/read",
+  "captured_at": "2026-04-11T13:10:00Z",
+  "scenario": "high-pressure",
+  "accountId": "account-chatgpt-02",
+  "authMode": "chatgptAuthTokens",
+  "limits": [
+    {
+      "id": "req_5h",
+      "name": "Requests / 5h",
+      "used_percent": 86,
+      "window_mins": 300,
+      "resets_at": "2026-04-11T14:20:00.000Z"
+    },
+    {
+      "id": "tok_5h",
+      "name": "Tokens / 5h",
+      "used_percent": 78,
+      "window_mins": 300,
+      "resets_at": "2026-04-11T14:20:00.000Z"
+    }
+  ]
+}

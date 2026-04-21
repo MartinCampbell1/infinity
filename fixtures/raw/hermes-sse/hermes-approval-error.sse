@@ -1,0 +1,17 @@
+event: session.started
+data: {"timestamp":"2026-04-11T10:00:00.000Z","summary":"Hermes blocked run","phase":"acting"}
+
+event: approval.requested
+data: {"timestamp":"2026-04-11T10:00:01.000Z","approvalId":"appr_h_02","summary":"Allow filesystem write","status":"in_progress","phase":"blocked"}
+
+event: error.raised
+data: {"timestamp":"2026-04-11T10:00:02.000Z","message":"Permission denied","status":"failed","phase":"blocked"}
+
+event: recovery.started
+data: {"timestamp":"2026-04-11T10:00:03.000Z","summary":"Fallback account retry","status":"in_progress","phase":"blocked"}
+
+event: recovery.completed
+data: {"timestamp":"2026-04-11T10:00:04.000Z","summary":"Recovered with fallback","status":"completed","phase":"completed"}
+
+event: turn.completed
+data: {"timestamp":"2026-04-11T10:00:05.000Z","summary":"Turn completed after recovery","status":"completed","phase":"completed"}

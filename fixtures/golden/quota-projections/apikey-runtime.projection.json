@@ -1,0 +1,14 @@
+{
+  "raw_source": "../../raw/codex-app-server-rate-limits/read-apikey-observed-runtime.json",
+  "accountId": "account-apikey-01",
+  "authMode": "apikey",
+  "snapshot": {
+    "source": "observed_runtime",
+    "buckets": []
+  },
+  "capacity": {
+    "pressure": "medium",
+    "schedulable": true,
+    "reasonCodes": ["runtime_backpressure"]
+  }
+}

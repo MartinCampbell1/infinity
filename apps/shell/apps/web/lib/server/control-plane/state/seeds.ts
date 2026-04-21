@@ -1,0 +1,562 @@
+import type {
+  ApprovalRequest,
+  RecoveryIncident,
+} from "../contracts";
+import type {
+  AccountAuthMode,
+  AccountQuotaSnapshot,
+  AccountQuotaUpdate,
+} from "../contracts/quota";
+import type { ControlPlaneAccountRecord } from "../accounts/types";
+import type {
+  ExecutionProvider,
+  NormalizedExecutionEvent,
+  NormalizedExecutionEventKind,
+} from "../contracts/session-events";
+import { buildNormalizedExecutionEventId } from "../contracts/session-events";
+
+export const CONTROL_PLANE_DIRECTORY_AT = "2026-04-11T00:00:00.000Z";
+export const DEFAULT_OPERATOR_ID = "infinity-operator";
+
+export const CONTROL_PLANE_ACCOUNT_META: Record<
+  string,
+  { label: string; provider: ControlPlaneAccountRecord["provider"] }
+> = {
+  "account-chatgpt-01": { label: "chatgpt 01", provider: "openai" },
+  "account-chatgpt-02": { label: "chatgpt tokens 02", provider: "openai" },
+  "account-chatgpt-03": { label: "chatgpt fallback 03", provider: "openai" },
+  "account-apikey-01": { label: "apikey 01", provider: "openai" },
+};
+
+function snapshot(
+  accountId: string,
+  authMode: AccountAuthMode,
+  observedAt: string,
+  data: Pick<AccountQuotaSnapshot, "source" | "buckets" | "raw">
+): AccountQuotaSnapshot {
+  return {
+    accountId,
+    authMode,
+    observedAt,
+    source: data.source,
+    buckets: data.buckets,
+    raw: data.raw ?? null,
+  };
+}
+
+interface MockEventInput {
+  sessionId: string;
+  projectId: string;
+  groupId?: string | null;
+  provider: ExecutionProvider;
+  kind: NormalizedExecutionEventKind;
+  timestamp: string;
+  summary: string;
+  phase?: NormalizedExecutionEvent["phase"];
+  status?: NormalizedExecutionEvent["status"];
+  payload?: Record<string, unknown>;
+  ordinal: number;
+}
+
+function createMockEvent(input: MockEventInput): NormalizedExecutionEvent {
+  return {
+    id: buildNormalizedExecutionEventId({
+      sessionId: input.sessionId,
+      kind: input.kind,
+      timestamp: input.timestamp,
+      source: "manual",
+      ordinal: input.ordinal,
+    }),
+    sessionId: input.sessionId,
+    projectId: input.projectId,
+    groupId: input.groupId ?? null,
+    source: "manual",
+    provider: input.provider,
+    kind: input.kind,
+    status: input.status,
+    phase: input.phase ?? null,
+    timestamp: input.timestamp,
+    summary: input.summary,
+    payload: input.payload ?? {},
+    raw: null,
+  };
+}
+
+export const APPROVAL_REQUEST_SEEDS: ApprovalRequest[] = [
+  {
+    id: "approval-001",
+    sessionId: "session-2026-04-11-001",
+    externalSessionId: "hermes-8842",
+    projectId: "project-atlas",
+    projectName: "Atlas Launch",
+    groupId: "group-ops-01",
+    accountId: "account-chatgpt-01",
+    workspaceId: "workspace-atlas-main",
+    requestKind: "tool_call",
+    title: "Approve file edit cascade",
+    summary: "Tool chain wants to write a generated handoff file into the workspace.",
+    reason: "Workspace mutation touches a shared artifact path.",
+    status: "pending",
+    decision: null,
+    requestedAt: "2026-04-11T09:40:00.000Z",
+    updatedAt: "2026-04-11T09:40:00.000Z",
+    resolvedAt: null,
+    resolvedBy: null,
+    expiresAt: "2026-04-11T10:40:00.000Z",
+    revision: 1,
+  },
+  {
+    id: "approval-002",
+    sessionId: "session-2026-04-11-002",
+    externalSessionId: "codex-1a93d7",
+    projectId: "project-borealis",
+    projectName: "Borealis Shell",
+    groupId: "group-core-02",
+    accountId: "account-chatgpt-02",
+    workspaceId: "workspace-borealis-review",
+    requestKind: "command",
+    title: "Approve validation command",
+    summary: "Agent wants to run verification after a route-scope change.",
+    reason: "Validation is required before shell changes are accepted.",
+    status: "pending",
+    decision: null,
+    requestedAt: "2026-04-11T09:55:00.000Z",
+    updatedAt: "2026-04-11T09:55:00.000Z",
+    resolvedAt: null,
+    resolvedBy: null,
+    expiresAt: "2026-04-11T10:55:00.000Z",
+    revision: 1,
+  },
+];
+
+export const RECOVERY_INCIDENT_SEEDS: RecoveryIncident[] = [
+  {
+    id: "recovery-001",
+    sessionId: "session-2026-04-11-001",
+    externalSessionId: "hermes-8842",
+    projectId: "project-atlas",
+    projectName: "Atlas Launch",
+    groupId: "group-ops-01",
+    accountId: "account-chatgpt-01",
+    workspaceId: "workspace-atlas-main",
+    status: "retryable",
+    severity: "medium",
+    recoveryActionKind: "retry",
+    summary: "Session stalled on a deterministic retryable boundary.",
+    rootCause: "Mock tool output was withheld pending approval.",
+    recommendedAction: "Retry once approval is recorded.",
+    retryCount: 1,
+    openedAt: "2026-04-11T09:45:00.000Z",
+    lastObservedAt: "2026-04-11T09:47:00.000Z",
+    updatedAt: "2026-04-11T09:47:00.000Z",
+    resolvedAt: null,
+    revision: 1,
+  },
+  {
+    id: "recovery-002",
+    sessionId: "session-2026-04-11-002",
+    externalSessionId: "codex-1a93d7",
+    projectId: "project-borealis",
+    projectName: "Borealis Shell",
+    groupId: "group-core-02",
+    accountId: "account-chatgpt-02",
+    workspaceId: "workspace-borealis-review",
+    status: "failing_over",
+    severity: "high",
+    recoveryActionKind: "failover",
+    summary: "Primary account hit a synthetic limit and is failing over.",
+    rootCause: "Mock quota pressure exceeded threshold.",
+    recommendedAction: "Fail over to a fallback account after review.",
+    retryCount: 0,
+    openedAt: "2026-04-11T09:50:00.000Z",
+    lastObservedAt: "2026-04-11T09:58:00.000Z",
+    updatedAt: "2026-04-11T09:58:00.000Z",
+    resolvedAt: null,
+    revision: 1,
+  },
+];
+
+export const ACCOUNT_QUOTA_SNAPSHOT_SEEDS: AccountQuotaSnapshot[] = [
+  snapshot("account-chatgpt-01", "chatgpt", "2026-04-11T13:10:00.000Z", {
+    source: "openai_app_server",
+    buckets: [
+      {
+        limitId: "req_5h",
+        limitName: "Requests / 5h",
+        usedPercent: 32,
+        windowDurationMins: 300,
+        resetsAt: "2026-04-11T15:00:00.000Z",
+      },
+      {
+        limitId: "tok_5h",
+        limitName: "Tokens / 5h",
+        usedPercent: 41,
+        windowDurationMins: 300,
+        resetsAt: "2026-04-11T15:00:00.000Z",
+      },
+    ],
+    raw: {
+      endpoint: "account/rateLimits/read",
+      canonical: true,
+    },
+  }),
+  snapshot("account-chatgpt-02", "chatgptAuthTokens", "2026-04-11T13:10:00.000Z", {
+    source: "openai_app_server",
+    buckets: [
+      {
+        limitId: "req_5h",
+        limitName: "Requests / 5h",
+        usedPercent: 86,
+        windowDurationMins: 300,
+        resetsAt: "2026-04-11T14:20:00.000Z",
+      },
+      {
+        limitId: "tok_5h",
+        limitName: "Tokens / 5h",
+        usedPercent: 78,
+        windowDurationMins: 300,
+        resetsAt: "2026-04-11T14:20:00.000Z",
+      },
+    ],
+    raw: {
+      endpoint: "account/rateLimits/read",
+      canonical: true,
+    },
+  }),
+  snapshot("account-chatgpt-03", "chatgpt", "2026-04-11T13:10:00.000Z", {
+    source: "chatgpt_usage_panel",
+    buckets: [
+      {
+        limitId: "req_5h",
+        limitName: "Requests / 5h",
+        usedPercent: 55,
+        windowDurationMins: 300,
+        resetsAt: "2026-04-11T16:10:00.000Z",
+      },
+    ],
+    raw: {
+      endpoint: "chatgpt/usage/panel",
+      canonical: false,
+    },
+  }),
+  snapshot("account-apikey-01", "apikey", "2026-04-11T13:10:00.000Z", {
+    source: "observed_runtime",
+    buckets: [],
+    raw: {
+      capacityModel: "usage_priced",
+      throttleLevel: "medium",
+      blocked: false,
+      concurrentSessions: 3,
+      nextBillingResetAt: "2026-05-01T00:00:00.000Z",
+    },
+  }),
+];
+
+export const ACCOUNT_QUOTA_UPDATE_SEEDS: AccountQuotaUpdate[] = [
+  {
+    sequence: 101,
+    accountId: "account-chatgpt-02",
+    source: "openai_app_server",
+    observedAt: "2026-04-11T13:12:00.000Z",
+    summary: "rate_limits_updated: req_5h pressure increased",
+    snapshot: snapshot("account-chatgpt-02", "chatgptAuthTokens", "2026-04-11T13:12:00.000Z", {
+      source: "openai_app_server",
+      buckets: [
+        {
+          limitId: "req_5h",
+          limitName: "Requests / 5h",
+          usedPercent: 92,
+          windowDurationMins: 300,
+          resetsAt: "2026-04-11T14:20:00.000Z",
+        },
+        {
+          limitId: "tok_5h",
+          limitName: "Tokens / 5h",
+          usedPercent: 81,
+          windowDurationMins: 300,
+          resetsAt: "2026-04-11T14:20:00.000Z",
+        },
+      ],
+      raw: {
+        endpoint: "account/rateLimits/updated",
+        canonical: true,
+      },
+    }),
+  },
+  {
+    sequence: 102,
+    accountId: "account-apikey-01",
+    source: "observed_runtime",
+    observedAt: "2026-04-11T13:13:00.000Z",
+    summary: "runtime backpressure increased for API-key account",
+    snapshot: snapshot("account-apikey-01", "apikey", "2026-04-11T13:13:00.000Z", {
+      source: "observed_runtime",
+      buckets: [],
+      raw: {
+        capacityModel: "usage_priced",
+        throttleLevel: "high",
+        blocked: false,
+        concurrentSessions: 4,
+        nextBillingResetAt: "2026-05-01T00:00:00.000Z",
+      },
+    }),
+  },
+];
+
+export const NORMALIZED_EVENT_SEEDS: NormalizedExecutionEvent[] = [
+  createMockEvent({
+    sessionId: "session-2026-04-11-001",
+    projectId: "project-atlas",
+    groupId: "group-ops-01",
+    provider: "hermes",
+    kind: "session.started",
+    timestamp: "2026-04-11T09:20:00.000Z",
+    summary: "Atlas session started",
+    phase: "planning",
+    payload: {
+      projectName: "Atlas Launch",
+      title: "Launch checklist reconciliation",
+      workspaceId: "workspace-atlas-main",
+      accountId: "account-chatgpt-01",
+      model: "gpt-4.1",
+      externalSessionId: "hermes-8842",
+      tags: ["launch", "priority"],
+      pinned: true,
+    },
+    ordinal: 1,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-001",
+    projectId: "project-atlas",
+    groupId: "group-ops-01",
+    provider: "hermes",
+    kind: "phase.changed",
+    timestamp: "2026-04-11T09:24:00.000Z",
+    summary: "Atlas planning phase",
+    phase: "acting",
+    ordinal: 2,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-001",
+    projectId: "project-atlas",
+    groupId: "group-ops-01",
+    provider: "hermes",
+    kind: "account.switched",
+    timestamp: "2026-04-11T09:25:00.000Z",
+    summary: "Primary account assigned",
+    payload: { accountId: "account-chatgpt-01" },
+    ordinal: 3,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-001",
+    projectId: "project-atlas",
+    groupId: "group-ops-01",
+    provider: "hermes",
+    kind: "agent.message.completed",
+    timestamp: "2026-04-11T09:58:00.000Z",
+    summary: "Operator-facing draft updated",
+    ordinal: 4,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-001",
+    projectId: "project-atlas",
+    groupId: "group-ops-01",
+    provider: "hermes",
+    kind: "tool.started",
+    timestamp: "2026-04-11T09:52:00.000Z",
+    summary: "Checklist diff tool started",
+    payload: { toolName: "diff.apply" },
+    ordinal: 5,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-001",
+    projectId: "project-atlas",
+    groupId: "group-ops-01",
+    provider: "hermes",
+    kind: "approval.requested",
+    timestamp: "2026-04-11T09:57:00.000Z",
+    summary: "Approval required for launch checklist commit",
+    payload: { approvalId: "approval-001" },
+    ordinal: 6,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-001",
+    projectId: "project-atlas",
+    groupId: "group-ops-01",
+    provider: "hermes",
+    kind: "phase.changed",
+    timestamp: "2026-04-11T09:58:30.000Z",
+    summary: "Atlas execution resumed",
+    phase: "acting",
+    ordinal: 7,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-001",
+    projectId: "project-atlas",
+    groupId: "group-ops-01",
+    provider: "hermes",
+    kind: "quota.updated",
+    timestamp: "2026-04-11T09:58:40.000Z",
+    summary: "Atlas quota remains healthy",
+    payload: { pressure: "low" },
+    ordinal: 8,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-002",
+    projectId: "project-borealis",
+    groupId: "group-core-02",
+    provider: "codex",
+    kind: "session.started",
+    timestamp: "2026-04-11T08:50:00.000Z",
+    summary: "Borealis session started",
+    phase: "planning",
+    payload: {
+      projectName: "Borealis Shell",
+      title: "Route scope normalization pass",
+      workspaceId: "workspace-borealis-review",
+      accountId: "account-chatgpt-02",
+      model: "o3",
+      externalSessionId: "codex-1a93d7",
+      tags: ["route-scope"],
+    },
+    ordinal: 1,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-002",
+    projectId: "project-borealis",
+    groupId: "group-core-02",
+    provider: "codex",
+    kind: "account.switched",
+    timestamp: "2026-04-11T08:51:00.000Z",
+    summary: "Borealis account assigned",
+    payload: { accountId: "account-chatgpt-02" },
+    ordinal: 2,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-002",
+    projectId: "project-borealis",
+    groupId: "group-core-02",
+    provider: "codex",
+    kind: "recovery.started",
+    timestamp: "2026-04-11T09:46:00.000Z",
+    summary: "Retry requested on same account",
+    ordinal: 3,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-002",
+    projectId: "project-borealis",
+    groupId: "group-core-02",
+    provider: "codex",
+    kind: "error.raised",
+    timestamp: "2026-04-11T09:49:00.000Z",
+    summary: "Route scope validation failed",
+    payload: { code: "validation_error" },
+    ordinal: 4,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-002",
+    projectId: "project-borealis",
+    groupId: "group-core-02",
+    provider: "codex",
+    kind: "approval.requested",
+    timestamp: "2026-04-11T09:55:00.000Z",
+    summary: "Approval required before retrying route scope patch",
+    payload: { approvalId: "approval-002" },
+    ordinal: 5,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-002",
+    projectId: "project-borealis",
+    groupId: "group-core-02",
+    provider: "codex",
+    kind: "quota.updated",
+    timestamp: "2026-04-11T09:55:30.000Z",
+    summary: "Borealis quota pressure increased",
+    payload: { pressure: "high" },
+    ordinal: 6,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-002",
+    projectId: "project-borealis",
+    groupId: "group-core-02",
+    provider: "codex",
+    kind: "agent.message.completed",
+    timestamp: "2026-04-11T09:54:00.000Z",
+    summary: "Proposed route scope patch drafted",
+    ordinal: 7,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-003",
+    projectId: "project-cascade",
+    groupId: "group-capture-03",
+    provider: "openwebui",
+    kind: "session.started",
+    timestamp: "2026-04-11T07:20:00.000Z",
+    summary: "Cascade embed session started",
+    phase: "planning",
+    payload: {
+      projectName: "Cascade Intake",
+      title: "Workspace embed prototype",
+      workspaceId: "workspace-cascade-embed",
+      accountId: "account-apikey-01",
+      model: "llama-3.3-70b",
+      externalSessionId: "openwebui-77df",
+      tags: ["embed", "host-mode"],
+    },
+    ordinal: 1,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-003",
+    projectId: "project-cascade",
+    groupId: "group-capture-03",
+    provider: "openwebui",
+    kind: "account.switched",
+    timestamp: "2026-04-11T07:25:00.000Z",
+    summary: "Cascade account assigned",
+    payload: { accountId: "account-apikey-01" },
+    ordinal: 2,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-003",
+    projectId: "project-cascade",
+    groupId: "group-capture-03",
+    provider: "openwebui",
+    kind: "error.raised",
+    timestamp: "2026-04-11T08:35:00.000Z",
+    summary: "Embed bootstrap failed during recovery",
+    payload: { code: "bootstrap_error" },
+    ordinal: 3,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-003",
+    projectId: "project-cascade",
+    groupId: "group-capture-03",
+    provider: "openwebui",
+    kind: "recovery.started",
+    timestamp: "2026-04-11T08:35:20.000Z",
+    summary: "Fallback account recovery started",
+    ordinal: 4,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-003",
+    projectId: "project-cascade",
+    groupId: "group-capture-03",
+    provider: "openwebui",
+    kind: "phase.changed",
+    timestamp: "2026-04-11T08:35:30.000Z",
+    summary: "Cascade session moved into blocked phase",
+    phase: "blocked",
+    ordinal: 5,
+  }),
+  createMockEvent({
+    sessionId: "session-2026-04-11-003",
+    projectId: "project-cascade",
+    groupId: "group-capture-03",
+    provider: "openwebui",
+    kind: "quota.updated",
+    timestamp: "2026-04-11T08:35:40.000Z",
+    summary: "Cascade runtime pressure is medium",
+    payload: { pressure: "medium" },
+    ordinal: 6,
+  }),
+];
