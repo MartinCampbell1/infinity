@@ -3,28 +3,7 @@
   "repo": "/Users/martin/infinity",
   "branch": "codex/infinity-step10-go",
   "baseline_commit": "9ca95dada332e49d514d40133aa0e21b24b8bba3",
-  "packaged_commits": [
-    {
-      "sha": "44331ea",
-      "subject": "feat: integrate strict shell-first execution frontend"
-    },
-    {
-      "sha": "38d1104",
-      "subject": "fix: harden execution truth, auth seam, and validation gates"
-    },
-    {
-      "sha": "46fe7e3",
-      "subject": "docs: add strict validation and release handoff artifacts"
-    },
-    {
-      "sha": "ed33ccd",
-      "subject": "docs: refresh packaged branch status artifacts"
-    },
-    {
-      "sha": "997150f",
-      "subject": "docs: record external transport artifact paths"
-    }
-  ],
+  "packaged_commits_note": "Inspect the current packaged branch tip with `git -C /Users/martin/infinity log --oneline --decorate -n 10`.",
   "checklist_path": "/Users/martin/infinity/2026-04-21-infinity-strict-remaining-work-checklist-with-claude-design-frontend-integration.md",
   "step10_status": "go",
   "latest_strict_bundle": "/Users/martin/infinity/handoff-packets/validation/2026-04-21T23-37-59Z",

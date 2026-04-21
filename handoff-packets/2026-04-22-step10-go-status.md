@@ -4,13 +4,9 @@ Date: `2026-04-22`
 Repo: `/Users/martin/infinity`
 Branch: `codex/infinity-step10-go`
 Baseline checkpoint: `9ca95da`
-Packaged commits:
+Packaged branch tip:
 
-- `44331ea` — `feat: integrate strict shell-first execution frontend`
-- `38d1104` — `fix: harden execution truth, auth seam, and validation gates`
-- `46fe7e3` — `docs: add strict validation and release handoff artifacts`
-- `ed33ccd` — `docs: refresh packaged branch status artifacts`
-- `997150f` — `docs: record external transport artifact paths`
+- inspect with `git -C /Users/martin/infinity log --oneline --decorate -n 10`
 
 ## Current state
 
