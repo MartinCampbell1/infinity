@@ -1248,7 +1248,7 @@ def main() -> int:
         write_json(run_dir / "screenshot-manifest.json", screenshot_manifest)
         write_json(run_dir / "autonomous-proof.json", autonomous_proof)
 
-        critic_brief = f"""# Critic Brief\n\nRun ID: `{validation_run_id}`\n\nBaseline: FounderOS / Linear fit.\n\nScreenshots are listed in `screenshot-manifest.json`.\nUse `{DOCS_DIR / 'critic-rubric.md'}` and `{DOCS_DIR / 'critic-prompt.md'}`.\n"""
+        critic_brief = f"""# Critic Brief\n\nRun ID: `{validation_run_id}`\n\nBaseline: FounderOS / Linear fit.\n\nScreenshots are listed in `screenshot-manifest.json`.\nUse `{DOCS_DIR / 'critic-rubric.md'}` and `{DOCS_DIR / 'critic-prompt.md'}`.\nAfter the critic returns strict JSON, finalize this bundle with `python3 scripts/validation/finalize_critic_report.py --run-dir {run_dir} --critic-json /path/to/critic-output.json`.\n"""
         write_text(run_dir / "critic-brief.md", critic_brief)
         write_json(
             run_dir / "critic-report-iteration-0.json",
@@ -1260,7 +1260,7 @@ def main() -> int:
         )
         write_text(
             run_dir / "critic-report-iteration-0.md",
-            "# Critic Report Iteration 0\n\nPending external critic review.\n",
+            "# Critic Report Iteration 0\n\nPending external critic review.\n\nFinalize with `python3 scripts/validation/finalize_critic_report.py --run-dir . --critic-json /path/to/critic-output.json` from inside this run directory, or pass the absolute run dir from repo root.\n",
         )
         write_text(
             run_dir / "fix-log-iteration-0.md",

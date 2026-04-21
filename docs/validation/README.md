@@ -57,6 +57,14 @@ If the current build still resolves `/` into `/execution`, the report should rec
 
 Then a separate critic subagent should review the screenshots using `critic-prompt.md`.
 
+After the external critic returns strict JSON, finalize the bundle with:
+
+```bash
+python3 scripts/validation/finalize_critic_report.py \
+  --run-dir handoff-packets/validation/<timestamp-run-id> \
+  --critic-json /path/to/critic-output.json
+```
+
 The critic loop is not considered complete until:
 
 - `overall_score > 7.0`
