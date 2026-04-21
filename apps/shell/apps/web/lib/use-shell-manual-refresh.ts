@@ -2,13 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 
-type ShellManualRefreshOptions = {
-  invalidation?: unknown;
-};
-
-export function useShellManualRefresh(
-  _options: ShellManualRefreshOptions = {}
-) {
+export function useShellManualRefresh() {
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [isRefreshing, startRefreshTransition] = useTransition();
 

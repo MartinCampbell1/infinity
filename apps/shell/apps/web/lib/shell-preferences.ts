@@ -4,11 +4,8 @@ import {
   updateShellOperatorPreferences,
   type ShellPreferences,
   type ShellRefreshProfile,
-  type ShellReviewMemoryBucket,
   type ShellReviewMemoryPreferences,
   type ShellReviewPassPreference,
-  type ShellReviewPreset,
-  type ShellReviewLane,
   type ShellPollSurface,
 } from "@founderos/api-clients";
 import { useMemo, useSyncExternalStore } from "react";
