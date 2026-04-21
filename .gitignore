@@ -8,6 +8,8 @@ build/
 .local-state/
 .venv/
 .pytest_cache/
+__pycache__/
+*.py[cod]
 coverage/
 *.log
 .DS_Store
