@@ -85,6 +85,7 @@ Post-finish hardening:
 - `git status` is clean
 - validation evidence remains on disk under `handoff-packets/validation/`
 - validation evidence is now ignored by Git
+- compact tracked validation snapshot lives at `handoff-packets/2026-04-21-polished-solo-v1-validation-summary.md`
 - Python bytecode is no longer tracked
 - validation runs can now finish with completed critic artifacts in one command when a critic JSON is already available
 
@@ -93,4 +94,3 @@ Post-finish hardening:
 Not release blockers:
 
 - continue shrinking the remaining legacy subtree by porting archived execution surfaces back under full typecheck one by one
-- decide whether any final release bundle should be copied into a curated tracked artifact outside `handoff-packets/validation/`
