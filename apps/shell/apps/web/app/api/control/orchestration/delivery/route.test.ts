@@ -351,4 +351,54 @@ describe("/api/control/orchestration/delivery", () => {
     expect(deliveryBody.delivery.verificationRunId).toBe(deliveryBody.verification.id);
     expect(deliveryBody.delivery.taskGraphId).toBe(firstAssemblyBody.assembly.taskGraphId);
   });
+
+  test("repeated delivery creation for the same verification is idempotent", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const firstDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    const firstDeliveryBody = await firstDeliveryResponse.json();
+    expect(firstDeliveryResponse.status).toBe(201);
+
+    const secondDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    const secondDeliveryBody = await secondDeliveryResponse.json();
+    expect(secondDeliveryResponse.status).toBe(201);
+    expect(secondDeliveryBody.delivery.id).toBe(firstDeliveryBody.delivery.id);
+
+    const state = await readControlPlaneState();
+    const deliveriesForInitiative = state.orchestration.deliveries.filter(
+      (candidate) => candidate.initiativeId === initiativeId
+    );
+    expect(deliveriesForInitiative).toHaveLength(1);
+  });
 });
