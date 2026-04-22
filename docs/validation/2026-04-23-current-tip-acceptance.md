@@ -30,7 +30,7 @@ These passed on the current committed tip:
 
 Latest full validation for the current exact tip:
 
-- run dir: `handoff-packets/validation/2026-04-22T21-21-37Z`
+- run dir: `handoff-packets/validation/2026-04-22T21-31-53Z`
 - status: `passed`
 - shell origin: `http://127.0.0.1:3737`
 - work-ui origin: `http://127.0.0.1:3101`
