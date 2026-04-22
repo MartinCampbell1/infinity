@@ -52,14 +52,16 @@ function stageOrder(currentStage: string | null | undefined, delivered: boolean)
   const keys = ["clarifying", "planning", "running", "verifying", "delivered"] as const;
   const currentKey = delivered
     ? "delivered"
+    : currentStage === "ready" || currentStage === "preview_ready" || currentStage === "handed_off"
+      ? "delivered"
+    : currentStage === "cancelled"
+      ? "delivered"
     : currentStage === "starting" || currentStage === "clarifying"
       ? "clarifying"
-    : currentStage === "planning"
+    : currentStage === "brief_ready" || currentStage === "planning"
       ? "planning"
     : currentStage === "acting" || currentStage === "running"
       ? "running"
-    : currentStage === "preview_ready" || currentStage === "handed_off"
-      ? "verifying"
     : currentStage === "validating" || currentStage === "verifying"
       ? "verifying"
       : "running";
@@ -267,7 +269,10 @@ export function PrimaryRunSurface({
     currentRun?.currentStage === "preview_ready" || currentRun?.currentStage === "handed_off"
       ? "verifying"
       : currentRun?.currentStage ?? initiative.status;
-  const delivered = false;
+  const delivered =
+    currentDelivery?.status === "ready" ||
+    currentRun?.currentStage === "handed_off" ||
+    initiative.status === "ready";
   const stages = stageOrder(displayStage, delivered);
   const activeAgentCount = agentSessions.filter((session) =>
     ["starting", "running"].includes(session.status)
