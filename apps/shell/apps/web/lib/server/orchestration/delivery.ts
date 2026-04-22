@@ -572,6 +572,20 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
   if (!assembly) {
     return null;
   }
+  const existingDelivery =
+    (await listDeliveries({ initiativeId: input.initiativeId })).find(
+      (candidate) => candidate.verificationRunId === verification.id
+    ) ?? null;
+  if (existingDelivery) {
+    return {
+      ...(await buildOrchestrationDirectoryMeta([
+        `Delivery ${existingDelivery.id} already exists for initiative ${input.initiativeId}.`,
+      ])),
+      delivery: existingDelivery,
+      verification,
+      assembly,
+    };
+  }
   const occurredAt = nowIso();
   const deliveryId = buildOrchestrationId("delivery");
   const previewId = buildOrchestrationId("preview");
