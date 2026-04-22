@@ -150,6 +150,12 @@ function latestDelivery(state: ControlPlaneState, initiativeId: string) {
     .sort((left, right) => (right.deliveredAt ?? right.id).localeCompare(left.deliveredAt ?? left.id))[0] ?? null;
 }
 
+function latestAssembly(state: ControlPlaneState, initiativeId: string) {
+  return [...state.orchestration.assemblies]
+    .filter((assembly) => assembly.initiativeId === initiativeId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null;
+}
+
 function taskStatus(workUnitStatus: string) {
   if (workUnitStatus === "completed") {
     return "completed";
@@ -201,6 +207,31 @@ function previewLabel(runPreviewStatus: string, deliveryKind: string | null | un
     return "failed";
   }
   return "none";
+}
+
+function groupForDisplayStage(stage: string, health: string): DisplayRunGroup {
+  if (stage === "ready" || stage === "completed" || stage === "preview_ready" || stage === "handed_off") {
+    return "completed";
+  }
+  if (
+    stage === "blocked" ||
+    stage === "failed" ||
+    stage === "cancelled" ||
+    stage === "retryable" ||
+    health === "blocked" ||
+    health === "failed"
+  ) {
+    return "attention";
+  }
+  return "running";
+}
+
+function workspacePathForRun(
+  deliveryPath: string | null | undefined,
+  assemblyPath: string | null | undefined,
+  scopePath: string | null | undefined
+) {
+  return deliveryPath ?? assemblyPath ?? scopePath ?? null;
 }
 
 function relativeAge(value: string, suffix: boolean) {
@@ -283,6 +314,7 @@ export function buildClaudeDesignRunsBoardItems(
       : [];
     const completedUnits = workUnits.filter((workUnit) => workUnit.status === "completed").length;
     const delivery = latestDelivery(state, run.initiativeId);
+    const assembly = latestAssembly(state, run.initiativeId);
     const displayStage = stageFromRun(state, run.initiativeId, run.currentStage);
     const leadWorkUnit =
       workUnits.find((workUnit) => workUnit.status !== "completed") ?? workUnits[0] ?? null;
@@ -310,15 +342,13 @@ export function buildClaudeDesignRunsBoardItems(
       assignment: leadWorkUnit?.executorType ?? "worker",
       backend: leadWorkUnit ? `${leadWorkUnit.executorType} runtime` : "shell runtime",
       attempts: leadWorkUnit?.latestAttemptId ? "1/1" : null,
-      workspacePath: initiative?.workspaceSessionId ?? null,
+      workspacePath: workspacePathForRun(
+        delivery?.localOutputPath,
+        assembly?.outputLocation,
+        leadWorkUnit?.scopePaths[0] ?? null
+      ),
       href: fallbackRunHref(routeScope, run.initiativeId) ?? "/execution/runs",
-      group: (
-        displayStage === "ready"
-          ? "completed"
-          : run.health === "blocked" || run.health === "failed" || displayStage === "failed"
-            ? "attention"
-            : "running"
-      ) as DisplayRunGroup,
+      group: groupForDisplayStage(displayStage, run.health),
       featured: index === 0,
       taskItems: taskItemsForInitiative(state, run.initiativeId),
     };

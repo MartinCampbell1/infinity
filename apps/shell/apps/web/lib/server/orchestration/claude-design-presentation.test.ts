@@ -98,7 +98,21 @@ function buildState(): ControlPlaneState {
         },
       ],
       supervisorActions: [],
-      assemblies: [],
+      assemblies: [
+        {
+          id: "assembly-live-001",
+          initiativeId: "initiative-live-001",
+          taskGraphId: "task-graph-live-001",
+          inputWorkUnitIds: ["work-unit-live-001-api", "work-unit-live-001-ui"],
+          artifactUris: [],
+          outputLocation: "/tmp/assembly-live-001",
+          manifestPath: "/tmp/assembly-live-001/assembly-manifest.json",
+          summary: "assembled",
+          status: "assembled",
+          createdAt: "2026-04-21T12:00:50.000Z",
+          updatedAt: "2026-04-21T12:01:00.000Z",
+        },
+      ],
       verifications: [],
       deliveries: [
         {
@@ -193,8 +207,79 @@ describe("claude design presentation", () => {
         tasks: "1 / 2",
         repo: "infinity",
         assignment: "droid",
+        workspacePath: "/tmp/delivery-live-001",
       })
     );
     expect(items[0]?.taskItems).toHaveLength(2);
+  });
+
+  test("groups cancelled runs separately from active pre-run stages", () => {
+    const state = buildState();
+    state.orchestration.initiatives.push({
+      id: "initiative-live-002",
+      title: "Cancelled run",
+      userRequest: "cancelled",
+      status: "cancelled",
+      requestedBy: "martin",
+      workspaceSessionId: null,
+      priority: "normal",
+      createdAt: "2026-04-21T12:02:00.000Z",
+      updatedAt: "2026-04-21T12:03:00.000Z",
+    });
+    state.orchestration.runs.push({
+      id: "run-live-002",
+      initiativeId: "initiative-live-002",
+      title: "Cancelled run",
+      originalPrompt: "cancelled",
+      entryMode: "shell_chat",
+      currentStage: "cancelled",
+      health: "failed",
+      automationMode: "autonomous",
+      manualStageProgression: false,
+      operatorOverrideActive: false,
+      previewStatus: "none",
+      handoffStatus: "none",
+      createdAt: "2026-04-21T12:02:00.000Z",
+      updatedAt: "2026-04-21T12:03:00.000Z",
+      completedAt: null,
+    });
+
+    state.orchestration.initiatives.push({
+      id: "initiative-live-003",
+      title: "Brief ready run",
+      userRequest: "brief-ready",
+      status: "brief_ready",
+      requestedBy: "martin",
+      workspaceSessionId: null,
+      priority: "normal",
+      createdAt: "2026-04-21T12:04:00.000Z",
+      updatedAt: "2026-04-21T12:05:00.000Z",
+    });
+    state.orchestration.runs.push({
+      id: "run-live-003",
+      initiativeId: "initiative-live-003",
+      title: "Brief ready run",
+      originalPrompt: "brief-ready",
+      entryMode: "shell_chat",
+      currentStage: "planning",
+      health: "healthy",
+      automationMode: "autonomous",
+      manualStageProgression: false,
+      operatorOverrideActive: false,
+      previewStatus: "none",
+      handoffStatus: "none",
+      createdAt: "2026-04-21T12:04:00.000Z",
+      updatedAt: "2026-04-21T12:05:00.000Z",
+      completedAt: null,
+    });
+
+    const items = buildClaudeDesignRunsBoardItems(state);
+    const cancelled = items.find((item) => item.id === "run-live-002");
+    const briefReady = items.find((item) => item.id === "run-live-003");
+
+    expect(cancelled?.stage).toBe("cancelled");
+    expect(cancelled?.group).toBe("attention");
+    expect(briefReady?.stage).toBe("brief_ready");
+    expect(briefReady?.group).toBe("running");
   });
 });
