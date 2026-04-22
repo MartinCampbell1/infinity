@@ -7,6 +7,12 @@ Baseline checkpoint: `9ca95da`
 Packaged branch tip:
 
 - inspect with `git -C /Users/martin/infinity log --oneline --decorate -n 10`
+Remote repo:
+
+- `https://github.com/MartinCampbell1/infinity`
+Draft PR:
+
+- `https://github.com/MartinCampbell1/infinity/pull/1`
 
 ## Current state
 
