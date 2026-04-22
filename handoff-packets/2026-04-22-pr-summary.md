@@ -34,7 +34,7 @@ Main outcomes:
 
 Canonical strict bundle:
 
-- `/Users/martin/infinity/handoff-packets/validation/2026-04-22T00-59-30Z`
+- `/Users/martin/infinity/handoff-packets/validation/2026-04-22T01-15-35Z`
 
 Key strict-bundle evidence:
 

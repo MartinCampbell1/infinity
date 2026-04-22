@@ -33,7 +33,7 @@ git -C /Users/martin/infinity rev-parse codex/infinity-step10-go^{tree} codex/in
 ## Current canonical validation evidence
 
 - latest strict bundle:
-  - `/Users/martin/infinity/handoff-packets/validation/2026-04-22T00-59-30Z`
+  - `/Users/martin/infinity/handoff-packets/validation/2026-04-22T01-15-35Z`
 - latest strict bundle outcome:
   - `delivery_status: ready`
   - `launch_kind: runnable_result`
