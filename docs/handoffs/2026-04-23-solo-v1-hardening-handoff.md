@@ -55,6 +55,10 @@ Recent green validation runs created during this work:
 - `handoff-packets/validation/2026-04-22T21-04-45Z`
 - `handoff-packets/validation/2026-04-22T21-21-37Z`
 
+Exact-tip acceptance note:
+
+- `docs/validation/2026-04-23-current-tip-acceptance.md`
+
 ## Manual/live checks completed
 
 - shell root `/` answered as the frontdoor on the committed state
