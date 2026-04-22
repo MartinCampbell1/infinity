@@ -107,13 +107,31 @@ func (svc *InMemory) hydrateFromDisk() error {
 	}
 
 	for batchID, batch := range state.Batches {
-		if batch.Status == "blocked" || batch.Status == "completed" {
+		if batch.Status == "running" {
+			batch.Status = "blocked"
+			batch.RecoveryState = archiveRecoveredState(batch.RecoveryState)
+			if batch.FinishedAt == nil {
+				finishedAt := nowISO()
+				batch.FinishedAt = &finishedAt
+			}
+		} else if batch.Status == "blocked" || batch.Status == "completed" {
 			batch.RecoveryState = archiveRecoveredState(batch.RecoveryState)
 		}
 		state.Batches[batchID] = batch
 	}
 	for attemptID, attempt := range state.Attempts {
-		if attempt.Status == "failed" || attempt.Status == "succeeded" {
+		if attempt.Status == "started" {
+			attempt.Status = "abandoned"
+			attempt.RecoveryState = archiveRecoveredState(attempt.RecoveryState)
+			if attempt.FinishedAt == nil {
+				finishedAt := nowISO()
+				attempt.FinishedAt = &finishedAt
+			}
+			if attempt.Summary == nil {
+				summary := "abandoned after restart"
+				attempt.Summary = &summary
+			}
+		} else if attempt.Status == "failed" || attempt.Status == "succeeded" {
 			attempt.RecoveryState = archiveRecoveredState(attempt.RecoveryState)
 		}
 		state.Attempts[attemptID] = attempt
@@ -182,6 +200,7 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 
 	batchCounts := events.BatchCounts{}
 	blockedBatchIDs := make([]string, 0)
+	archivedBatchIDs := make([]string, 0)
 	hasDiscarded := false
 	for _, batch := range svc.batches {
 		batchCounts.Total += 1
@@ -192,6 +211,8 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 			if isLiveRecoveryState(batch.RecoveryState) {
 				batchCounts.Blocked += 1
 				blockedBatchIDs = append(blockedBatchIDs, batch.ID)
+			} else if batch.RecoveryState == "archived" {
+				archivedBatchIDs = append(archivedBatchIDs, batch.ID)
 			} else if batch.RecoveryState == "discarded" {
 				hasDiscarded = true
 			}
@@ -200,6 +221,7 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 		}
 	}
 	slices.Sort(blockedBatchIDs)
+	slices.Sort(archivedBatchIDs)
 
 	attemptCounts := events.AttemptCounts{}
 	failedAttemptIDs := make([]string, 0)
@@ -273,6 +295,7 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 	resumableBatchIDs := make([]string, 0)
 	if restartRecoverable {
 		resumableBatchIDs = append(resumableBatchIDs, blockedBatchIDs...)
+		resumableBatchIDs = append(resumableBatchIDs, archivedBatchIDs...)
 	}
 
 	recoveryState := "none"
@@ -303,6 +326,11 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 		)
 	} else if recoveryState == "discarded" {
 		recoveryHint = "Discarded failures remain inspectable but do not block fresh boots."
+	} else if recoveryState == "archived" && len(resumableBatchIDs) > 0 {
+		recoveryHint = fmt.Sprintf(
+			"Archived execution history is inspectable; retry from the shell if you want to resume: %s.",
+			strings.Join(resumableBatchIDs, ", "),
+		)
 	} else if latestFailure != nil && latestFailure.ErrorSummary != nil {
 		recoveryHint = fmt.Sprintf(
 			"Inspect the latest failed attempt %s before retrying.",

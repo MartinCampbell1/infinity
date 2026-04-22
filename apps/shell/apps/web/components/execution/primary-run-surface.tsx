@@ -12,11 +12,7 @@ import {
   PlaneProgressBar,
   PlaneStatusPill,
 } from "@/components/execution/plane-run-primitives";
-import {
-  CLAUDE_HABIT_RUN_TASKS,
-  getClaudeDisplayRunId,
-  type ClaudeDisplayTask,
-} from "@/lib/server/orchestration/claude-design-presentation";
+import { getClaudeDisplayRunId } from "@/lib/server/orchestration/claude-design-presentation";
 import type { ApprovalRequest } from "@/lib/server/control-plane/contracts/approvals";
 import type {
   DeliveryRecord,
@@ -106,10 +102,6 @@ function shortRunId(value: string | null | undefined) {
   return getClaudeDisplayRunId(value);
 }
 
-function deriveRepoLabel(title: string) {
-  return title.toLowerCase().includes("habit tracker") ? "habit-runway" : "infinity-shell";
-}
-
 function workUnitCode(index: number) {
   return `t${String(index + 1).padStart(2, "0")}`;
 }
@@ -119,14 +111,14 @@ function workUnitTag(unit: WorkUnitRecord) {
   return `#${suffix.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}`;
 }
 
-function groupedDisplayTaskStatus(status: string) {
+function workUnitAttemptLabel(status: WorkUnitStatus) {
   if (status === "completed") {
-    return "completed";
+    return "1/1";
   }
   if (status === "running" || status === "blocked" || status === "retryable") {
-    return "running";
+    return "1/2";
   }
-  return "pending";
+  return "0/0";
 }
 
 const PREFERRED_WORK_UNIT_SUFFIX_ORDER = [
@@ -140,69 +132,6 @@ const PREFERRED_WORK_UNIT_SUFFIX_ORDER = [
   "work_ui",
   "topology_frontdoor",
 ] as const;
-
-const CLAUDE_HABIT_RUN_LANE_TASKS: ClaudeDisplayTask[] = [
-  {
-    id: "task-preview",
-    code: "t12",
-    tag: "preview",
-    title: "Vercel preview deployment + smoke test",
-    agent: "task-runner",
-    status: "running",
-    pct: 34,
-    attempts: "0/0",
-    value: 0,
-    total: 1,
-  },
-  {
-    id: "task-notifications",
-    code: "t08",
-    tag: "notifications",
-    title: "Notification scheduler — per-habit cron with quiet hrs",
-    agent: "task-runner",
-    status: "completed",
-    pct: 100,
-    attempts: "1/1",
-    value: 1,
-    total: 1,
-  },
-  {
-    id: "task-push",
-    code: "t09",
-    tag: "push",
-    title: "Push registration + web-push VAPID",
-    agent: "implementer",
-    status: "completed",
-    pct: 100,
-    attempts: "1/1",
-    value: 1,
-    total: 1,
-  },
-  {
-    id: "task-fresh-eyes",
-    code: "t10",
-    tag: "fresh_eyes",
-    title: "Fresh-eyes simplification pass",
-    agent: "code-review",
-    status: "completed",
-    pct: 100,
-    attempts: "1/1",
-    value: 1,
-    total: 1,
-  },
-  {
-    id: "task-check-gate",
-    code: "t11",
-    tag: "check_gate",
-    title: "Run the lint / build / test gate",
-    agent: "code-review",
-    status: "completed",
-    pct: 100,
-    attempts: "1/1",
-    value: 1,
-    total: 1,
-  },
-];
 
 function workUnitOrder(unit: WorkUnitRecord) {
   const suffix = unit.id.split("-").at(-1) ?? "";
@@ -280,22 +209,6 @@ export function PrimaryRunSurface({
   );
   const pendingApprovals = approvalRequests.filter((approval) => approval.status === "pending");
   const orderedWorkUnits = [...workUnits].sort((left, right) => workUnitOrder(left) - workUnitOrder(right));
-  const isClaudeHabitPresentation = initiative.title.toLowerCase().includes("habit tracker");
-  const displayTasks: ClaudeDisplayTask[] = isClaudeHabitPresentation
-    ? CLAUDE_HABIT_RUN_TASKS
-    : orderedWorkUnits.map((unit, index) => ({
-        id: unit.id,
-        code: workUnitCode(index),
-        tag: workUnitTag(unit).slice(1),
-        title: unit.title,
-        agent: unit.executorType,
-        status: unit.status === "completed" ? "completed" : unit.status === "running" ? "running" : "pending",
-        pct: unit.status === "completed" ? 100 : unit.status === "running" ? 72 : 0,
-        attempts: unit.status === "completed" ? "1/1" : unit.status === "running" ? "1/2" : "0/0",
-        value: unit.status === "completed" ? 1 : unit.status === "running" ? 1 : 0,
-        total: 1,
-      }));
-  const laneDisplayTasks = isClaudeHabitPresentation ? CLAUDE_HABIT_RUN_LANE_TASKS : displayTasks;
   const groupedWorkUnits = {
     running: orderedWorkUnits.filter((unit) => workUnitGroup(unit.status) === "running"),
     pending: orderedWorkUnits.filter((unit) => workUnitGroup(unit.status) === "pending"),
@@ -327,18 +240,6 @@ export function PrimaryRunSurface({
     })),
   ].filter((value): value is { label: string; body: string; createdAt: string } => Boolean(value));
   const runIdLabel = shortRunId(currentRun?.id ?? initiative.id);
-  const repoLabel = deriveRepoLabel(initiative.title);
-  const groupedDisplayTasks = {
-    running: laneDisplayTasks.filter((task) => groupedDisplayTaskStatus(task.status) === "running"),
-    pending: laneDisplayTasks.filter((task) => groupedDisplayTaskStatus(task.status) === "pending"),
-    completed: laneDisplayTasks.filter((task) => groupedDisplayTaskStatus(task.status) === "completed"),
-  };
-  const selectedDisplayTask =
-    (isClaudeHabitPresentation
-      ? displayTasks.find((task) => task.id === "task-habit-api")
-      : null) ??
-    displayTasks[0] ??
-    null;
 
   return (
     <main className="mx-auto grid max-w-[1520px] gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -441,22 +342,18 @@ export function PrimaryRunSurface({
               },
               {
                 label: "Tasks",
-                value: isClaudeHabitPresentation ? "11 / 12" : `${groupedWorkUnits.completed.length} / ${workUnits.length}`,
-                detail: isClaudeHabitPresentation
-                  ? "1 active · 0 pending"
-                  : `${groupedWorkUnits.running.length} active · ${groupedWorkUnits.pending.length} pending`,
+                value: `${groupedWorkUnits.completed.length} / ${workUnits.length}`,
+                detail: `${groupedWorkUnits.running.length} active · ${groupedWorkUnits.pending.length} pending`,
               },
               {
                 label: "Agents",
-                value: isClaudeHabitPresentation ? 3 : activeAgentCount || agentSessions.length,
-                detail: isClaudeHabitPresentation ? "9 sessions" : `${agentSessions.length} sessions`,
+                value: activeAgentCount || agentSessions.length,
+                detail: `${agentSessions.length} sessions`,
               },
               {
                 label: "Recoveries",
                 value: recoveries.length,
-                detail: isClaudeHabitPresentation
-                  ? "1 auto-resolved"
-                  : `${pendingApprovals.length} approvals pending`,
+                detail: `${pendingApprovals.length} approvals pending`,
               },
             ].map((metric) => (
               <div key={metric.label} className="rounded-[16px] border border-white/8 bg-white/[0.03] px-4 py-4">
@@ -489,17 +386,17 @@ export function PrimaryRunSurface({
               {
                 label: "running",
                 status: "running",
-                items: isClaudeHabitPresentation ? groupedDisplayTasks.running : groupedWorkUnits.running,
+                items: groupedWorkUnits.running,
               },
               {
                 label: "pending",
                 status: "pending",
-                items: isClaudeHabitPresentation ? groupedDisplayTasks.pending : groupedWorkUnits.pending,
+                items: groupedWorkUnits.pending,
               },
               {
                 label: "completed",
                 status: "completed",
-                items: isClaudeHabitPresentation ? groupedDisplayTasks.completed : groupedWorkUnits.completed,
+                items: groupedWorkUnits.completed,
               },
             ].map((lane) => (
               <div
@@ -515,18 +412,14 @@ export function PrimaryRunSurface({
                   </span>
                 </div>
                 {lane.items.map((unit, index) => {
-                  const displayUnit = unit as ClaudeDisplayTask;
                   const workUnit = unit as WorkUnitRecord;
-                  const selected = isClaudeHabitPresentation
-                    ? selectedDisplayTask?.id === displayUnit.id
-                    : selectedWorkUnit?.id === workUnit.id;
-                  const progress = isClaudeHabitPresentation
-                    ? { value: displayUnit.pct, total: 100 }
-                    : workUnitProgress(workUnit.status);
+                  const selected = selectedWorkUnit?.id === workUnit.id;
+                  const progress = workUnitProgress(workUnit.status);
+                  const pct = Math.round((progress.value / progress.total) * 100);
 
                   return (
                     <div
-                      key={isClaudeHabitPresentation ? displayUnit.id : workUnit.id}
+                      key={workUnit.id}
                       className={`rounded-[10px] border px-3 py-3 ${
                         selected
                           ? "border-[rgba(133,169,255,0.38)] bg-[rgba(133,169,255,0.06)]"
@@ -534,42 +427,28 @@ export function PrimaryRunSurface({
                       }`}
                     >
                       <div className="font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
-                        {isClaudeHabitPresentation ? displayUnit.code : workUnitCode(index)}
-                        <span className="ml-2">
-                          {isClaudeHabitPresentation ? `#${displayUnit.tag}` : workUnitTag(workUnit)}
-                        </span>
+                        {workUnitCode(index)}
+                        <span className="ml-2">{workUnitTag(workUnit)}</span>
                       </div>
-                      <div className="mt-2 text-[12px] leading-5 text-white">
-                        {isClaudeHabitPresentation ? displayUnit.title : workUnit.title}
-                      </div>
+                      <div className="mt-2 text-[12px] leading-5 text-white">{workUnit.title}</div>
                       <div className="mt-2 inline-flex rounded-[4px] bg-white/[0.03] px-2 py-1 font-mono text-[9px] text-[var(--shell-sidebar-muted)]">
-                        {isClaudeHabitPresentation ? displayUnit.agent : workUnit.executorType}
+                        {workUnit.executorType}
                       </div>
                       <PlaneProgressBar
                         className="mt-3"
                         value={progress.value}
                         total={progress.total}
                         color={
-                          (isClaudeHabitPresentation ? displayUnit.status : workUnit.status) === "completed"
+                          workUnit.status === "completed"
                             ? "var(--status-running)"
-                            : (isClaudeHabitPresentation ? displayUnit.status : workUnit.status) === "running"
+                            : workUnit.status === "running"
                               ? "var(--status-planning)"
                               : "rgba(255,255,255,0.18)"
                         }
                       />
                       <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
-                        <span>
-                          attempt {isClaudeHabitPresentation ? displayUnit.attempts : workUnit.status === "completed" ? "1/1" : workUnit.status === "running" ? "1/2" : "0/0"}
-                        </span>
-                        <span>
-                          {isClaudeHabitPresentation
-                            ? `${displayUnit.pct}%`
-                            : workUnit.status === "completed"
-                              ? "100%"
-                              : workUnit.status === "running"
-                                ? "72%"
-                                : "0%"}
-                        </span>
+                        <span>attempt {workUnitAttemptLabel(workUnit.status)}</span>
+                        <span>{pct}%</span>
                       </div>
                     </div>
                   );
@@ -639,7 +518,7 @@ export function PrimaryRunSurface({
 
       <aside className="hidden xl:block">
         <div className="sticky top-0 h-[calc(100vh-56px)] overflow-auto border-l border-[color:var(--shell-sidebar-border)] bg-[rgba(8,11,15,0.6)] px-5 py-5">
-          {(selectedDisplayTask || selectedWorkUnit) ? (
+          {selectedWorkUnit ? (
             <>
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -647,7 +526,7 @@ export function PrimaryRunSurface({
                     Selected task
                   </div>
                   <div className="mt-3 text-[18px] font-semibold tracking-[-0.03em] text-white">
-                    {isClaudeHabitPresentation ? selectedDisplayTask?.title : selectedWorkUnit?.title}
+                    {selectedWorkUnit.title}
                   </div>
                 </div>
                 <PlaneButton variant="subtle" size="sm">
@@ -656,41 +535,33 @@ export function PrimaryRunSurface({
               </div>
 
               <div className="mt-2 font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
-                {isClaudeHabitPresentation
-                  ? `${selectedDisplayTask?.code} · #${selectedDisplayTask?.tag}`
-                  : selectedWorkUnit
-                    ? `${workUnitCode(workUnitOrder(selectedWorkUnit))} · ${workUnitTag(selectedWorkUnit)}`
-                    : "task"}
+                {`${workUnitCode(workUnitOrder(selectedWorkUnit))} · ${workUnitTag(selectedWorkUnit)}`}
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <PlaneStatusPill
-                  status={isClaudeHabitPresentation ? selectedDisplayTask?.status : selectedWorkUnit?.status}
+                  status={selectedWorkUnit.status}
                   mono
                   size="sm"
                 >
-                  {isClaudeHabitPresentation ? selectedDisplayTask?.status : selectedWorkUnit?.status}
+                  {selectedWorkUnit.status}
                 </PlaneStatusPill>
                 <PlaneStatusPill status="neutral" mono size="sm">
-                  attempt {isClaudeHabitPresentation ? selectedDisplayTask?.attempts : "1/1"}
+                  attempt {workUnitAttemptLabel(selectedWorkUnit.status)}
                 </PlaneStatusPill>
                 <PlaneStatusPill status="neutral" mono size="sm">
-                  {isClaudeHabitPresentation ? selectedDisplayTask?.agent : selectedWorkUnit?.executorType}
+                  {selectedWorkUnit.executorType}
                 </PlaneStatusPill>
               </div>
 
               <div className="mt-5 grid grid-cols-[90px_1fr] gap-x-4 gap-y-3 rounded-[12px] border border-white/8 bg-white/[0.025] px-4 py-4 text-[11px]">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Repo</div>
-                <div className="font-mono text-white">{repoLabel}</div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Backend</div>
-                <div className="font-mono text-white">codex · gpt-5.1 · high</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Scope</div>
+                <div className="truncate font-mono text-white">{selectedWorkUnit.scopePaths[0] ?? "n/a"}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Executor</div>
+                <div className="font-mono text-white">{selectedWorkUnit.executorType}</div>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Started</div>
                 <div className="text-white">{formatDateTime(currentRun?.createdAt ?? initiative.createdAt)}</div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Attempts</div>
-                <div className="text-white">1/3</div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Workspace</div>
-                <div className="truncate font-mono text-white/82">
-                  ~/worktrees/infinity/{runIdLabel}
-                </div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Batch</div>
+                <div className="truncate font-mono text-white/82">{currentBatch?.id ?? "n/a"}</div>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Session</div>
                 <div className="truncate font-mono text-white/82">
                   {workspaceHostContext?.sessionId ?? "n/a"}
@@ -700,7 +571,7 @@ export function PrimaryRunSurface({
               <div className="mt-5 rounded-[12px] border border-sky-400/22 bg-sky-400/[0.05] px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-mono text-[12px] text-sky-100">
-                    codex-tool:apply_patch
+                    {latestRunEvent?.kind ?? "run-event"}
                   </div>
                   <div className="font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
                     {formatDateTime(latestRunEvent?.createdAt ?? currentRun?.updatedAt ?? initiative.updatedAt).slice(11, 16)}
@@ -708,44 +579,39 @@ export function PrimaryRunSurface({
                 </div>
                 <PlaneProgressBar
                   className="mt-3"
-                  value={
-                    isClaudeHabitPresentation
-                      ? selectedDisplayTask?.pct ?? 0
-                      : selectedWorkUnit?.status === "completed"
-                        ? 100
-                        : selectedWorkUnit?.status === "running"
-                          ? 72
-                          : 0
-                  }
+                  value={Math.round((workUnitProgress(selectedWorkUnit.status).value / workUnitProgress(selectedWorkUnit.status).total) * 100)}
                   total={100}
                   color="var(--status-planning)"
                 />
+                <div className="mt-3 text-[11px] leading-6 text-sky-100/82">
+                  {latestRunEvent?.summary ?? "No live event detail captured yet."}
+                </div>
                 <div className="mt-3 grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 font-mono text-[10.5px] text-sky-100/80">
                   <span>file</span>
-                  <span>{isClaudeHabitPresentation ? "app/api/habits/route.ts" : selectedWorkUnit?.scopePaths[0] ?? "app/api/habits/route.ts"}</span>
+                  <span>{selectedWorkUnit.scopePaths[0] ?? "n/a"}</span>
                   <span>batch</span>
                   <span>{currentBatch?.id ?? "n/a"}</span>
-                  <span>scope</span>
-                  <span>web · habits · notifications</span>
+                  <span>criteria</span>
+                  <span>{selectedWorkUnit.acceptanceCriteria[0] ?? "n/a"}</span>
                 </div>
               </div>
 
               {recoveries[0] ? (
                 <div className="mt-5 rounded-[12px] border border-amber-400/20 bg-amber-400/[0.05] px-4 py-4">
                   <div className="text-[11.5px] font-medium text-amber-100">
-                    {isClaudeHabitPresentation ? "Migration strategy refusal" : recoveries[0].summary}
+                    {recoveries[0].summary}
                   </div>
                   <p className="mt-2 text-[11px] leading-6 text-amber-100/82">
-                    {isClaudeHabitPresentation
-                      ? "validation.refusal on #schema — the first attempted migration was non-idempotent. System re-planned with reversible steps and proceeded."
-                      : "Recovery is durable and visible in both shell and workspace."}
+                    {recoveries[0].rootCause ??
+                      recoveries[0].recommendedAction ??
+                      "Recovery is durable and visible in both shell and workspace."}
                   </p>
                   <div className="mt-3 flex gap-2">
                     <PlaneStatusPill status="pending" mono size="sm">
-                      {isClaudeHabitPresentation ? "migration-irreversible" : recoveries[0].status}
+                      {recoveries[0].status}
                     </PlaneStatusPill>
                     <PlaneStatusPill status="neutral" mono size="sm">
-                      {isClaudeHabitPresentation ? "auto-approved by policy" : recoveries[0].recoveryActionKind}
+                      {recoveries[0].recoveryActionKind}
                     </PlaneStatusPill>
                   </div>
                 </div>
@@ -756,9 +622,7 @@ export function PrimaryRunSurface({
                   Manual override
                 </div>
                 <p className="mt-3 text-[12px] leading-6 text-white/48">
-                  {isClaudeHabitPresentation
-                    ? "Operator controls dormant — system is running autonomously."
-                    : "Operator controls stay secondary while the system is still progressing autonomously."}
+                  Operator controls stay secondary while the system is still progressing autonomously.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <PlaneButton variant="subtle" size="sm">

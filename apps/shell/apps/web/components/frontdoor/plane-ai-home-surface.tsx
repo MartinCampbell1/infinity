@@ -11,15 +11,15 @@ const FRONTDOOR_SUGGESTIONS = [
   {
     eyebrow: "Scaffold",
     prompt:
-      "Build a habit tracker with streaks, weekly insights, and push notifications. Next.js, Supabase, Postgres. Ship to Vercel preview.",
+      "Build a local-first web app with auth, persistence, verification, and a localhost-ready handoff.",
   },
   {
     eyebrow: "Feature",
-    prompt: "Add a keyboard-driven recovery review surface to the existing shell.",
+    prompt: "Add a shell-first operator surface for recoveries, approvals, and review routing.",
   },
   {
     eyebrow: "Refactor",
-    prompt: "Migrate the runtime board from polling to Postgres LISTEN/NOTIFY.",
+    prompt: "Replace a brittle runtime seam with a durable source-of-truth flow and explicit health checks.",
   },
 ] as const;
 
@@ -40,11 +40,20 @@ function sessionAccent(status: string) {
 export function PlaneAiHomeSurface({
   recentRuns,
   routeScope,
+  kernelAvailability,
 }: {
   recentRuns: FrontdoorRecentRunCard[];
   routeScope?: ShellRouteScope;
   kernelAvailability: ExecutionKernelAvailability;
 }) {
+  const recentRunLabel =
+    recentRuns.length === 1 ? "1 recent run visible" : `${recentRuns.length} recent runs visible`;
+  const kernelLabel = !kernelAvailability.available
+    ? "execution-kernel unavailable"
+    : kernelAvailability.recoveryState && kernelAvailability.recoveryState !== "none"
+      ? `execution-kernel ${kernelAvailability.runtimeState ?? "ready"} · recovery ${kernelAvailability.recoveryState}`
+      : `execution-kernel ${kernelAvailability.runtimeState ?? "ready"}`;
+
   return (
     <main className="mx-auto flex max-w-[1240px] flex-col px-4 pb-10 pt-12 sm:px-6 lg:px-10">
       <div className="mx-auto flex w-full max-w-[820px] flex-col">
@@ -129,7 +138,7 @@ export function PlaneAiHomeSurface({
 
       <div className="mt-10 inline-flex w-full items-center justify-center gap-3 text-center text-[11px] text-[var(--shell-sidebar-muted)]">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(73,209,141,0.45)]" />
-        <span>Local shell ready · 6 agents registered · recovery policy autopilot</span>
+        <span>Local shell ready · {recentRunLabel} · {kernelLabel}</span>
       </div>
     </main>
   );

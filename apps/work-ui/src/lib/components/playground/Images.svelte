@@ -5,6 +5,7 @@
 
 	import { user } from '$lib/stores';
 	import { imageGenerations, imageEdits } from '$lib/apis/images';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 
@@ -76,13 +77,13 @@
 			if (sourceImages.length > 0) {
 				console.log('Calling imageEdits with', sourceImages.length, 'images');
 				result = await imageEdits(
-					localStorage.token,
+					resolveFounderosEmbeddedAccessToken(),
 					sourceImages.length === 1 ? sourceImages[0] : sourceImages,
 					prompt
 				);
 			} else {
 				console.log('Calling imageGenerations');
-				result = await imageGenerations(localStorage.token, prompt);
+				result = await imageGenerations(resolveFounderosEmbeddedAccessToken(), prompt);
 			}
 
 			console.log('Result:', result);

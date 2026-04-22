@@ -16,6 +16,7 @@
 	import { WEBUI_NAME, config, user, models, settings } from '$lib/stores';
 
 	import { chatCompletion } from '$lib/apis/openai';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { splitStream } from '$lib/utils';
 	import Collapsible from '../common/Collapsible.svelte';
@@ -101,7 +102,7 @@
 		}
 
 		const [res, controller] = await chatCompletion(
-			localStorage.token,
+			resolveFounderosEmbeddedAccessToken(),
 			{
 				model: model.id,
 				stream: true,

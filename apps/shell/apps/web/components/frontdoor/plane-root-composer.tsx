@@ -18,7 +18,7 @@ import {
 } from "@/components/execution/plane-run-primitives";
 
 const DEFAULT_FRONTDOOR_PROMPT =
-  "Build a habit tracker with streaks, weekly insights, and push notifications. Next.js, Supabase auth, Postgres. Ship to Vercel preview.";
+  "";
 
 export function PlaneRootComposer({
   routeScope,
@@ -48,7 +48,7 @@ export function PlaneRootComposer({
           "content-type": "application/json",
         },
         body: JSON.stringify(
-          buildInitiativeCreateRequest(normalizedPrompt, "martin", routeScope)
+          buildInitiativeCreateRequest(normalizedPrompt, "operator", routeScope)
         ),
       });
 
