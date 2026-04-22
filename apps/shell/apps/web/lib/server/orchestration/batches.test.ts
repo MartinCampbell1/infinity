@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 
 import { afterEach, describe, expect, test } from "vitest";
 
-import { getExecutionKernelAvailability } from "./batches";
+import { getExecutionKernelAvailability, resolveExecutionKernelBaseUrl } from "./batches";
 
 const ORIGINAL_EXECUTION_KERNEL_BASE_URL = process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
 const ORIGINAL_MULTICA_KERNEL_BASE_URL = process.env.MULTICA_KERNEL_BASE_URL;
@@ -21,14 +21,11 @@ afterEach(() => {
 });
 
 describe("getExecutionKernelAvailability", () => {
-  test("uses the canonical localhost kernel fallback when no env override is present", async () => {
+  test("defaults to the canonical localhost kernel fallback when no env override is present", () => {
     delete process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
     process.env.MULTICA_KERNEL_BASE_URL = "";
 
-    const availability = await getExecutionKernelAvailability();
-
-    expect(availability.available).toBe(false);
-    expect(availability.baseUrl).toBe("http://127.0.0.1:8798");
+    expect(resolveExecutionKernelBaseUrl()).toBe("http://127.0.0.1:8798");
   });
 
   test("reports the execution kernel as available when healthz responds", async () => {

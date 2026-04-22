@@ -186,6 +186,97 @@ func TestHealthReportsDurableAndRecoverableState(t *testing.T) {
 	}
 }
 
+func TestHealthTreatsReloadedBlockedStateAsHistorical(t *testing.T) {
+	t.Parallel()
+
+	statePath := filepath.Join(t.TempDir(), "execution-kernel-historical.json")
+	svc, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() error = %v", err)
+	}
+
+	launch, err := svc.LaunchBatch(context.Background(), events.LaunchBatchRequest{
+		BatchID:          "batch-historical-001",
+		InitiativeID:     "initiative-historical-001",
+		TaskGraphID:      "task-graph-historical-001",
+		ConcurrencyLimit: 1,
+		WorkUnits: []events.WorkUnit{
+			{
+				ID:                 "work-unit-historical-001",
+				Title:              "Historical health",
+				Description:        "Persist a stale blocked tail across restart",
+				ExecutorType:       "codex",
+				ScopePaths:         []string{"/Users/martin/infinity/services/execution-kernel"},
+				Dependencies:       []string{},
+				AcceptanceCriteria: []string{"Historical health stays inspectable without degrading fresh boots"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("LaunchBatch() error = %v", err)
+	}
+
+	if _, err := svc.FailAttempt(context.Background(), launch.Attempts[0].ID, events.AttemptActionRequest{
+		ErrorCode:    stringPointer("STALE_FAILURE"),
+		ErrorSummary: stringPointer("historical blocked tail"),
+	}); err != nil {
+		t.Fatalf("FailAttempt() error = %v", err)
+	}
+
+	reloaded, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() reload error = %v", err)
+	}
+
+	health := reloaded.Health(context.Background())
+	if health.Status != "ok" {
+		t.Fatalf("expected ok health after reload, got %s", health.Status)
+	}
+	if health.RuntimeState != "idle" {
+		t.Fatalf("expected idle runtime state after reload, got %s", health.RuntimeState)
+	}
+	if health.RecoveryState != "archived" {
+		t.Fatalf("expected archived recovery state after reload, got %s", health.RecoveryState)
+	}
+	if health.FailureState != "historical" {
+		t.Fatalf("expected historical failure state after reload, got %s", health.FailureState)
+	}
+	if health.BatchCounts.Blocked != 0 {
+		t.Fatalf("expected no live blocked batches after reload, got %d", health.BatchCounts.Blocked)
+	}
+	if health.AttemptCounts.Failed != 0 {
+		t.Fatalf("expected no live failed attempts after reload, got %d", health.AttemptCounts.Failed)
+	}
+	if len(health.BlockedBatchIDs) != 0 {
+		t.Fatalf("expected no live blocked batch ids after reload, got %#v", health.BlockedBatchIDs)
+	}
+	if len(health.FailedAttemptIDs) != 0 {
+		t.Fatalf("expected no live failed attempt ids after reload, got %#v", health.FailedAttemptIDs)
+	}
+	if health.LatestFailure == nil || health.LatestFailure.AttemptID != launch.Attempts[0].ID {
+		t.Fatalf("expected latest failure to remain inspectable, got %#v", health.LatestFailure)
+	}
+
+	detail, err := reloaded.BatchDetail(context.Background(), "batch-historical-001")
+	if err != nil {
+		t.Fatalf("BatchDetail() error = %v", err)
+	}
+	if detail.Batch.RecoveryState != "archived" {
+		t.Fatalf("expected batch detail recovery state archived, got %s", detail.Batch.RecoveryState)
+	}
+
+	resumed, err := reloaded.ResumeBatch(context.Background(), "batch-historical-001")
+	if err != nil {
+		t.Fatalf("ResumeBatch() error = %v", err)
+	}
+	if resumed.Batch.Status != "running" {
+		t.Fatalf("expected archived batch to resume into running, got %s", resumed.Batch.Status)
+	}
+	if resumed.Batch.RecoveryState != "retryable" {
+		t.Fatalf("expected resumed batch recovery state retryable, got %s", resumed.Batch.RecoveryState)
+	}
+}
+
 func TestHealthLatestFailureUsesChronologicalOrdering(t *testing.T) {
 	t.Parallel()
 
