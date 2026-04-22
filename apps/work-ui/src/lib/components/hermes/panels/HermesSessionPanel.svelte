@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { founderosLaunchContext } from '$lib/founderos';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { buildFounderosChatHref } from '$lib/founderos/navigation';
 
 	import { getChatList, getPinnedChatList } from '$lib/apis/chats';
@@ -76,6 +77,7 @@
 	let lastLoadedAt = 0;
 	let showInspector = false;
 	let sessionFilters: { id: HermesSessionScope; label: string }[] = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const HERMES_SESSION_PANEL_REFRESH_TTL_MS = 10_000;
 
@@ -213,8 +215,8 @@
 
 	const refreshChatStores = async () => {
 		currentChatPage.set(1);
-		await chats.set(await getChatList(localStorage.token, 1));
-		await pinnedChats.set(await getPinnedChatList(localStorage.token));
+		await chats.set(await getChatList(getWorkspaceAuthToken(), 1));
+		await pinnedChats.set(await getPinnedChatList(getWorkspaceAuthToken()));
 	};
 
 	const getErrorMessage = (error: any, fallback: string) => {
@@ -260,11 +262,11 @@
 		loadError = '';
 
 		const [runtimeRes, sessionsRes] = await Promise.all([
-			getHermesRuntime(localStorage.token).catch((error) => {
+			getHermesRuntime(getWorkspaceAuthToken()).catch((error) => {
 				console.error(error);
 				return null;
 			}),
-			getHermesSessions(localStorage.token).catch((error) => {
+			getHermesSessions(getWorkspaceAuthToken()).catch((error) => {
 				console.error(error);
 				return null;
 			})
@@ -296,7 +298,7 @@
 		importInFlightId = sessionId;
 
 		try {
-			const res = await importHermesSession(localStorage.token, sessionId).catch((error) => {
+			const res = await importHermesSession(getWorkspaceAuthToken(), sessionId).catch((error) => {
 				toast.error(getErrorMessage(error, $i18n.t('Failed to import Hermes session.')));
 				return null;
 			});

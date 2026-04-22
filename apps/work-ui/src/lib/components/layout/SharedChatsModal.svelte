@@ -3,6 +3,7 @@
 	import { toast } from 'svelte-sonner';
 	import { getContext } from 'svelte';
 	import { deleteSharedChatById, getSharedChatList } from '$lib/apis/chats';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import ChatsModal from './ChatsModal.svelte';
 
@@ -21,6 +22,7 @@
 	let allChatsLoaded = false;
 	let chatListLoading = false;
 	let searchDebounceTimeout: any;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let filter: any = {};
 	$: filter = {
@@ -46,10 +48,10 @@
 		chatList = null;
 
 		if (query === '') {
-			chatList = await getSharedChatList(localStorage.token, page, filter);
+			chatList = await getSharedChatList(getWorkspaceAuthToken(), page, filter);
 		} else {
 			searchDebounceTimeout = setTimeout(async () => {
-				chatList = await getSharedChatList(localStorage.token, page, filter);
+				chatList = await getSharedChatList(getWorkspaceAuthToken(), page, filter);
 			}, 500);
 		}
 
@@ -67,9 +69,9 @@
 		let newChatList = [];
 
 		if (query) {
-			newChatList = await getSharedChatList(localStorage.token, page, filter);
+			newChatList = await getSharedChatList(getWorkspaceAuthToken(), page, filter);
 		} else {
-			newChatList = await getSharedChatList(localStorage.token, page, filter);
+			newChatList = await getSharedChatList(getWorkspaceAuthToken(), page, filter);
 		}
 
 		// once the bottom of the list has been reached (no results) there is no need to continue querying
@@ -83,7 +85,7 @@
 	};
 
 	const unshareHandler = async (chatId: string) => {
-		const res = await deleteSharedChatById(localStorage.token, chatId).catch((error) => {
+		const res = await deleteSharedChatById(getWorkspaceAuthToken(), chatId).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -98,7 +100,7 @@
 	};
 
 	const init = async () => {
-		chatList = await getSharedChatList(localStorage.token);
+		chatList = await getSharedChatList(getWorkspaceAuthToken());
 	};
 
 	$: if (show) {

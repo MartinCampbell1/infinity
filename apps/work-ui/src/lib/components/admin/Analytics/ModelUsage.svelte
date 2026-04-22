@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, getContext } from 'svelte';
 	import { models } from '$lib/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { getModelAnalytics } from '$lib/apis/analytics';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import ChevronUp from '$lib/components/icons/ChevronUp.svelte';
@@ -17,6 +18,7 @@
 	let loading = true;
 	let orderBy: 'name' | 'count' | 'percentage' = 'count';
 	let direction: 'asc' | 'desc' = 'desc';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const toggleSort = (key: 'name' | 'count' | 'percentage') => {
 		if (orderBy === key) {
@@ -31,7 +33,7 @@
 		loading = true;
 		try {
 			const result: { models?: Array<{ model_id: string; count: number }> } =
-				await getModelAnalytics(localStorage.token);
+				await getModelAnalytics(getWorkspaceAuthToken());
 			const modelsMap = new Map($models.map((m) => [m.id, m.name || m.id]));
 
 			modelStats = (result?.models ?? []).map((entry) => ({

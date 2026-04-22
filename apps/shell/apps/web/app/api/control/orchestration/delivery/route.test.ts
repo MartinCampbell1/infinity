@@ -1,10 +1,11 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { readControlPlaneState, resetControlPlaneStateForTests } from "../../../../../lib/server/control-plane/state/store";
+import { materializeAttemptArtifacts } from "../../../../../lib/server/orchestration/attempt-artifacts";
 
 import { POST as postInitiatives } from "../initiatives/route";
 import { POST as postBriefs } from "../briefs/route";
@@ -138,7 +139,13 @@ async function createPlannedInitiative() {
   };
 }
 
-async function completeAllWorkUnits(taskGraphId: string) {
+async function completeAllWorkUnits(
+  taskGraphId: string,
+  resolveAttemptId: (
+    workUnit: { id: string },
+    index: number
+  ) => string | null = (_workUnit, index) => `attempt-delivery-${index + 1}`
+) {
   const workUnitsResponse = await getWorkUnits(
     new Request(
       `http://localhost/api/control/orchestration/work-units?task_graph_id=${taskGraphId}`
@@ -155,7 +162,7 @@ async function completeAllWorkUnits(taskGraphId: string) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             status: "completed",
-            latestAttemptId: `attempt-delivery-${index + 1}`,
+            latestAttemptId: resolveAttemptId(workUnit, index),
           }),
         }
       ),
@@ -163,6 +170,63 @@ async function completeAllWorkUnits(taskGraphId: string) {
     );
     expect(response.status).toBe(200);
   }
+}
+
+async function corruptFinalIntegrationProof(
+  initiativeId: string,
+  taskGraphId: string,
+  expectedMarker = "Infinity Missing Runnable Proof"
+) {
+  const workUnitsResponse = await getWorkUnits(
+    new Request(
+      `http://localhost/api/control/orchestration/work-units?task_graph_id=${taskGraphId}`
+    )
+  );
+  const workUnitsBody = await workUnitsResponse.json();
+  const finalIntegrationUnit = workUnitsBody.workUnits.find(
+    (workUnit: { id: string; latestAttemptId: string | null }) =>
+      workUnit.id.endsWith("final_integration")
+  );
+
+  expect(finalIntegrationUnit).toBeTruthy();
+  expect(finalIntegrationUnit.latestAttemptId).toBeTruthy();
+
+  const attemptArtifacts = materializeAttemptArtifacts({
+    initiativeId,
+    taskGraphId,
+    batchId: null,
+    workUnit: finalIntegrationUnit,
+    attemptId: finalIntegrationUnit.latestAttemptId,
+  });
+  const launchManifestUri = attemptArtifacts.artifactUris.find((artifactUri) =>
+    artifactUri.endsWith("/launch-manifest.json")
+  );
+
+  expect(launchManifestUri).toBeTruthy();
+  if (!launchManifestUri) {
+    throw new Error("Final integration attempt did not materialize a launch manifest.");
+  }
+
+  const launchManifestPath = launchManifestUri.replace(/^file:\/\//, "");
+  const launchManifest = JSON.parse(readFileSync(launchManifestPath, "utf8")) as {
+    expectedMarker: string;
+  };
+  writeFileSync(
+    launchManifestPath,
+    JSON.stringify(
+      {
+        ...launchManifest,
+        expectedMarker,
+      },
+      null,
+      2
+    )
+  );
+
+  return {
+    launchManifestPath,
+    originalExpectedMarker: launchManifest.expectedMarker,
+  };
 }
 
 describe("/api/control/orchestration/delivery", () => {
@@ -263,6 +327,176 @@ describe("/api/control/orchestration/delivery", () => {
 
     expect(deliveryResponse.status).toBe(400);
     expect(deliveryBody.detail).toMatch(/requires a passed verification/i);
+  });
+
+  test("delivery keeps handoff pending when the runnable target exists but localhost proof fails", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+    await corruptFinalIntegrationProof(initiativeId, taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const deliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    const deliveryBody = await deliveryResponse.json();
+
+    expect(deliveryResponse.status).toBe(201);
+    expect(deliveryBody.delivery).toEqual(
+      expect.objectContaining({
+        initiativeId,
+        status: "pending",
+        launchProofKind: "runnable_result",
+      })
+    );
+    expect(deliveryBody.delivery.launchProofUrl).toBeNull();
+    expect(deliveryBody.delivery.launchProofAt).toBeNull();
+
+    const state = await readControlPlaneState();
+    const initiative = state.orchestration.initiatives.find((candidate) => candidate.id === initiativeId);
+    const run = state.orchestration.runs.find((candidate) => candidate.initiativeId === initiativeId);
+    const preview = state.orchestration.previewTargets.find(
+      (candidate) => candidate.deliveryId === deliveryBody.delivery.id
+    );
+    const handoff = state.orchestration.handoffPackets.find(
+      (candidate) => candidate.deliveryId === deliveryBody.delivery.id
+    );
+    const proof = state.orchestration.validationProofs.find((candidate) => candidate.runId === run?.id);
+
+    expect(initiative?.status).toBe("verifying");
+    expect(run?.currentStage).toBe("preview_ready");
+    expect(run?.previewStatus).toBe("ready");
+    expect(run?.handoffStatus).toBe("building");
+    expect(preview?.healthStatus).toBe("ready");
+    expect(handoff?.status).toBe("building");
+    expect(proof?.previewReady).toBe(true);
+    expect(proof?.launchReady).toBe(false);
+    expect(proof?.handoffReady).toBe(false);
+    expect(
+      state.orchestration.runEvents.some(
+        (event) => event.initiativeId === initiativeId && event.kind === "handoff.ready"
+      )
+    ).toBe(false);
+    expect(
+      state.orchestration.runEvents.some(
+        (event) => event.initiativeId === initiativeId && event.kind === "run.completed"
+      )
+    ).toBe(false);
+  });
+
+  test("delivery retries the same verification until localhost proof passes", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+    const { launchManifestPath, originalExpectedMarker } = await corruptFinalIntegrationProof(
+      initiativeId,
+      taskGraphId
+    );
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const firstDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    const firstDeliveryBody = await firstDeliveryResponse.json();
+
+    expect(firstDeliveryResponse.status).toBe(201);
+    expect(firstDeliveryBody.delivery.status).toBe("pending");
+
+    const launchManifest = JSON.parse(readFileSync(launchManifestPath, "utf8")) as {
+      expectedMarker: string;
+    };
+    writeFileSync(
+      launchManifestPath,
+      JSON.stringify(
+        {
+          ...launchManifest,
+          expectedMarker: originalExpectedMarker,
+        },
+        null,
+        2
+      )
+    );
+
+    const secondDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    const secondDeliveryBody = await secondDeliveryResponse.json();
+
+    expect(secondDeliveryResponse.status).toBe(201);
+    expect(secondDeliveryBody.delivery.id).toBe(firstDeliveryBody.delivery.id);
+    expect(secondDeliveryBody.delivery.status).toBe("ready");
+    expect(secondDeliveryBody.delivery.launchProofKind).toBe("runnable_result");
+    expect(secondDeliveryBody.delivery.launchProofUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/index\.html$/);
+    expect(secondDeliveryBody.delivery.launchProofAt).toBeTruthy();
+
+    const state = await readControlPlaneState();
+    const initiative = state.orchestration.initiatives.find((candidate) => candidate.id === initiativeId);
+    const run = state.orchestration.runs.find((candidate) => candidate.initiativeId === initiativeId);
+    const handoff = state.orchestration.handoffPackets.find(
+      (candidate) => candidate.deliveryId === secondDeliveryBody.delivery.id
+    );
+    const proof = state.orchestration.validationProofs.find((candidate) => candidate.runId === run?.id);
+
+    expect(initiative?.status).toBe("ready");
+    expect(run?.currentStage).toBe("handed_off");
+    expect(run?.handoffStatus).toBe("ready");
+    expect(handoff?.status).toBe("ready");
+    expect(proof?.launchReady).toBe(true);
+    expect(proof?.handoffReady).toBe(true);
+    expect(
+      state.orchestration.runEvents.some(
+        (event) => event.initiativeId === initiativeId && event.kind === "handoff.ready"
+      )
+    ).toBe(true);
+    expect(
+      state.orchestration.runEvents.some(
+        (event) => event.initiativeId === initiativeId && event.kind === "run.completed"
+      )
+    ).toBe(true);
   });
 
   test("delivery binds to the verification-linked assembly even if a newer assembly exists", async () => {

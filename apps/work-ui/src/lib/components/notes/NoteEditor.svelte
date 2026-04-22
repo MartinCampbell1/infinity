@@ -10,6 +10,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { goto } from '$app/navigation';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import dayjs from '$lib/dayjs';
 	import calendar from 'dayjs/plugin/calendar';
@@ -170,6 +171,7 @@
 	let stopResponseFlag = false;
 
 	let inputElement: any = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	// Computed HTML for editor: fall back to markdown if HTML is missing
 	$: editorHtml =
@@ -182,7 +184,7 @@
 		}
 
 		loading = true;
-		const res = await getNoteById(localStorage.token, id).catch((error) => {
+		const res = await getNoteById(getWorkspaceAuthToken(), id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -197,7 +199,7 @@
 				$socket?.emit('join-note', {
 					note_id: id,
 					auth: {
-						token: localStorage.token
+						token: getWorkspaceAuthToken()
 					}
 				});
 				$socket?.on('note-events', noteEventHandler);
@@ -222,7 +224,7 @@
 		}
 
 		debounceTimeout = setTimeout(async () => {
-			const res = await updateNoteById(localStorage.token, id, {
+			const res = await updateNoteById(getWorkspaceAuthToken(), id, {
 				title: note.title === '' ? $i18n.t('Untitled') : note.title,
 				data: {
 					files: files
@@ -297,7 +299,7 @@ ${content}
 		titleGenerating = true;
 
 		const res = await generateOpenAIChatCompletion(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			{
 				model: selectedModelId,
 				stream: false,
@@ -474,7 +476,7 @@ ${content}
 			}
 
 			// During the file upload, file content is automatically extracted.
-			const uploadedFile = await uploadFile(localStorage.token, file, metadata);
+			const uploadedFile = await uploadFile(getWorkspaceAuthToken(), file, metadata);
 
 			if (uploadedFile) {
 				console.log('File upload completed:', uploadedFile);
@@ -485,7 +487,7 @@ ${content}
 				}
 
 				fileItem.status = 'uploaded';
-				fileItem.file = await getFileById(localStorage.token, uploadedFile.id).catch((e) => {
+				fileItem.file = await getFileById(getWorkspaceAuthToken(), uploadedFile.id).catch((e) => {
 					toast.error(`${e}`);
 					return null;
 				});
@@ -652,7 +654,7 @@ ${content}
 	};
 
 	const deleteNoteHandler = async (noteId: string) => {
-		const res = await deleteNoteById(localStorage.token, noteId).catch((error) => {
+		const res = await deleteNoteById(getWorkspaceAuthToken(), noteId).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -695,7 +697,7 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 `;
 
 		const [res, controller] = await chatCompletion(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			{
 				model: model.id,
 				stream: true,
@@ -940,7 +942,7 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 		onChange={async () => {
 			if (id) {
 				try {
-					await updateNoteAccessGrants(localStorage.token, id, note.access_grants as any);
+					await updateNoteAccessGrants(getWorkspaceAuthToken(), id, note.access_grants as any);
 					toast.success($i18n.t('Saved'));
 				} catch (error) {
 					toast.error(`${error}`);

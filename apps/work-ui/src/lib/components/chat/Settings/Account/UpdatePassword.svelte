@@ -2,6 +2,7 @@
 	import { getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { updateUserPassword } from '$lib/apis/auths';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
 
 	const i18n = getContext('i18n');
@@ -10,10 +11,11 @@
 	let currentPassword = '';
 	let newPassword = '';
 	let newPasswordConfirm = '';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const updatePasswordHandler = async () => {
 		if (newPassword === newPasswordConfirm) {
-			const res = await updateUserPassword(localStorage.token, currentPassword, newPassword).catch(
+			const res = await updateUserPassword(getWorkspaceAuthToken(), currentPassword, newPassword).catch(
 				(error: unknown) => {
 					toast.error(`${error}`);
 					return null;

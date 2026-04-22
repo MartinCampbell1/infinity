@@ -4,6 +4,11 @@
 
 	import { user, config, settings } from '$lib/stores';
 	import { updateUserProfile, createAPIKey, getAPIKey, getSessionUser } from '$lib/apis/auths';
+	import {
+		readFounderosEmbeddedSessionGrant,
+		readFounderosEmbeddedSessionToken,
+		resolveFounderosEmbeddedAccessToken
+	} from '$lib/founderos/credentials';
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
 	import UpdatePassword from './Account/UpdatePassword.svelte';
@@ -40,6 +45,23 @@
 	let APIKey = '';
 	let APIKeyCopied = false;
 	let profileImageInputElement: HTMLInputElement;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
+	const usesEmbeddedSessionToken = () =>
+		Boolean(readFounderosEmbeddedSessionToken() || readFounderosEmbeddedSessionGrant());
+	const getDisplayedSessionToken = () => {
+		const embeddedToken = readFounderosEmbeddedSessionToken();
+		if (embeddedToken) {
+			return embeddedToken;
+		}
+
+		return resolveFounderosEmbeddedAccessToken({
+			allowLegacyToken: !readFounderosEmbeddedSessionGrant()
+		});
+	};
+	const getDisplayedSessionTokenLabel = () =>
+		$i18n.t(usesEmbeddedSessionToken() ? 'Workspace Session Token' : 'JWT Token');
+	const getCopySessionTokenLabel = () =>
+		$i18n.t(usesEmbeddedSessionToken() ? 'Copy Workspace Session Token' : 'Copy Token');
 
 	const submitHandler = async () => {
 		if (name !== $user?.name) {
@@ -57,7 +79,7 @@
 			});
 		}
 
-		const updatedUser = await updateUserProfile(localStorage.token, {
+		const updatedUser = await updateUserProfile(getWorkspaceAuthToken(), {
 			name: name,
 			profile_image_url: profileImageUrl,
 			bio: bio ? bio : null,
@@ -69,7 +91,7 @@
 
 		if (updatedUser) {
 			// Get Session User Info
-			const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
+			const sessionUser = await getSessionUser(getWorkspaceAuthToken()).catch((error) => {
 				toast.error(`${error}`);
 				return null;
 			});
@@ -81,7 +103,7 @@
 	};
 
 	const createAPIKeyHandler = async () => {
-		APIKey = await createAPIKey(localStorage.token);
+		APIKey = await createAPIKey(getWorkspaceAuthToken());
 		if (APIKey) {
 			toast.success($i18n.t('API Key created.'));
 		} else {
@@ -90,7 +112,7 @@
 	};
 
 	onMount(async () => {
-		const user = await getSessionUser(localStorage.token).catch((error) => {
+		const user = await getSessionUser(getWorkspaceAuthToken()).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -114,7 +136,7 @@
 			($config?.features?.enable_api_keys ?? true) &&
 			(user?.role === 'admin' || (user?.permissions?.features?.api_keys ?? false))
 		) {
-			APIKey = await getAPIKey(localStorage.token).catch((error) => {
+			APIKey = await getAPIKey(getWorkspaceAuthToken()).catch((error) => {
 				console.log(error);
 				return '';
 			});
@@ -271,17 +293,22 @@
 					{#if $user?.role === 'admin'}
 						<div class="justify-between w-full mt-2">
 							<div class="flex justify-between w-full">
-								<div class="self-center text-xs font-medium mb-1">{$i18n.t('JWT Token')}</div>
+								<div class="self-center text-xs font-medium mb-1">{getDisplayedSessionTokenLabel()}</div>
 							</div>
 
 							<div class="flex">
-								<SensitiveInput value={localStorage.token} readOnly={true} />
+								<SensitiveInput value={getDisplayedSessionToken()} readOnly={true} />
 
 								<button
 									class="ml-1.5 px-1.5 py-1 dark:hover:bg-gray-850 transition rounded-lg"
-									aria-label={$i18n.t('Copy Token')}
+									aria-label={getCopySessionTokenLabel()}
 									on:click={() => {
-										copyToClipboard(localStorage.token);
+										const displayedSessionToken = getDisplayedSessionToken();
+										if (!displayedSessionToken) {
+											return;
+										}
+
+										copyToClipboard(displayedSessionToken);
 										JWTTokenCopied = true;
 										setTimeout(() => {
 											JWTTokenCopied = false;

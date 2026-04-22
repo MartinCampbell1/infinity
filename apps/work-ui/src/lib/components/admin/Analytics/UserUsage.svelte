@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { getUserAnalytics } from '$lib/apis/analytics';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import ChevronUp from '$lib/components/icons/ChevronUp.svelte';
@@ -11,6 +12,7 @@
 	let loading = true;
 	let orderBy = 'count';
 	let direction: 'asc' | 'desc' = 'desc';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const toggleSort = (key: string) => {
 		if (orderBy === key) {
@@ -24,7 +26,7 @@
 	const loadAnalytics = async () => {
 		loading = true;
 		try {
-			const result = await getUserAnalytics(localStorage.token, null, null, 100);
+			const result = await getUserAnalytics(getWorkspaceAuthToken(), null, null, 100);
 			userStats = result?.users ?? [];
 		} catch (err) {
 			console.error('User analytics load failed:', err);

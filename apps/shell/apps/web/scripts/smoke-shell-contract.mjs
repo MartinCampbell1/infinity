@@ -102,6 +102,7 @@ const server = spawn("npm", ["run", "start"], {
   env: {
     ...process.env,
     FOUNDEROS_CONTROL_PLANE_STATE_DIR: stateDir,
+    FOUNDEROS_ENABLE_SYNTHETIC_STATE_SEEDS: "1",
     FOUNDEROS_WEB_HOST: host,
     FOUNDEROS_WEB_PORT: port,
   },

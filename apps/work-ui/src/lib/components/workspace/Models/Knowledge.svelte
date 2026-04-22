@@ -3,6 +3,7 @@
 	// @ts-nocheck
 	import { getContext, onMount } from 'svelte';
 	import { config, knowledge, settings, user } from '$lib/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import KnowledgeSelector from './Knowledge/KnowledgeSelector.svelte';
 	import FileItem from '$lib/components/common/FileItem.svelte';
@@ -21,6 +22,7 @@
 
 	let filesInputElement = null;
 	let inputFiles = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (selectedItems === null) {
 		selectedItems = [];
@@ -67,7 +69,7 @@
 			}
 
 			// During the file upload, file content is automatically extracted.
-			const uploadedFile = await uploadFile(localStorage.token, file, metadata);
+			const uploadedFile = await uploadFile(getWorkspaceAuthToken(), file, metadata);
 
 			if (uploadedFile) {
 				console.log('File upload completed:', {

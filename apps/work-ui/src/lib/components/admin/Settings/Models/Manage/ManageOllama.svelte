@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { getContext } from 'svelte';
 	const i18n = getContext('i18n');
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { models, MODEL_DOWNLOAD_POOL, config, settings } from '$lib/stores';
 	import { splitStream } from '$lib/utils';
@@ -73,6 +74,7 @@
 	let deleteModelTag = '';
 	let modelDownloadPool: DownloadPool = {};
 	let downloadEntries: Array<[string, DownloadEntry]> = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getDirectConnections = (): DirectConnectionsConfig | object | null =>
 		$config?.features?.enable_direct_connections ? ($settings?.directConnections ?? null) : null;
@@ -102,7 +104,7 @@
 			console.debug(model);
 
 			updateModelId = model.id;
-			const [res, controller] = (await pullModel(localStorage.token, model.id, urlIdx).catch(
+			const [res, controller] = (await pullModel(getWorkspaceAuthToken(), model.id, urlIdx).catch(
 				(error) => {
 					if (getErrorName(error) !== 'AbortError') {
 						toast.error(getErrorMessage(error));
@@ -198,7 +200,7 @@
 		}
 
 		modelLoading = true;
-		const [res, controller] = (await pullModel(localStorage.token, sanitizedModelTag, urlIdx).catch(
+		const [res, controller] = (await pullModel(getWorkspaceAuthToken(), sanitizedModelTag, urlIdx).catch(
 			(error) => {
 				if (getErrorName(error) !== 'AbortError') {
 					toast.error(getErrorMessage(error));
@@ -303,7 +305,7 @@
 					})
 				);
 
-				models.set(await getModels(localStorage.token, getDirectConnections()));
+				models.set(await getModels(getWorkspaceAuthToken(), getDirectConnections()));
 			} else {
 				toast.error($i18n.t('Download canceled'));
 			}
@@ -332,7 +334,7 @@
 			if (file) {
 				uploadMessage = 'Uploading...';
 
-				fileResponse = await uploadModel(localStorage.token, file, connectionUrlIdx).catch(
+				fileResponse = await uploadModel(getWorkspaceAuthToken(), file, connectionUrlIdx).catch(
 					(error) => {
 						toast.error(getErrorMessage(error));
 						return null;
@@ -341,7 +343,7 @@
 			}
 		} else {
 			uploadProgress = 0;
-			fileResponse = await downloadModel(localStorage.token, modelFileUrl, connectionUrlIdx).catch(
+			fileResponse = await downloadModel(getWorkspaceAuthToken(), modelFileUrl, connectionUrlIdx).catch(
 				(error) => {
 					toast.error(getErrorMessage(error));
 					return null;
@@ -396,7 +398,7 @@
 		if (uploaded) {
 			createModelTag = `${name}:latest`;
 			const res = await createModel(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				{
 					model: createModelTag,
 					modelfile: `FROM @${modelFileDigest}\n${modelFileContent}`
@@ -469,22 +471,24 @@
 		modelLoading = false;
 		uploadProgress = null;
 
-		models.set(await getModels(localStorage.token, getDirectConnections()));
+		models.set(await getModels(getWorkspaceAuthToken(), getDirectConnections()));
 	};
 
 	const deleteModelHandler = async () => {
-		const res = await deleteModel(localStorage.token, deleteModelTag, getConnectionUrlIdx()).catch((error) => {
-			toast.error(getErrorMessage(error));
-		});
+		const res = await deleteModel(getWorkspaceAuthToken(), deleteModelTag, getConnectionUrlIdx()).catch(
+			(error) => {
+				toast.error(getErrorMessage(error));
+			}
+		);
 
 		if (res) {
 			toast.success($i18n.t(`Deleted {{deleteModelTag}}`, { deleteModelTag }));
 		}
 
 		deleteModelTag = '';
-		models.set(await getModels(localStorage.token, getDirectConnections()));
+		models.set(await getModels(getWorkspaceAuthToken(), getDirectConnections()));
 
-		ollamaModels = await getOllamaModels(localStorage.token, urlIdx).catch((error) => {
+		ollamaModels = await getOllamaModels(getWorkspaceAuthToken(), urlIdx).catch((error) => {
 			toast.error(getErrorMessage(error));
 			return null;
 		});
@@ -508,7 +512,7 @@
 			const nextPool = { ...modelDownloadPool };
 			delete nextPool[model];
 			MODEL_DOWNLOAD_POOL.set(nextPool);
-			await deleteModel(localStorage.token, model);
+			await deleteModel(getWorkspaceAuthToken(), model);
 			toast.success($i18n.t('{{model}} download has been canceled', { model: model }));
 		}
 	};
@@ -527,7 +531,7 @@
 		}
 
 		const res = await createModel(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			{
 				model: createModelTag,
 				modelfile: `FROM @${modelFileDigest}\n${modelFileContent}`,
@@ -594,7 +598,7 @@
 			}
 		}
 
-		models.set(await getModels(localStorage.token, getDirectConnections()));
+		models.set(await getModels(getWorkspaceAuthToken(), getDirectConnections()));
 
 		createModelLoading = false;
 
@@ -607,7 +611,7 @@
 
 	const init = async () => {
 		loading = true;
-		ollamaModels = await getOllamaModels(localStorage.token, urlIdx).catch((error) => {
+		ollamaModels = await getOllamaModels(getWorkspaceAuthToken(), urlIdx).catch((error) => {
 			toast.error(getErrorMessage(error));
 			return null;
 		});

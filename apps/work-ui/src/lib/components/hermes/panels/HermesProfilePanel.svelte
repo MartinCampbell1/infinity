@@ -10,6 +10,7 @@
 		type HermesProfileSwitchResponse,
 		type HermesProfilesResponse
 	} from '$lib/apis/hermes';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { settings, showSettings, user } from '$lib/stores';
 
@@ -31,6 +32,7 @@
 	let inspectedProfileName: string | null = null;
 	let switchingProfileName: string | null = null;
 	let showAdvancedDetails = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: profileMeta = [$user?.role ? $i18n.t($user.role === 'admin' ? 'Admin' : 'User') : ''].filter(
 		Boolean
@@ -106,7 +108,7 @@
 		profileLoadError = '';
 
 		try {
-			profilesResponse = await getHermesProfiles(localStorage.token);
+			profilesResponse = await getHermesProfiles(getWorkspaceAuthToken());
 		} catch (error) {
 			console.error(error);
 			profileLoadError = $i18n.t('Profile context unavailable.');
@@ -125,7 +127,7 @@
 		profileLoadError = '';
 
 		try {
-			const nextProfiles = await switchHermesProfile(localStorage.token, profile.name);
+			const nextProfiles = await switchHermesProfile(getWorkspaceAuthToken(), profile.name);
 			profilesResponse = nextProfiles;
 			inspectedProfileName = nextProfiles.active_profile;
 			await onProfileSwitched(nextProfiles);

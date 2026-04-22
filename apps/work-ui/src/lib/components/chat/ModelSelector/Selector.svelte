@@ -11,6 +11,7 @@
   import { flyAndScale } from "$lib/utils/transitions";
 
   import { onMount, getContext, tick } from "svelte";
+  import { resolveFounderosEmbeddedAccessToken } from "$lib/founderos/credentials";
 
   import {
     deleteModel,
@@ -145,6 +146,7 @@
     $config?.features?.enable_direct_connections
       ? ($settings?.directConnections ?? null)
       : null;
+  const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
   const getPoolEntry = (modelTag: string) => modelDownloadPool[modelTag] ?? {};
 
@@ -302,7 +304,7 @@
     }
 
     const [res, controller] = (await pullModel(
-      localStorage.token,
+      getWorkspaceAuthToken(),
       sanitizedModelTag,
       0,
     ).catch((error: unknown) => {
@@ -397,7 +399,9 @@
           }),
         );
 
-        models.set(await getModels(localStorage.token, getDirectConnections()));
+        models.set(
+          await getModels(getWorkspaceAuthToken(), getDirectConnections()),
+        );
       } else {
         toast.error($i18n.t("Download canceled"));
       }
@@ -412,7 +416,7 @@
   };
 
   const setOllamaVersion = async () => {
-    ollamaVersion = await getOllamaVersion(localStorage.token).catch(
+    ollamaVersion = await getOllamaVersion(getWorkspaceAuthToken()).catch(
       (error) => false,
     );
   };
@@ -442,7 +446,7 @@
       const nextPool = { ...modelDownloadPool };
       delete nextPool[model];
       setDownloadPool(nextPool);
-      await deleteModel(localStorage.token, model);
+      await deleteModel(getWorkspaceAuthToken(), model);
       toast.success(
         $i18n.t("{{model}} download has been canceled", { model: model }),
       );
@@ -450,13 +454,15 @@
   };
 
   const unloadModelHandler = async (model: string) => {
-    const res = await unloadModel(localStorage.token, model).catch((error) => {
+    const res = await unloadModel(getWorkspaceAuthToken(), model).catch((error) => {
       toast.error($i18n.t("Error unloading model: {{error}}", { error }));
     });
 
     if (res) {
       toast.success($i18n.t("Model unloaded successfully"));
-      models.set(await getModels(localStorage.token, getDirectConnections()));
+      models.set(
+        await getModels(getWorkspaceAuthToken(), getDirectConnections()),
+      );
     }
   };
 
@@ -514,7 +520,9 @@
         ? 'dark:placeholder-gray-100 placeholder-gray-800'
         : 'placeholder-gray-400'}"
       on:mouseenter={async () => {
-        models.set(await getModels(localStorage.token, getDirectConnections()));
+        models.set(
+          await getModels(getWorkspaceAuthToken(), getDirectConnections()),
+        );
       }}
     >
       {#if selectedModel}

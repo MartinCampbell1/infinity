@@ -3,6 +3,7 @@
 	import dayjs from 'dayjs';
 	import { createEventDispatcher } from 'svelte';
 	import { getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { goto } from '$app/navigation';
 
@@ -76,6 +77,7 @@
 	};
 
 	let userGroups: UserGroup[] | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const submitHandler = async () => {
 		if (!selectedUser.id) return;
@@ -88,7 +90,7 @@
 			password: _user.password ?? ''
 		};
 
-		const res = await updateUserById(localStorage.token, selectedUser.id, payload).catch(
+		const res = await updateUserById(getWorkspaceAuthToken(), selectedUser.id, payload).catch(
 			(error: unknown) => {
 				toast.error(`${error}`);
 			}
@@ -104,7 +106,7 @@
 		if (!selectedUser.id) return;
 		userGroups = null;
 
-		userGroups = (await getUserGroupsById(localStorage.token, selectedUser.id).catch((error: unknown) => {
+		userGroups = (await getUserGroupsById(getWorkspaceAuthToken(), selectedUser.id).catch((error: unknown) => {
 			toast.error(`${error}`);
 			return null;
 		})) as UserGroup[] | null;

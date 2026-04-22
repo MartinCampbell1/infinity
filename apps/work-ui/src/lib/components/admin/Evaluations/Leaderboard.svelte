@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { models } from '$lib/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { getLeaderboard } from '$lib/apis/evaluations';
 	import ModelModal from './LeaderboardModal.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -38,6 +39,7 @@
 	let selectedModel: LeaderboardRow | null = null;
 
 	let sortedModels: LeaderboardRow[] = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const isHiddenModel = (meta: unknown): boolean => {
 		if (!meta || typeof meta !== 'object') {
@@ -69,7 +71,7 @@
 	const loadLeaderboard = async (searchQuery = '') => {
 		loading = true;
 		try {
-			const result: LeaderboardResponse = await getLeaderboard(localStorage.token, searchQuery);
+			const result: LeaderboardResponse = await getLeaderboard(getWorkspaceAuthToken(), searchQuery);
 			const statsMap = new Map<string, LeaderboardEntry>(
 				(result?.entries ?? []).map((e) => [e.model_id, e])
 			);

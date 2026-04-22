@@ -219,9 +219,7 @@ export function PrimaryRunSurface({
   currentTaskGraph,
   currentBatch,
   currentDelivery,
-  currentPreviewTarget: _currentPreviewTarget,
   latestRunEvent,
-  currentHandoffPacket,
   plannerNotes,
   workUnits,
   agentSessions,
@@ -309,7 +307,6 @@ export function PrimaryRunSurface({
     groupedWorkUnits.pending[0] ??
     groupedWorkUnits.completed[0] ??
     null;
-  const handoffStatus = currentHandoffPacket?.status ?? currentRun?.handoffStatus ?? "none";
   const logLines = [
     latestRunEvent
       ? {

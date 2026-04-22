@@ -4,6 +4,7 @@
 
 	import { user, settings, config } from '$lib/stores';
 	import { getVoices as _getVoices } from '$lib/apis/audio';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -80,6 +81,7 @@
 
 	const defaultAudioConfig: AudioSettingsConfig = {};
 	const audioConfig = () => (($config as { audio?: AudioSettingsConfig } | undefined)?.audio ?? defaultAudioConfig);
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getVoices = async () => {
 		if (TTSEngine === 'browser-kokoro') {
@@ -115,7 +117,7 @@
 					}
 				}, 100);
 			} else {
-				const res = await _getVoices(localStorage.token).catch((e) => {
+				const res = await _getVoices(getWorkspaceAuthToken()).catch((e) => {
 					toast.error(`${e}`);
 				});
 

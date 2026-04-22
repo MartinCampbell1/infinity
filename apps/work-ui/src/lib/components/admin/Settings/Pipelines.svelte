@@ -4,6 +4,7 @@
 	import { getContext, onMount, tick } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import {
 		getPipelineValves,
 		getPipelineValvesSpec,
@@ -73,9 +74,10 @@
 	let valves_spec: PipelineValvesSpec | null = null;
 
 	let pipelineDownloadUrl = '';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const refreshModels = async () => {
-		models.set(await getModels(localStorage.token, getDirectConnections()));
+		models.set(await getModels(getWorkspaceAuthToken(), getDirectConnections()));
 	};
 
 	const getSelectedPipeline = (): PipelineRecord | null =>
@@ -96,7 +98,7 @@
 			}
 
 			const res = await updatePipelineValves(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				pipeline.id,
 				nextValves,
 				selectedPipelinesUrlIdx
@@ -128,12 +130,12 @@
 		valves_spec = null;
 
 		valves_spec = (await getPipelineValvesSpec(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			pipeline.id,
 			selectedPipelinesUrlIdx
 		)) as PipelineValvesSpec | null;
 		valves = (await getPipelineValves(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			pipeline.id,
 			selectedPipelinesUrlIdx
 		)) as PipelineValves | null;
@@ -161,7 +163,7 @@
 		valves_spec = null;
 
 		if ((PIPELINES_LIST?.length ?? 0) > 0) {
-			pipelines = (await getPipelines(localStorage.token, selectedPipelinesUrlIdx)) as PipelineRecord[];
+			pipelines = (await getPipelines(getWorkspaceAuthToken(), selectedPipelinesUrlIdx)) as PipelineRecord[];
 
 			if ((pipelines?.length ?? 0) > 0) {
 				selectedPipelineIdx = 0;
@@ -178,7 +180,7 @@
 	const addPipelineHandler = async () => {
 		downloading = true;
 		const res = await downloadPipeline(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			pipelineDownloadUrl,
 			selectedPipelinesUrlIdx
 		).catch((error) => {
@@ -200,7 +202,7 @@
 
 		const file = pipelineFiles?.item(0) ?? null;
 		if (file) {
-			const res = await uploadPipeline(localStorage.token, file, selectedPipelinesUrlIdx).catch(
+			const res = await uploadPipeline(getWorkspaceAuthToken(), file, selectedPipelinesUrlIdx).catch(
 				(error) => {
 					console.error(error);
 					toast.error($i18n.t('Something went wrong :/'));
@@ -232,7 +234,7 @@
 		}
 
 		const res = await deletePipeline(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			pipeline.id,
 			selectedPipelinesUrlIdx
 		).catch((error) => {
@@ -248,7 +250,7 @@
 	};
 
 	const initialize = async () => {
-		PIPELINES_LIST = (await getPipelinesList(localStorage.token)) as PipelineListEntry[];
+		PIPELINES_LIST = (await getPipelinesList(getWorkspaceAuthToken())) as PipelineListEntry[];
 
 		if ((PIPELINES_LIST?.length ?? 0) > 0) {
 			selectedPipelinesUrlIdx = String(PIPELINES_LIST[0]?.idx ?? '');

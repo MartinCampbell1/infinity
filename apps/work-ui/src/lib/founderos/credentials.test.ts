@@ -122,7 +122,7 @@ describe('founderos embedded credentials', () => {
 		expect(sessionStorage.getItem('founderos.workspace.sessionGrant')).toContain('grant.token');
 		expect(localStorage.getItem('founderos.workspace.sessionToken')).toBeNull();
 		expect(localStorage.getItem('founderos.workspace.sessionGrant')).toBeNull();
-		expect(localStorage.token).toBe('bearer.session.token');
+		expect(localStorage.token).toBe('');
 	});
 
 	test('falls back to the legacy localStorage token when no embedded token exists', () => {
@@ -156,6 +156,7 @@ describe('founderos embedded credentials', () => {
 			})
 		);
 
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('');
 		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({
 			'x-founderos-workspace-session-grant': 'grant.token'
 		});
@@ -178,7 +179,23 @@ describe('founderos embedded credentials', () => {
 		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({});
 	});
 
-	test('restores the previous bearer token when clearing embedded credentials', () => {
+	test('does not overwrite the legacy browser token when persisting embedded credentials', () => {
+		localStorage.token = 'user.session.token';
+
+		persistFounderosEmbeddedCredentials({
+			token: 'bearer.session.token',
+			sessionGrant: {
+				token: 'grant.token',
+				issuedAt: '2026-04-12T00:00:00.000Z',
+				expiresAt: '2026-04-12T00:30:00.000Z'
+			}
+		});
+
+		expect(localStorage.token).toBe('user.session.token');
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('bearer.session.token');
+	});
+
+	test('leaves the previous bearer token untouched when clearing embedded credentials', () => {
 		localStorage.token = 'user.session.token';
 
 		persistFounderosEmbeddedCredentials({

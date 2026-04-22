@@ -5,6 +5,7 @@
 	const i18n = getContext('i18n');
 
 	import { getGravatarUrl } from '$lib/apis/utils';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { canvasPixelTest, generateInitialsImage } from '$lib/utils';
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
@@ -20,6 +21,7 @@
 	export let imageClassName = 'size-14 md:size-18';
 
 	let profileImageInputElement: HTMLInputElement | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 </script>
 
 <input
@@ -150,7 +152,7 @@
 				class=" text-xs text-center text-gray-800 dark:text-gray-400 rounded-lg py-0.5 opacity-0 group-hover:opacity-100 transition-all"
 				type="button"
 				on:click={async () => {
-					const url = await getGravatarUrl(localStorage.token, user?.email ?? '');
+					const url = await getGravatarUrl(getWorkspaceAuthToken(), user?.email ?? '');
 
 					profileImageUrl = url;
 				}}>{$i18n.t('Gravatar')}</button

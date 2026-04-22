@@ -40,7 +40,6 @@ function sessionAccent(status: string) {
 export function PlaneAiHomeSurface({
   recentRuns,
   routeScope,
-  kernelAvailability: _kernelAvailability,
 }: {
   recentRuns: FrontdoorRecentRunCard[];
   routeScope?: ShellRouteScope;

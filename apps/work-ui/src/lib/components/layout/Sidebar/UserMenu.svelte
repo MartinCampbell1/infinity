@@ -8,6 +8,7 @@
 
 	import { getUsage } from '$lib/apis';
 	import { getSessionUser, userSignOut } from '$lib/apis/auths';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { showSettings, mobile, showSidebar, showShortcuts, user, config } from '$lib/stores';
 
@@ -49,8 +50,9 @@
 	const dispatch = createEventDispatcher();
 
 	let usage = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 	const getUsageInfo = async () => {
-		const res = await getUsage(localStorage.token).catch((error) => {
+		const res = await getUsage(getWorkspaceAuthToken()).catch((error) => {
 			console.error('Error fetching usage info:', error);
 		});
 
@@ -72,10 +74,10 @@
 </script>
 
 <ShortcutsModal bind:show={$showShortcuts} />
-<UserStatusModal
+	<UserStatusModal
 	bind:show={showUserStatusModal}
 	onSave={async () => {
-		user.set(await getSessionUser(localStorage.token));
+		user.set(await getSessionUser(getWorkspaceAuthToken()));
 	}}
 />
 
@@ -157,14 +159,14 @@
 											e.stopPropagation();
 											e.stopImmediatePropagation();
 
-											const res = await updateUserStatus(localStorage.token, {
+											const res = await updateUserStatus(getWorkspaceAuthToken(), {
 												status_emoji: '',
 												status_message: ''
 											});
 
 											if (res) {
 												toast.success($i18n.t('Status cleared successfully'));
-												user.set(await getSessionUser(localStorage.token));
+												user.set(await getSessionUser(getWorkspaceAuthToken()));
 											} else {
 												toast.error($i18n.t('Failed to clear status'));
 											}

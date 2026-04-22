@@ -3,6 +3,7 @@
 	// @ts-nocheck
 	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const i18n: Writable<any> = getContext('i18n');
 
@@ -25,6 +26,7 @@
 	let chats: any[] | null = null;
 	let chatListLoading = false;
 	let allChatsLoaded = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const loadChats = async () => {
 		chatListLoading = true;
@@ -33,7 +35,7 @@
 
 		let newChatList: any[] = [];
 
-		newChatList = await getChatListByFolderId(localStorage.token, folder.id, page).catch(
+		newChatList = await getChatListByFolderId(getWorkspaceAuthToken(), folder.id, page).catch(
 			(error) => {
 				console.error(error);
 				return [];
@@ -54,7 +56,7 @@
 		chatListLoading = false;
 
 		if (folder && folder.id) {
-			const sessionsPayload = await getHermesSessions(localStorage.token).catch((error) => {
+			const sessionsPayload = await getHermesSessions(getWorkspaceAuthToken()).catch((error) => {
 				console.debug('Failed to refresh Hermes sessions for folder chats:', error);
 				return null;
 			});
@@ -65,7 +67,7 @@
 				hermesSessionsByChatId.set(buildHermesSessionMapByImportedChatId(sessions));
 			}
 
-			const res = await getChatListByFolderId(localStorage.token, folder.id, page);
+			const res = await getChatListByFolderId(getWorkspaceAuthToken(), folder.id, page);
 
 			if (res) {
 				chats = res;

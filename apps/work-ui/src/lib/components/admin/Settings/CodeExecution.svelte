@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { onMount, getContext } from 'svelte';
 	import { getCodeExecutionConfig, setCodeExecutionConfig } from '$lib/apis/configs';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
 
@@ -32,18 +33,19 @@
 	export let saveHandler: () => void | Promise<void> = () => {};
 
 	let config: CodeExecutionConfig | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const engines = ['pyodide', 'jupyter'] as const;
 
 	const submitHandler = async () => {
 		if (!config) return;
 
-		await setCodeExecutionConfig(localStorage.token, config);
+		await setCodeExecutionConfig(getWorkspaceAuthToken(), config);
 	};
 
 	onMount(() => {
 		void (async () => {
-			const res = await getCodeExecutionConfig(localStorage.token);
+			const res = await getCodeExecutionConfig(getWorkspaceAuthToken());
 
 			if (res) {
 				config = res as CodeExecutionConfig;

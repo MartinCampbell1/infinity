@@ -5,6 +5,7 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { v4 as uuidv4 } from 'uuid';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import {
 		chatId,
@@ -134,6 +135,7 @@
 
 	let typingUsers: TypingUser[] = [];
 	let typingUsersTimeout: Record<string, ReturnType<typeof setTimeout>> = {};
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let channelTitle = 'Channel';
 
@@ -210,12 +212,12 @@
 		typingUsers = [];
 		typingUsersTimeout = {};
 
-		channel = (await getChannelById(localStorage.token, id).catch((error) => {
+		channel = (await getChannelById(getWorkspaceAuthToken(), id).catch((error) => {
 			return null;
 		})) as ChannelState | null;
 
 		if (channel) {
-			messages = (await getChannelMessages(localStorage.token, id, 0)) as ChannelMessage[] | null;
+			messages = (await getChannelMessages(getWorkspaceAuthToken(), id, 0)) as ChannelMessage[] | null;
 
 			if (messages) {
 				scrollToBottom();
@@ -343,7 +345,7 @@
 			...(messages ?? [])
 		];
 
-		const res = await sendMessage(localStorage.token, id, message).catch((error) => {
+		const res = await sendMessage(getWorkspaceAuthToken(), id, message).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -432,7 +434,7 @@
 					});
 				}}
 				onUpdate={async () => {
-					channel = await getChannelById(localStorage.token, id).catch((error) => {
+					channel = await getChannelById(getWorkspaceAuthToken(), id).catch((error) => {
 						return null;
 					});
 				}}
@@ -474,7 +476,7 @@
 								}}
 								onLoad={async () => {
 									const newMessages = await getChannelMessages(
-										localStorage.token,
+										getWorkspaceAuthToken(),
 										id,
 										(messages ?? []).length
 									);

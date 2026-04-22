@@ -7,6 +7,7 @@
 	const i18n = getContext('i18n');
 
 	import { goto } from '$app/navigation';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { user } from '$lib/stores';
 	import { updateToolAccessGrants } from '$lib/apis/tools';
 
@@ -23,6 +24,7 @@
 
 	let showConfirm = false;
 	let showAccessControlModal = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	export let edit = false;
 	export let clone = false;
@@ -200,7 +202,7 @@ class Tools:
 	onChange={async () => {
 		if (edit && id) {
 			try {
-				await updateToolAccessGrants(localStorage.token, id, accessGrants);
+				await updateToolAccessGrants(getWorkspaceAuthToken(), id, accessGrants);
 				toast.success($i18n.t('Saved'));
 			} catch (error) {
 				toast.error(`${error}`);

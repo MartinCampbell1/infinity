@@ -119,7 +119,7 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("exit", () => shutdown("SIGTERM"));
 
 console.log("Infinity localhost stack");
-console.log(`- shell entry:        ${shellOrigin}/execution`);
+console.log(`- shell entry:        ${shellOrigin}/`);
 console.log(`- work-ui (internal): ${workUiOrigin}/auth`);
 console.log(`- kernel (internal):  ${kernelOrigin}/healthz`);
 console.log(`- state:   ${stateDir}`);

@@ -45,6 +45,7 @@
 	}
 
 	import { onMount, getContext, onDestroy } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const i18n = getContext('i18n');
 	// Assuming $i18n.languages is an array of language codes
@@ -102,10 +103,11 @@
 
 	let itemsLoading = false;
 	let allItemsLoaded = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const downloadHandler = async (type: 'txt' | 'md' | 'pdf') => {
 		// Fetch the full note since the list response may not contain full content
-		const note = await getNoteById(localStorage.token, selectedNote.id).catch((error) => {
+		const note = await getNoteById(getWorkspaceAuthToken(), selectedNote.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -128,7 +130,7 @@
 	};
 
 	const deleteNoteHandler = async (id: string) => {
-		const res = await deleteNoteById(localStorage.token, id).catch((error) => {
+		const res = await deleteNoteById(getWorkspaceAuthToken(), id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -158,7 +160,7 @@
 				}
 
 				// Create a new note with the content
-				const res = await createNewNote(localStorage.token, {
+				const res = await createNewNote(getWorkspaceAuthToken(), {
 					title: name,
 					data: {
 						content: {
@@ -226,7 +228,7 @@
 		}
 
 		const res = (await searchNotes(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			query,
 			viewOption,
 			permission,

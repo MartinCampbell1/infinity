@@ -34,6 +34,7 @@
 
 	import { goto } from '$app/navigation';
 	import { onMount, tick, getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
 	import { WEBUI_NAME, config, user, models, settings } from '$lib/stores';
@@ -96,6 +97,7 @@
 	let system = '';
 	let editEnabled = false;
 	let chatInputElement: any = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const isModelHidden = (model: any) =>
 		Boolean((model?.info?.meta as { hidden?: boolean } | undefined)?.hidden);
@@ -213,7 +215,7 @@ Based on the user's instruction, update and enhance the existing notes or select
 		) as NoteMessage[];
 
 		const [res, controller] = await chatCompletion(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			{
 				model: model.id,
 				stream: true,

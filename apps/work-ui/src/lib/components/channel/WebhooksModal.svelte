@@ -10,6 +10,7 @@
 		updateChannelWebhook,
 		deleteChannelWebhook
 	} from '$lib/apis/channels';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
@@ -29,6 +30,7 @@
 
 	let showDeleteConfirmDialog = false;
 	let selectedWebhookId = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	// Track pending changes from child components
 	let pendingChanges: { [webhookId: string]: { name: string; profile_image_url: string } } = {};
@@ -36,7 +38,7 @@
 	const loadWebhooks = async () => {
 		isLoading = true;
 		try {
-			webhooks = await getChannelWebhooks(localStorage.token, channel.id);
+			webhooks = await getChannelWebhooks(getWorkspaceAuthToken(), channel.id);
 		} catch {
 			webhooks = [];
 		}
@@ -46,7 +48,7 @@
 	const createHandler = async () => {
 		isSaving = true;
 		try {
-			const newWebhook = await createChannelWebhook(localStorage.token, channel.id, {
+			const newWebhook = await createChannelWebhook(getWorkspaceAuthToken(), channel.id, {
 				name: 'New Webhook'
 			});
 			if (newWebhook) {
@@ -63,7 +65,7 @@
 		isSaving = true;
 		try {
 			for (const [webhookId, changes] of Object.entries(pendingChanges)) {
-				await updateChannelWebhook(localStorage.token, channel.id, webhookId, changes);
+				await updateChannelWebhook(getWorkspaceAuthToken(), channel.id, webhookId, changes);
 			}
 			pendingChanges = {};
 			await loadWebhooks();
@@ -78,7 +80,7 @@
 		if (!selectedWebhookId) return;
 
 		try {
-			await deleteChannelWebhook(localStorage.token, channel.id, selectedWebhookId);
+			await deleteChannelWebhook(getWorkspaceAuthToken(), channel.id, selectedWebhookId);
 			webhooks = webhooks.filter((webhook) => webhook.id !== selectedWebhookId);
 			toast.success($i18n.t('Deleted'));
 		} catch (error) {

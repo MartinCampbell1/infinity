@@ -8,6 +8,7 @@
 	import Lock from '$lib/components/icons/Lock.svelte';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import { searchUsers } from '$lib/apis/users';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	export let query = '';
 
@@ -32,6 +33,7 @@
 	let _users: MentionItem[] = [];
 	let _channels: MentionItem[] = [];
 	let filteredItems: MentionItem[] = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	void label;
 	void triggerChar;
@@ -43,7 +45,7 @@
 	);
 
 	const getUserList = async () => {
-		const res = await searchUsers(localStorage.token, query).catch((error) => {
+		const res = await searchUsers(getWorkspaceAuthToken(), query).catch((error) => {
 			console.error('Error searching users:', error);
 			return null;
 		});

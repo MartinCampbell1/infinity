@@ -130,8 +130,17 @@ func TestHealthReportsDurableAndRecoverableState(t *testing.T) {
 	if health.AuthMode != "localhost_only" {
 		t.Fatalf("expected localhost_only auth mode, got %s", health.AuthMode)
 	}
+	if health.DeploymentScope != "localhost_only_solo" {
+		t.Fatalf("expected localhost_only_solo deployment scope, got %s", health.DeploymentScope)
+	}
+	if health.Maturity != "phase3_scaffold" {
+		t.Fatalf("expected phase3_scaffold maturity, got %s", health.Maturity)
+	}
 	if health.StorageKind != "file" {
 		t.Fatalf("expected file storage kind, got %s", health.StorageKind)
+	}
+	if health.DurabilityTier != "local_file_snapshot" {
+		t.Fatalf("expected local_file_snapshot durability tier, got %s", health.DurabilityTier)
 	}
 	if health.StatePath != statePath {
 		t.Fatalf("expected state path %s, got %s", statePath, health.StatePath)

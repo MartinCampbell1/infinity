@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext, onDestroy } from 'svelte';
 	const i18n = getContext('i18n');
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
@@ -45,6 +46,7 @@
 	let direction: 'asc' | 'desc' = 'desc'; // default sort order
 
 	let page = 1;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const setSortKey = (key: string) => {
 		if (orderBy === key) {
@@ -58,7 +60,7 @@
 
 	const getUserList = async () => {
 		try {
-			const res = await getUsers(localStorage.token, query, orderBy, direction, page).catch(
+			const res = await getUsers(getWorkspaceAuthToken(), query, orderBy, direction, page).catch(
 				(error) => {
 					toast.error(`${error}`);
 					return null;
@@ -76,12 +78,12 @@
 
 	const toggleMember = async (userId: string, state: 'checked' | 'unchecked') => {
 		if (state === 'checked') {
-			await addUserToGroup(localStorage.token, groupId, [userId]).catch((error) => {
+			await addUserToGroup(getWorkspaceAuthToken(), groupId, [userId]).catch((error) => {
 				toast.error(`${error}`);
 				return null;
 			});
 		} else {
-			await removeUserFromGroup(localStorage.token, groupId, [userId]).catch((error) => {
+			await removeUserFromGroup(getWorkspaceAuthToken(), groupId, [userId]).catch((error) => {
 				toast.error(`${error}`);
 				return null;
 			});

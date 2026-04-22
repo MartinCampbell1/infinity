@@ -3,6 +3,7 @@
 	const i18n = getContext('i18n');
 
 	import { toast } from 'svelte-sonner';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { updateUserStatus } from '$lib/apis/users';
 	import { settings, user } from '$lib/stores';
@@ -21,6 +22,7 @@
 	let message = '';
 
 	let loading = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	type UserStatusRecord = {
 		status_emoji?: string;
@@ -29,7 +31,7 @@
 
 	const submitHandler = async (): Promise<void> => {
 		loading = true;
-		const res = await updateUserStatus(localStorage.token, {
+		const res = await updateUserStatus(getWorkspaceAuthToken(), {
 			status_emoji: emoji,
 			status_message: message
 		}).catch((error: unknown) => {

@@ -5,6 +5,7 @@
 	import { getContext, onMount, onDestroy } from 'svelte';
 
 	const i18n = getContext('i18n');
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { user as _user } from '$lib/stores';
 	import { getUserInfoById, searchUsers } from '$lib/apis/users';
@@ -47,10 +48,11 @@
 	let searchDebounceTimer: ReturnType<typeof setTimeout>;
 	let orderBy = 'name'; // default sort key
 	let direction = 'asc'; // default sort order
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getUserList = async () => {
 		try {
-			const res = await searchUsers(localStorage.token, query, orderBy, direction, page).catch(
+			const res = await searchUsers(getWorkspaceAuthToken(), query, orderBy, direction, page).catch(
 				(error) => {
 					toast.error(`${error}`);
 					return null;
@@ -82,14 +84,14 @@
 	}
 
 	onMount(async () => {
-		groups = await getGroups(localStorage.token, true).catch((error) => {
+		groups = await getGroups(getWorkspaceAuthToken(), true).catch((error) => {
 			console.error(error);
 			return [];
 		});
 
 		if (userIds.length > 0) {
 			userIds.forEach(async (id) => {
-				const res = await getUserInfoById(localStorage.token, id).catch((error) => {
+				const res = await getUserInfoById(getWorkspaceAuthToken(), id).catch((error) => {
 					console.error(error);
 					return null;
 				});

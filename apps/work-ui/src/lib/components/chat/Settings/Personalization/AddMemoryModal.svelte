@@ -8,6 +8,7 @@
 	import { toast } from 'svelte-sonner';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const dispatch = createEventDispatcher();
 
@@ -16,11 +17,12 @@
 
 	let loading = false;
 	let content = '';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const submitHandler = async () => {
 		loading = true;
 
-		const res = await addNewMemory(localStorage.token, content).catch((error) => {
+		const res = await addNewMemory(getWorkspaceAuthToken(), content).catch((error) => {
 			toast.error(`${error}`);
 
 			return null;

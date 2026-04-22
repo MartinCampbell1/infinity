@@ -20,6 +20,7 @@
 	import Messages from '../chat/Messages.svelte';
 	import { goto } from '$app/navigation';
 	import { founderosLaunchContext } from '$lib/founderos';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { buildFounderosChatHref, buildFounderosRootHref } from '$lib/founderos/navigation';
 	import PencilSquare from '../icons/PencilSquare.svelte';
 	import PageEdit from '../icons/PageEdit.svelte';
@@ -60,6 +61,7 @@
 	let hermesSessionsLoading = false;
 	let hermesSessionsRefreshQueued = false;
 	let hermesSessionsLoadError = '';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let searchDebounceTimeout;
 
@@ -115,7 +117,7 @@
 
 		const chatId = chatList[selectedChatIdx].id;
 
-		const chat = await getChatById(localStorage.token, chatId).catch(async (error) => {
+		const chat = await getChatById(getWorkspaceAuthToken(), chatId).catch(async (error) => {
 			return null;
 		});
 
@@ -160,10 +162,10 @@
 		page = 1;
 		chatList = null;
 		if (query === '') {
-			chatList = await getChatList(localStorage.token, page);
+			chatList = await getChatList(getWorkspaceAuthToken(), page);
 		} else {
 			searchDebounceTimeout = setTimeout(async () => {
-				chatList = await getChatListBySearchText(localStorage.token, query, page);
+				chatList = await getChatListBySearchText(getWorkspaceAuthToken(), query, page);
 
 				if ((chatList ?? []).length === 0) {
 					allChatsLoaded = true;
@@ -192,9 +194,9 @@
 		let newChatList = [];
 
 		if (query) {
-			newChatList = await getChatListBySearchText(localStorage.token, query, page);
+			newChatList = await getChatListBySearchText(getWorkspaceAuthToken(), query, page);
 		} else {
-			newChatList = await getChatList(localStorage.token, page);
+			newChatList = await getChatList(getWorkspaceAuthToken(), page);
 		}
 
 		// once the bottom of the list has been reached (no results) there is no need to continue querying
@@ -210,7 +212,8 @@
 	};
 
 	const refreshHermesSessionList = async () => {
-		if (!show || !localStorage?.token) {
+		const token = getWorkspaceAuthToken();
+		if (!show || !token) {
 			return;
 		}
 
@@ -223,7 +226,7 @@
 		hermesSessionsLoadError = '';
 
 		try {
-			const sessionsPayload = await getHermesSessions(localStorage.token);
+			const sessionsPayload = await getHermesSessions(token);
 			const sessions = sessionsPayload?.items ?? [];
 			hermesRecentSessions.set(sessions);
 			hermesSessionsByChatId.set(buildHermesSessionMapByImportedChatId(sessions));
@@ -254,7 +257,7 @@
 		hermesSessionActionId = session.imported_chat_id || session.session_id;
 
 		try {
-			const res = await importHermesSession(localStorage.token, session.session_id).catch(
+			const res = await importHermesSession(getWorkspaceAuthToken(), session.session_id).catch(
 				(error) => {
 					toast.error(`${error}`);
 					return null;

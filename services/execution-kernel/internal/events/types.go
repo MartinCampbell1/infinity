@@ -90,7 +90,10 @@ type HealthResponse struct {
 	Service            string        `json:"service"`
 	GeneratedAt        string        `json:"generatedAt"`
 	AuthMode           string        `json:"authMode"`
+	DeploymentScope    string        `json:"deploymentScope"`
+	Maturity           string        `json:"maturity"`
 	StorageKind        string        `json:"storageKind"`
+	DurabilityTier     string        `json:"durabilityTier"`
 	StatePath          string        `json:"statePath,omitempty"`
 	StateConfigured    bool          `json:"stateConfigured"`
 	RuntimeState       string        `json:"runtimeState"`

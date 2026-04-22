@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { getContext, onMount } from 'svelte';
 	const i18n = getContext('i18n');
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { settings } from '$lib/stores';
 	import { verifyOpenAIConnection } from '$lib/apis/openai';
@@ -58,12 +59,13 @@
 
 	let loading = false;
 	let showDeleteConfirmDialog = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const verifyOllamaHandler = async () => {
 		// remove trailing slash from url
 		url = url.replace(/\/$/, '');
 
-		const res = await verifyOllamaConnection(localStorage.token, {
+		const res = await verifyOllamaConnection(getWorkspaceAuthToken(), {
 			url,
 			key
 		}).catch((error) => {
@@ -96,7 +98,7 @@
 		}
 
 		const res = await verifyOpenAIConnection(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			{
 				url,
 				key,

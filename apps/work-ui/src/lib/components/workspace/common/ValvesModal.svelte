@@ -5,6 +5,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import { onMount, getContext } from 'svelte';
 	import { addUser } from '$lib/apis/auths';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Modal from '../../common/Modal.svelte';
 	import {
@@ -46,6 +47,7 @@
 
 	let valvesSpec = null;
 	let valves = {};
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const submitHandler = async () => {
 		saving = true;
@@ -69,11 +71,11 @@
 
 			if (userValves) {
 				if (type === 'tool') {
-					res = await updateToolUserValvesById(localStorage.token, id, valves).catch((error) => {
+					res = await updateToolUserValvesById(getWorkspaceAuthToken(), id, valves).catch((error) => {
 						toast.error(`${error}`);
 					});
 				} else if (type === 'function') {
-					res = await updateFunctionUserValvesById(localStorage.token, id, valves).catch(
+					res = await updateFunctionUserValvesById(getWorkspaceAuthToken(), id, valves).catch(
 						(error) => {
 							toast.error(`${error}`);
 						}
@@ -81,11 +83,11 @@
 				}
 			} else {
 				if (type === 'tool') {
-					res = await updateToolValvesById(localStorage.token, id, valves).catch((error) => {
+					res = await updateToolValvesById(getWorkspaceAuthToken(), id, valves).catch((error) => {
 						toast.error(`${error}`);
 					});
 				} else if (type === 'function') {
-					res = await updateFunctionValvesById(localStorage.token, id, valves).catch((error) => {
+					res = await updateFunctionValvesById(getWorkspaceAuthToken(), id, valves).catch((error) => {
 						toast.error(`${error}`);
 					});
 				}
@@ -108,19 +110,19 @@
 		try {
 			if (userValves) {
 				if (type === 'tool') {
-					valves = await getToolUserValvesById(localStorage.token, id);
-					valvesSpec = await getToolUserValvesSpecById(localStorage.token, id);
+					valves = await getToolUserValvesById(getWorkspaceAuthToken(), id);
+					valvesSpec = await getToolUserValvesSpecById(getWorkspaceAuthToken(), id);
 				} else if (type === 'function') {
-					valves = await getFunctionUserValvesById(localStorage.token, id);
-					valvesSpec = await getFunctionUserValvesSpecById(localStorage.token, id);
+					valves = await getFunctionUserValvesById(getWorkspaceAuthToken(), id);
+					valvesSpec = await getFunctionUserValvesSpecById(getWorkspaceAuthToken(), id);
 				}
 			} else {
 				if (type === 'tool') {
-					valves = await getToolValvesById(localStorage.token, id);
-					valvesSpec = await getToolValvesSpecById(localStorage.token, id);
+					valves = await getToolValvesById(getWorkspaceAuthToken(), id);
+					valvesSpec = await getToolValvesSpecById(getWorkspaceAuthToken(), id);
 				} else if (type === 'function') {
-					valves = await getFunctionValvesById(localStorage.token, id);
-					valvesSpec = await getFunctionValvesSpecById(localStorage.token, id);
+					valves = await getFunctionValvesById(getWorkspaceAuthToken(), id);
+					valvesSpec = await getFunctionValvesSpecById(getWorkspaceAuthToken(), id);
 				}
 			}
 

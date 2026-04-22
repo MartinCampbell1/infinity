@@ -9,6 +9,7 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Modal from '$lib/components/common/Modal.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const dispatch = createEventDispatcher();
 
@@ -19,6 +20,7 @@
 
 	let loading = false;
 	let content = '';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (show) {
 		setContent();
@@ -31,7 +33,7 @@
 	const submitHandler = async () => {
 		loading = true;
 
-		const res = await updateMemoryById(localStorage.token, memory.id, content).catch((error) => {
+		const res = await updateMemoryById(getWorkspaceAuthToken(), memory.id, content).catch((error) => {
 			toast.error(`${error}`);
 
 			return null;

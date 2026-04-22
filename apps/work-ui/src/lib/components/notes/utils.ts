@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify';
 import { toast } from 'svelte-sonner';
+import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 import { createNewNote } from '$lib/apis/notes';
 
@@ -171,7 +172,7 @@ export const createNoteHandler = async (
 	html?: string
 ): Promise<NoteRecord | null> => {
 	//  $i18n.t('New Note'),
-	const res = await createNewNote(localStorage.token, {
+	const res = await createNewNote(resolveFounderosEmbeddedAccessToken(), {
 		// YYYY-MM-DD
 		title: title,
 		data: {

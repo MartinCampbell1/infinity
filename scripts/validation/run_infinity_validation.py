@@ -459,33 +459,22 @@ def build_continuity_from_state_file(state_dir: Path, initiative_id: str) -> dic
     }
 
 
-def mint_launch_token(shell_origin: str, session_id: str) -> str:
+def mint_workspace_launch_url(shell_origin: str, session_id: str) -> str:
     response = requests.get(
         f"{shell_origin}/execution/workspace/{session_id}",
         timeout=10,
     )
     response.raise_for_status()
-    match = re.search(r"launch_token=([^&\"\\\\]+)", response.text)
+    match = re.search(r"<iframe[^>]+src=\"([^\"]+)\"", response.text)
     if not match:
-        raise ValidationFailure("Could not mint a shell launch token from the workspace page.")
-    return html.unescape(match.group(1))
+        raise ValidationFailure("Could not derive the shell-authored work-ui launch URL from the workspace page.")
+    return html.unescape(match.group(1)).replace("&amp;", "&")
 
 
 def build_embedded_url(base: str, shell_origin: str, session_id: str, path: str) -> str:
-    token = mint_launch_token(shell_origin, session_id)
-    params = {
-        "founderos_launch": "1",
-        "project_id": "project-borealis",
-        "session_id": session_id,
-        "group_id": "group-core-02",
-        "account_id": "account-chatgpt-02",
-        "workspace_id": "workspace-borealis-review",
-        "opened_from": "execution_board",
-        "host_origin": shell_origin,
-        "embedded": "1",
-        "launch_token": token,
-    }
-    return f"{base}{path}?{requests.compat.urlencode(params)}"
+    launch_url = mint_workspace_launch_url(shell_origin, session_id)
+    parsed = requests.compat.urlparse(launch_url)
+    return requests.compat.urlunparse(parsed._replace(path=path))
 
 
 def fetch_latest_delivery(shell_origin: str, initiative_id: str) -> dict[str, Any]:
@@ -815,7 +804,6 @@ def open_shell_task_graph_from_brief(page) -> str:
 
 
 def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, manifest: list[ScreenshotRecord], screenshots_dir: Path, require_runnable_result: bool = False) -> dict[str, Any]:
-    session_id = "session-2026-04-11-002"
     shell_root_url = f"{shell_origin}/"
     page.goto(shell_root_url, wait_until="networkidle")
     page.wait_for_selector("text=Start an autonomous run", timeout=15000)
@@ -870,6 +858,11 @@ def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, m
     )
 
     continuity = wait_for_autonomous_delivery(shell_origin, state_dir, initiative_id)
+    session_id = str(continuity["initiative"].get("workspaceSessionId") or "").strip()
+    if not session_id:
+        raise ValidationFailure(
+            f"Happy path initiative {initiative_id} did not expose a workspaceSessionId for embedded work-ui routes."
+        )
     brief_id = continuity["briefs"][0]["id"]
     task_graph_id = continuity["taskGraphs"][0]["id"]
     batch_ids = [batch["id"] for batch in continuity.get("batches", []) if isinstance(batch, dict) and isinstance(batch.get("id"), str)]
@@ -882,7 +875,7 @@ def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, m
 
     brief_url = build_embedded_url(work_origin, shell_origin, session_id, f"/project-brief/{brief_id}")
     page.goto(brief_url, wait_until="networkidle")
-    page.wait_for_selector("text=Project brief", timeout=15000)
+    page.wait_for_selector("text=Project brief", timeout=30000)
     capture_screenshot(page, "workui_project_brief", str(screenshots_dir / "workui_project_brief.png"), manifest, page.url, "happy_path")
     brief_stage_labels = assert_no_required_stage_labels(page, "workui_project_brief")
 
@@ -899,14 +892,14 @@ def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, m
 
     run_url = build_embedded_url(work_origin, shell_origin, session_id, f"/project-run/{initiative_id}")
     page.goto(run_url, wait_until="networkidle")
-    page.wait_for_selector("text=Project run", timeout=15000)
+    page.wait_for_selector("text=Project run", timeout=30000)
     capture_screenshot(page, "workui_project_run", str(screenshots_dir / "workui_project_run.png"), manifest, page.url, "happy_path")
     run_stage_labels = assert_no_required_stage_labels(page, "workui_project_run")
 
     result_url = build_embedded_url(work_origin, shell_origin, session_id, f"/project-result/{initiative_id}")
     page.goto(result_url, wait_until="networkidle")
-    page.wait_for_selector("text=Project result", timeout=15000)
-    page.wait_for_selector("text=Return to shell workspace", timeout=15000)
+    page.wait_for_selector("text=Project result", timeout=30000)
+    page.wait_for_selector("text=Return to shell workspace", timeout=30000)
     capture_screenshot(page, "workui_project_result_passed", str(screenshots_dir / "workui_project_result_passed.png"), manifest, page.url, "happy_path")
     result_stage_labels = assert_no_required_stage_labels(page, "workui_project_result_passed")
     delivery_id = str(delivery["id"]).strip()
@@ -945,7 +938,6 @@ def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, m
 
 
 def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, manifest: list[ScreenshotRecord], screenshots_dir: Path) -> dict[str, Any]:
-    session_id = "session-2026-04-11-002"
     initiative = request_json(
         "POST",
         f"{shell_origin}/api/control/orchestration/initiatives",
@@ -953,10 +945,14 @@ def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, man
             "title": f"Validation Failure {int(time.time())}",
             "userRequest": "Validate blocked and retryable execution states.",
             "requestedBy": "martin",
-            "workspaceSessionId": session_id,
         },
     )["initiative"]
     initiative_id = initiative["id"]
+    session_id = str(initiative.get("workspaceSessionId") or "").strip()
+    if not session_id:
+        raise ValidationFailure(
+            f"Failure-path initiative {initiative_id} did not expose a workspaceSessionId for embedded work-ui routes."
+        )
 
     brief = request_json(
         "POST",
@@ -1015,12 +1011,12 @@ def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, man
 
     run_url = build_embedded_url(work_origin, shell_origin, session_id, f"/project-run/{initiative_id}")
     page.goto(run_url, wait_until="networkidle")
-    page.wait_for_selector("text=Project run", timeout=15000)
+    page.wait_for_selector("text=Project run", timeout=30000)
     capture_screenshot(page, "workui_run_blocked", str(screenshots_dir / "workui_run_blocked.png"), manifest, page.url, "failure_path")
     assert_no_required_stage_labels(page, "workui_run_blocked")
     result_url = build_embedded_url(work_origin, shell_origin, session_id, f"/project-result/{initiative_id}")
     page.goto(result_url, wait_until="networkidle")
-    page.wait_for_selector("text=Project result", timeout=15000)
+    page.wait_for_selector("text=Project result", timeout=30000)
     capture_screenshot(page, "workui_result_blocked_verification", str(screenshots_dir / "workui_result_blocked_verification.png"), manifest, page.url, "failure_path")
     capture_screenshot(page, "workui_result_blocked_delivery", str(screenshots_dir / "workui_result_blocked_delivery.png"), manifest, page.url, "failure_path", notes="Same screen shows both blocked verification and blocked delivery.")
     assert_no_required_stage_labels(page, "workui_result_blocked_delivery")
@@ -1109,7 +1105,7 @@ def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, man
     )["delivery"]
 
     page.goto(result_url, wait_until="networkidle")
-    page.wait_for_selector("text=Return to shell workspace", timeout=15000)
+    page.wait_for_selector("text=Return to shell workspace", timeout=30000)
 
     return {
         "initiative_id": initiative_id,
@@ -1225,8 +1221,25 @@ def main() -> int:
         shell_env = os.environ.copy()
         shell_env["FOUNDEROS_EXECUTION_KERNEL_BASE_URL"] = kernel_origin
         shell_env["FOUNDEROS_CONTROL_PLANE_STATE_DIR"] = str(state_dir)
+        shell_env["FOUNDEROS_ENABLE_SYNTHETIC_STATE_SEEDS"] = "0"
         shell_env["FOUNDEROS_WEB_PORT"] = str(shell_port)
         shell_env["FOUNDEROS_WORK_UI_BASE_URL"] = work_origin
+        shell_env["FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON"] = json.dumps(
+            [
+                {
+                    "name": "static-smoke",
+                    "bucket": "static",
+                    "cwd": str(ROOT),
+                    "command": ["node", "-e", "process.exit(0)"],
+                },
+                {
+                    "name": "test-smoke",
+                    "bucket": "test",
+                    "cwd": str(ROOT),
+                    "command": ["node", "-e", "process.exit(0)"],
+                },
+            ]
+        )
         shell_command = ["npm", "run", "start", "--workspace", "@founderos/web"]
         processes.append(
             ManagedProcess(

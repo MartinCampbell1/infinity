@@ -20,6 +20,7 @@
 	import { settings, user, shortCodesToEmojis } from '$lib/stores';
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 	import { getMessageData } from '$lib/apis/channels';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Markdown from '$lib/components/chat/Messages/Markdown.svelte';
 	import ProfileImage from '$lib/components/chat/Messages/ProfileImage.svelte';
@@ -144,10 +145,11 @@
 
 	const hasReactionFromCurrentUser = (users: ReactionUser[]): boolean =>
 		users.some((userEntry) => userEntry.id === $user?.id);
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const loadMessageData = async () => {
 		if (message && message?.data === true) {
-			const res = await getMessageData(localStorage.token, channel?.id, message.id);
+			const res = await getMessageData(getWorkspaceAuthToken(), channel?.id, message.id);
 			if (res) {
 				message.data = res;
 			}

@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { models, settings, user, config } from '$lib/stores';
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const dispatch = createEventDispatcher();
 	import { getModels } from '$lib/apis';
@@ -33,12 +34,13 @@
 
 	const getDirectConnections = (): DirectConnections =>
 		$config?.features?.enable_direct_connections ? ($settings?.directConnections ?? null) : null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let evaluationConfig: EvaluationConfig | null = null;
 	let showAddModel = false;
 
 	const refreshModels = async () => {
-		models.set(await getModels(localStorage.token, getDirectConnections()));
+		models.set(await getModels(getWorkspaceAuthToken(), getDirectConnections()));
 	};
 
 	const submitHandler = async () => {
@@ -46,7 +48,7 @@
 			return;
 		}
 
-		evaluationConfig = await updateConfig(localStorage.token, evaluationConfig).catch((err) => {
+		evaluationConfig = await updateConfig(getWorkspaceAuthToken(), evaluationConfig).catch((err) => {
 			toast.error(err);
 			return null;
 		});
@@ -96,7 +98,7 @@
 
 	const loadConfig = async () => {
 		if ($user?.role === 'admin') {
-			evaluationConfig = await getConfig(localStorage.token).catch((err) => {
+			evaluationConfig = await getConfig(getWorkspaceAuthToken()).catch((err) => {
 				toast.error(err);
 				return null;
 			});

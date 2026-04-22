@@ -6,6 +6,7 @@
 	import { user as _user } from '$lib/stores';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import { getDMChannelByUserId } from '$lib/apis/channels';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import type { ChannelUserRecord } from './user-status-types';
 
 	import ChatBubbleOval from '$lib/components/icons/ChatBubbleOval.svelte';
@@ -14,13 +15,14 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
 	export let user: ChannelUserRecord | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const directMessageHandler = async () => {
 		if (!user) {
 			return;
 		}
 
-		const res = await getDMChannelByUserId(localStorage.token, user.id).catch((error) => {
+		const res = await getDMChannelByUserId(getWorkspaceAuthToken(), user.id).catch((error) => {
 			console.error('Error fetching DM channel:', error);
 			return null;
 		});

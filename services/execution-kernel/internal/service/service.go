@@ -206,10 +206,14 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 
 	storageKind := "memory"
 	stateConfigured := false
+	durabilityTier := "ephemeral_memory"
 	if svc.statePath != "" {
 		storageKind = "file"
 		stateConfigured = true
+		durabilityTier = "local_file_snapshot"
 	}
+	deploymentScope := "localhost_only_solo"
+	maturity := "phase3_scaffold"
 
 	runtimeState := "idle"
 	if batchCounts.Blocked > 0 {
@@ -259,8 +263,8 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 	}
 
 	detail := fmt.Sprintf(
-		"execution-kernel is reachable with localhost-only auth, %s-backed state configured=%t, runtime %s, recovery %s, restart-recoverable %t, %d blocked batch(es), %d failed attempt(s), and next action: %s",
-		storageKind,
+		"execution-kernel is reachable as a localhost-only phase-3 scaffold with %s-backed local state configured=%t, runtime %s, recovery %s, restart-recoverable %t, %d blocked batch(es), %d failed attempt(s), and next action: %s",
+		durabilityTier,
 		stateConfigured,
 		runtimeState,
 		recoveryState,
@@ -275,7 +279,10 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 		Service:            "execution-kernel",
 		GeneratedAt:        nowISO(),
 		AuthMode:           "localhost_only",
+		DeploymentScope:    deploymentScope,
+		Maturity:           maturity,
 		StorageKind:        storageKind,
+		DurabilityTier:     durabilityTier,
 		StatePath:          svc.statePath,
 		StateConfigured:    stateConfigured,
 		RuntimeState:       runtimeState,

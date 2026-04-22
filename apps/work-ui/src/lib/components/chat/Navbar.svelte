@@ -29,6 +29,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { founderosLaunchContext } from '$lib/founderos';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { buildFounderosRootHref } from '$lib/founderos/navigation';
 
 	import ShareChatModal from '../chat/ShareChatModal.svelte';
@@ -86,6 +87,7 @@ const HERMES_ONLY_CHAT = true;
 	let hermesWorkspaces: HermesWorkspacesResponse | null = null;
 	let hermesContextLoaded = false;
 	let hermesContextLoading = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const openControlsTo = async (target: 'workspace' | 'session' | 'tasks') => {
 		chatControlsOpenTarget.set(target);
@@ -114,7 +116,7 @@ const HERMES_ONLY_CHAT = true;
 			return;
 		}
 
-		const token = localStorage.token;
+		const token = getWorkspaceAuthToken();
 		if (!token) {
 			hermesContextLoaded = true;
 			return;

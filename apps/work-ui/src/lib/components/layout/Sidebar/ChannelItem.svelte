@@ -5,6 +5,7 @@
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 	const i18n = getContext('i18n');
 
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { page } from '$app/stores';
 	import { channels, mobile, showSidebar, user } from '$lib/stores';
 	import { getUserActiveStatusById } from '$lib/apis/users';
@@ -27,6 +28,7 @@
 	let showEditChannelModal = false;
 
 	let itemElement;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const hasPublicReadGrant = (grants: any) =>
 		Array.isArray(grants) &&
@@ -55,7 +57,7 @@
 	{onUpdate}
 	onSubmit={async (payload: any) => {
 		const { name, is_private, access_grants, group_ids, user_ids } = payload ?? {};
-		const res = await updateChannelById(localStorage.token, channel.id, {
+		const res = await updateChannelById(getWorkspaceAuthToken(), channel.id, {
 			name,
 			is_private,
 			access_grants,
@@ -221,7 +223,7 @@
 						})
 					);
 
-					await updateChannelMemberActiveStatusById(localStorage.token, channel.id, false).catch(
+					await updateChannelMemberActiveStatusById(getWorkspaceAuthToken(), channel.id, false).catch(
 						(error) => {
 							toast.error(`${error}`);
 						}

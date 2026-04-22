@@ -7,6 +7,7 @@
 	import { toast } from 'svelte-sonner';
 	import { deleteSharedChatById, getChatById, shareChatById } from '$lib/apis/chats';
 	import { copyToClipboard } from '$lib/utils';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Modal from '../common/Modal.svelte';
 	import Link from '../icons/Link.svelte';
@@ -17,14 +18,15 @@
 	let chat = null;
 	let shareUrl = null;
 	const i18n = getContext('i18n');
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const shareLocalChat = async () => {
 		const _chat = chat;
 
-		const sharedChat = await shareChatById(localStorage.token, chatId);
+		const sharedChat = await shareChatById(getWorkspaceAuthToken(), chatId);
 		shareUrl = `${window.location.origin}/s/${sharedChat.id}`;
 		console.log(shareUrl);
-		chat = await getChatById(localStorage.token, chatId);
+		chat = await getChatById(getWorkspaceAuthToken(), chatId);
 
 		return shareUrl;
 	};
@@ -70,7 +72,7 @@
 	$: if (show) {
 		(async () => {
 			if (chatId) {
-				const _chat = await getChatById(localStorage.token, chatId);
+				const _chat = await getChatById(getWorkspaceAuthToken(), chatId);
 				if (isDifferentChat(_chat)) {
 					chat = _chat;
 				}
@@ -109,10 +111,10 @@
 						<button
 							class="underline"
 							on:click={async () => {
-								const res = await deleteSharedChatById(localStorage.token, chatId);
+								const res = await deleteSharedChatById(getWorkspaceAuthToken(), chatId);
 
 								if (res) {
-									chat = await getChatById(localStorage.token, chatId);
+									chat = await getChatById(getWorkspaceAuthToken(), chatId);
 								}
 							}}
 							>{$i18n.t('delete this link')}

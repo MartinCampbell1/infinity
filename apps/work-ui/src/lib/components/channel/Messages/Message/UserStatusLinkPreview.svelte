@@ -4,6 +4,7 @@
 
 	const i18n = getContext('i18n');
 	import { getUserInfoById } from '$lib/apis/users';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import type { ChannelUserRecord } from './user-status-types';
 
 	import UserStatus from './UserStatus.svelte';
@@ -15,9 +16,10 @@
 	export let sideOffset = 6;
 
 	let user: ChannelUserRecord | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 	onMount(async () => {
 		if (id) {
-			user = (await getUserInfoById(localStorage.token, id).catch((error) => {
+			user = (await getUserInfoById(getWorkspaceAuthToken(), id).catch((error) => {
 				console.error('Error fetching user by ID:', error);
 				return null;
 			})) as ChannelUserRecord | null;

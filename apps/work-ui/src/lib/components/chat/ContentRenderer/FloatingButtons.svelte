@@ -9,6 +9,7 @@
 	const i18n = getContext('i18n');
 
 	import { chatCompletion } from '$lib/apis/openai';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import ChatBubble from '$lib/components/icons/ChatBubble.svelte';
 	import LightBulb from '$lib/components/icons/LightBulb.svelte';
@@ -68,6 +69,7 @@
 	let responseContent: string | null = null;
 	let responseDone: boolean = false;
 	let controller: AbortController | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (actions.length === 0) {
 		actions = DEFAULT_ACTIONS;
@@ -156,7 +158,7 @@
 		responseContent = '';
 
 		let res: Response | null;
-		[res, controller] = await chatCompletion(localStorage.token, {
+		[res, controller] = await chatCompletion(getWorkspaceAuthToken(), {
 			model: model,
 			model_item: (($models as unknown) as FloatingModel[]).find((m) => m.id === model) ?? null,
 			session_id: $socket?.id,

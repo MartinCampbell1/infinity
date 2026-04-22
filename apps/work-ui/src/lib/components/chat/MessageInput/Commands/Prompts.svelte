@@ -1,11 +1,13 @@
 <script lang="ts">
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { getContext, onDestroy } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { getPrompts } from '$lib/apis/prompts';
 	import type { PromptItem } from '$lib/apis/prompts';
 
 	const i18n = getContext('i18n');
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	export let query = '';
 	export let onSelect: (event: { type: 'prompt'; data: PromptItem }) => void = () => {};
@@ -36,7 +38,7 @@
 	}
 
 	const getItems = async () => {
-		const res = (await getPrompts(localStorage.token).catch(() => null)) as PromptItem[] | null;
+		const res = (await getPrompts(getWorkspaceAuthToken()).catch(() => null)) as PromptItem[] | null;
 		if (res) {
 			items = res;
 		}

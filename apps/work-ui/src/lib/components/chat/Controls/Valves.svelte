@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { functions, tools } from '$lib/stores';
 	import { createEventDispatcher, getContext, tick } from 'svelte';
@@ -57,6 +58,7 @@
 	let valves: ValveRecord = {};
 
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let availableTools: ChoiceItem[] = [];
 	let availableFunctions: ChoiceItem[] = [];
@@ -141,11 +143,11 @@
 	const getUserValves = async () => {
 		loading = true;
 		if (tab === 'tools') {
-			valves = (await getToolUserValvesById(localStorage.token, selectedId)) ?? {};
-			valvesSpec = await getToolUserValvesSpecById(localStorage.token, selectedId);
+			valves = (await getToolUserValvesById(getWorkspaceAuthToken(), selectedId)) ?? {};
+			valvesSpec = await getToolUserValvesSpecById(getWorkspaceAuthToken(), selectedId);
 		} else if (tab === 'functions') {
-			valves = (await getFunctionUserValvesById(localStorage.token, selectedId)) ?? {};
-			valvesSpec = await getFunctionUserValvesSpecById(localStorage.token, selectedId);
+			valves = (await getFunctionUserValvesById(getWorkspaceAuthToken(), selectedId)) ?? {};
+			valvesSpec = await getFunctionUserValvesSpecById(getWorkspaceAuthToken(), selectedId);
 		}
 
 		valves = normalizeValvesForDisplay(valves, valvesSpec);
@@ -159,7 +161,7 @@
 
 			if (tab === 'tools') {
 				const res = await updateToolUserValvesById(
-					localStorage.token,
+					getWorkspaceAuthToken(),
 					selectedId,
 					payload
 				).catch((error) => {
@@ -173,7 +175,7 @@
 				}
 			} else if (tab === 'functions') {
 				const res = await updateFunctionUserValvesById(
-					localStorage.token,
+					getWorkspaceAuthToken(),
 					selectedId,
 					payload
 				).catch((error) => {
@@ -205,10 +207,10 @@
 		loading = true;
 
 		if ($functions === null) {
-			functions.set(await getFunctions(localStorage.token));
+			functions.set(await getFunctions(getWorkspaceAuthToken()));
 		}
 		if ($tools === null) {
-			tools.set(await getTools(localStorage.token));
+			tools.set(await getTools(getWorkspaceAuthToken()));
 		}
 
 		loading = false;

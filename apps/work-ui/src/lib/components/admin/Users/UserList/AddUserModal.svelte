@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { createEventDispatcher } from 'svelte';
 	import { getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { addUser } from '$lib/apis/auths';
 
 	import { WEBUI_BASE_URL } from '$lib/constants';
@@ -36,6 +37,7 @@
 		password: '',
 		role: 'user'
 	};
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (show) {
 		_user = {
@@ -56,7 +58,7 @@
 			loading = true;
 
 			const res = await addUser(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				_user.name,
 				_user.email,
 				_user.password,
@@ -105,7 +107,7 @@
 								['admin', 'user', 'pending'].includes(columns[3].toLowerCase())
 							) {
 								const res = await addUser(
-									localStorage.token,
+									getWorkspaceAuthToken(),
 									columns[0],
 									columns[1],
 									columns[2],

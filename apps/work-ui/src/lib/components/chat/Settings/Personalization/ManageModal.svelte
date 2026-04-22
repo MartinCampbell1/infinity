@@ -11,6 +11,7 @@
 	import localizedFormat from 'dayjs/plugin/localizedFormat';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import Pencil from '$lib/components/icons/Pencil.svelte';
@@ -50,6 +51,7 @@
 
 	let filteredMemories: MemoryItem[] = [];
 	let sortedMemories: MemoryItem[] = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: filteredMemories = query
 		? memories.filter((m) => m.content?.toLowerCase().includes(query.toLowerCase()))
@@ -72,7 +74,7 @@
 	});
 
 	let onClearConfirmed = async () => {
-		const res = await deleteMemoriesByUserId(localStorage.token).catch((error) => {
+		const res = await deleteMemoriesByUserId(getWorkspaceAuthToken()).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -86,7 +88,7 @@
 
 	$: if (show && memories.length === 0 && loading) {
 		(async () => {
-			memories = await getMemories(localStorage.token);
+			memories = await getMemories(getWorkspaceAuthToken());
 			loading = false;
 		})();
 	}
@@ -321,14 +323,14 @@
 			return;
 		}
 
-		const res = await deleteMemoryById(localStorage.token, selectedMemory.id).catch((error) => {
+		const res = await deleteMemoryById(getWorkspaceAuthToken(), selectedMemory.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
 
 		if (res) {
 			toast.success($i18n.t('Memory deleted successfully'));
-			memories = await getMemories(localStorage.token);
+			memories = await getMemories(getWorkspaceAuthToken());
 		}
 		showDeleteConfirm = false;
 	}}
@@ -340,7 +342,7 @@
 <AddMemoryModal
 	bind:show={showAddMemoryModal}
 	on:save={async () => {
-		memories = await getMemories(localStorage.token);
+		memories = await getMemories(getWorkspaceAuthToken());
 	}}
 />
 
@@ -348,6 +350,6 @@
 	bind:show={showEditMemoryModal}
 	memory={selectedMemory ?? undefined}
 	on:save={async () => {
-		memories = await getMemories(localStorage.token);
+		memories = await getMemories(getWorkspaceAuthToken());
 	}}
 />

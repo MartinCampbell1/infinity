@@ -13,6 +13,7 @@
 		searchKnowledgeBases,
 		exportKnowledgeById
 	} from '$lib/apis/knowledge';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { goto } from '$app/navigation';
 	import { capitalizeFirstLetter } from '$lib/utils';
@@ -68,6 +69,7 @@
 	let allItemsLoaded = false;
 	let itemsLoading = false;
 	let itemsRequestId = 0;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (query !== undefined) {
 		clearTimeout(searchDebounceTimer);
@@ -109,7 +111,7 @@
 		const requestId = ++itemsRequestId;
 		itemsLoading = true;
 		try {
-			const res = (await searchKnowledgeBases(localStorage.token, query, viewOption, page).catch(
+			const res = (await searchKnowledgeBases(getWorkspaceAuthToken(), query, viewOption, page).catch(
 				() => {
 					return null;
 				}
@@ -144,7 +146,7 @@
 	const deleteHandler = async (item: KnowledgeBaseItem | null) => {
 		if (!item) return;
 
-		const res = await deleteKnowledgeById(localStorage.token, item.id).catch((e) => {
+		const res = await deleteKnowledgeById(getWorkspaceAuthToken(), item.id).catch((e) => {
 			toast.error(`${e}`);
 			return null;
 		});
@@ -157,7 +159,7 @@
 
 	const exportHandler = async (item: KnowledgeBaseItem) => {
 		try {
-			const blob = await exportKnowledgeById(localStorage.token, item.id);
+			const blob = await exportKnowledgeById(getWorkspaceAuthToken(), item.id);
 			if (blob) {
 				const url = URL.createObjectURL(blob);
 				const a = document.createElement('a');

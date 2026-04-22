@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
 	const dispatch = createEventDispatcher();
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { getBackendConfig } from '$lib/apis';
 	import {
@@ -69,12 +70,13 @@
 
 	let voices: VoiceOption[] = [];
 	let models: Awaited<ReturnType<typeof _getModels>>['models'] = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getModels = async () => {
 		if (TTS_ENGINE === '') {
 			models = [];
 		} else {
-			const res = await _getModels(localStorage.token).catch((e) => {
+			const res = await _getModels(getWorkspaceAuthToken()).catch((e) => {
 				toast.error(`${e}`);
 			});
 
@@ -103,7 +105,7 @@
 				}
 			}, 100);
 		} else {
-			const res = await _getVoices(localStorage.token).catch((e) => {
+			const res = await _getVoices(getWorkspaceAuthToken()).catch((e) => {
 				toast.error(`${e}`);
 			});
 
@@ -171,7 +173,7 @@
 		};
 
 		const res = await updateAudioConfig(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			payload as unknown as Parameters<typeof updateAudioConfig>[1]
 		);
 
@@ -188,7 +190,7 @@
 	};
 
 	onMount(async () => {
-		const res = await getAudioConfig(localStorage.token);
+		const res = await getAudioConfig(getWorkspaceAuthToken());
 
 		if (res) {
 			console.log(res);

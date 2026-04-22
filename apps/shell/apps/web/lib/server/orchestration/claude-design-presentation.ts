@@ -15,30 +15,6 @@ export type ClaudeDisplayTask = {
   total: number;
 };
 
-type DisplayRun = {
-  actualRunId?: string | null;
-  actualInitiativeId?: string | null;
-  displayId: string;
-  title: string;
-  stage: string;
-  preview: string;
-  tasks: string;
-  agent: string;
-  updated: string;
-  group: "running" | "attention" | "completed";
-  attempts: string;
-  repo: string;
-  assignment: string;
-  backend: string;
-  sessions: number;
-  startedAt: string;
-  workspacePath: string;
-  featured?: boolean;
-  requestedBy?: string;
-  workspace?: string | null;
-  taskItems?: ClaudeDisplayTask[];
-};
-
 export type FrontdoorRecentRunCard = {
   id: string;
   title: string;

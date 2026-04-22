@@ -20,6 +20,7 @@
 		getToolList,
 		getTools
 	} from '$lib/apis/tools';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { capitalizeFirstLetter } from '$lib/utils';
 
 	import Tooltip from '../common/Tooltip.svelte';
@@ -94,6 +95,7 @@
 	let viewOption = '';
 
 	let showImportModal = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (query !== undefined) {
 		clearTimeout(searchDebounceTimer);
@@ -123,7 +125,7 @@
 	};
 
 	const shareHandler = async (tool: ToolListItem) => {
-		const item = await getToolById(localStorage.token, tool.id).catch((error) => {
+		const item = await getToolById(getWorkspaceAuthToken(), tool.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -150,7 +152,7 @@
 	};
 
 	const cloneHandler = async (tool: ToolListItem) => {
-		const _tool = await getToolById(localStorage.token, tool.id).catch((error) => {
+		const _tool = await getToolById(getWorkspaceAuthToken(), tool.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -166,7 +168,7 @@
 	};
 
 	const exportHandler = async (tool: ToolListItem) => {
-		const _tool = await getToolById(localStorage.token, tool.id).catch((error) => {
+		const _tool = await getToolById(getWorkspaceAuthToken(), tool.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -180,7 +182,7 @@
 	};
 
 	const deleteHandler = async (tool: ToolListItem) => {
-		const res = await deleteToolById(localStorage.token, tool.id).catch((error) => {
+		const res = await deleteToolById(getWorkspaceAuthToken(), tool.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -192,10 +194,10 @@
 	};
 
 	const init = async () => {
-		tools = ((await getToolList(localStorage.token)) ?? []) as ToolListItem[];
+		tools = ((await getToolList(getWorkspaceAuthToken())) ?? []) as ToolListItem[];
 		filteredItems = tools;
 		(_tools as Writable<ToolListItem[] | null>).set(
-			((await getTools(localStorage.token)) ?? []) as ToolListItem[]
+			((await getTools(getWorkspaceAuthToken())) ?? []) as ToolListItem[]
 		);
 	};
 
@@ -267,7 +269,7 @@
 			goto('/workspace/tools/create');
 		}}
 		loadUrlHandler={async (url: string) => {
-			return await loadToolByUrl(localStorage.token, url);
+			return await loadToolByUrl(getWorkspaceAuthToken(), url);
 		}}
 		successMessage={$i18n.t('Tool imported successfully')}
 />
@@ -313,7 +315,7 @@
 					<button
 						class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition"
 						on:click={async () => {
-							const _tools = await exportTools(localStorage.token).catch((error) => {
+							const _tools = await exportTools(getWorkspaceAuthToken()).catch((error) => {
 								toast.error(`${error}`);
 								return null;
 							});
@@ -679,7 +681,7 @@
 				}
 
 				for (const tool of importedTools) {
-					await createNewTool(localStorage.token, tool).catch((error) => {
+					await createNewTool(getWorkspaceAuthToken(), tool).catch((error) => {
 						toast.error(`${error}`);
 						return null;
 					});

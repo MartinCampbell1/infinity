@@ -1,6 +1,7 @@
 <script lang="ts">
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { downloadDatabase } from '$lib/apis/utils';
 	import { getContext } from 'svelte';
@@ -23,16 +24,17 @@
 	export const saveHandler = async (): Promise<void> => {};
 
 	let configInputElement: HTMLInputElement | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const exportAllUserChats = async () => {
-		let blob = new Blob([JSON.stringify(await getAllUserChats(localStorage.token))], {
+		let blob = new Blob([JSON.stringify(await getAllUserChats(getWorkspaceAuthToken()))], {
 			type: 'application/json'
 		});
 		saveAs(blob, `all-chats-export-${Date.now()}.json`);
 	};
 
 	const exportUsers = async () => {
-		const users = (await getAllUsers(localStorage.token)) as { users: ExportUserRecord[] };
+		const users = (await getAllUsers(getWorkspaceAuthToken())) as { users: ExportUserRecord[] };
 
 		const headers = ['id', 'name', 'email', 'role'];
 
@@ -82,7 +84,7 @@
 							return;
 						}
 
-						const res = await importConfig(localStorage.token, JSON.parse(configText)).catch((error) => {
+						const res = await importConfig(getWorkspaceAuthToken(), JSON.parse(configText)).catch((error) => {
 							toast.error(`${error}`);
 						});
 
@@ -122,7 +124,7 @@
 					<button
 						class="p-1 px-3 text-xs flex rounded-sm transition"
 						on:click={async () => {
-							const config = await exportConfig(localStorage.token);
+							const config = await exportConfig(getWorkspaceAuthToken());
 							const blob = new Blob([JSON.stringify(config)], {
 								type: 'application/json'
 							});
@@ -144,12 +146,12 @@
 					<div class="py-0.5 flex w-full justify-between">
 						<div class="self-center text-xs">{$i18n.t('Download Database')}</div>
 						<button
-							class="p-1 px-3 text-xs flex rounded-sm transition"
-							on:click={() => {
-								downloadDatabase(localStorage.token).catch((error) => {
-									toast.error(`${error}`);
-								});
-							}}
+						class="p-1 px-3 text-xs flex rounded-sm transition"
+						on:click={() => {
+							downloadDatabase(getWorkspaceAuthToken()).catch((error) => {
+								toast.error(`${error}`);
+							});
+						}}
 							type="button"
 						>
 							<span class="self-center">{$i18n.t('Download')}</span>

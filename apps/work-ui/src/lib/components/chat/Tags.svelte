@@ -16,6 +16,7 @@
 		scrollPaginationEnabled
 	} from '$lib/stores';
 	import { createEventDispatcher, onMount } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const dispatch = createEventDispatcher();
 
@@ -25,15 +26,16 @@
 	export let chatId = '';
 	export let disabled = false;
 	let tags = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getTags = async () => {
-		return await getTagsById(localStorage.token, chatId).catch(async (error) => {
+		return await getTagsById(getWorkspaceAuthToken(), chatId).catch(async (error) => {
 			return [];
 		});
 	};
 
 	const addTag = async (tagName) => {
-		const res = await addTagById(localStorage.token, chatId, tagName).catch(async (error) => {
+		const res = await addTagById(getWorkspaceAuthToken(), chatId, tagName).catch(async (error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -42,24 +44,24 @@
 		}
 
 		tags = await getTags();
-		await updateChatById(localStorage.token, chatId, {
+		await updateChatById(getWorkspaceAuthToken(), chatId, {
 			tags: tags
 		});
 
-		await _tags.set(await getAllTags(localStorage.token));
+		await _tags.set(await getAllTags(getWorkspaceAuthToken()));
 		dispatch('add', {
 			name: tagName
 		});
 	};
 
 	const deleteTag = async (tagName) => {
-		const res = await deleteTagById(localStorage.token, chatId, tagName);
+		const res = await deleteTagById(getWorkspaceAuthToken(), chatId, tagName);
 		tags = await getTags();
-		await updateChatById(localStorage.token, chatId, {
+		await updateChatById(getWorkspaceAuthToken(), chatId, {
 			tags: tags
 		});
 
-		await _tags.set(await getAllTags(localStorage.token));
+		await _tags.set(await getAllTags(getWorkspaceAuthToken()));
 		dispatch('delete', {
 			name: tagName
 		});

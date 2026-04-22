@@ -370,7 +370,7 @@ async function buildDeliveryFields(
     '            <div class="badge-row">',
     '              <span class="badge badge-warn">wrapper evidence</span>',
     '              <span class="badge badge-ready">verification linked</span>',
-    '              <span class="badge">handoff packet ready</span>',
+    '              <span class="badge">handoff bundle staged</span>',
     "            </div>",
     "          </section>",
     '          <section class="panel">',
@@ -381,7 +381,7 @@ async function buildDeliveryFields(
     '        <div class="metric-strip">',
     '          <div class="metric"><div class="k">Status</div><div class="v">Pending</div><div class="d">wrapper evidence</div></div>',
     '          <div class="metric"><div class="k">Verification</div><div class="v">Passed</div><div class="d">linked</div></div>',
-    '          <div class="metric"><div class="k">Artifacts</div><div class="v">Ready</div><div class="d">manifest + handoff</div></div>',
+    '          <div class="metric"><div class="k">Artifacts</div><div class="v">Staged</div><div class="d">manifest + handoff bundle</div></div>',
     `          <div class="metric"><div class="k">Target</div><div class="v">${
       realRunnableTarget ? "Runnable" : scaffoldOnlyTarget ? "Scaffold" : "Wrapper"
     }</div><div class="d">${runnableTarget?.launchTargetLabel ?? "shell evidence wrapper"}</div></div>`,
@@ -456,6 +456,9 @@ async function buildDeliveryFields(
         },
   };
   await writeFile(wrapperLaunchManifestPath, JSON.stringify(launchManifest, null, 2));
+  const launchReady =
+    launchProofKind === "runnable_result" &&
+    Boolean(launchProof?.url && launchProof?.observedAt);
   await writeFile(
     path.join(localOutputPath, "delivery-summary.json"),
     JSON.stringify(
@@ -472,7 +475,9 @@ async function buildDeliveryFields(
         launchProofUrl: launchProof?.url ?? null,
         launchProofAt: launchProof?.observedAt ?? null,
         note:
-          "This is a local delivery handoff package with a shell-generated evidence wrapper. It does not prove the actual product result is runnable yet.",
+          launchReady
+            ? "This local delivery handoff package is backed by a proven runnable localhost result."
+            : "This is a local delivery handoff package with preview evidence only. It does not prove the actual product result is runnable yet.",
       },
       null,
       2
@@ -492,7 +497,9 @@ async function buildDeliveryFields(
       `Launch target: ${launchTargetLabel}`,
       `Launch command: ${launchShellCommand}`,
       `Launch proof: ${launchProof?.url ?? "not proven"}`,
-      "Ready promotion stays blocked until a real runnable result is proven locally.",
+      launchReady
+        ? "Ready promotion is unlocked because a real runnable result was proven locally."
+        : "Ready promotion stays blocked until a real runnable result is proven locally.",
     ].join("\n")
   );
   const handoffDir = path.join(localOutputPath, "handoff");
@@ -544,7 +551,7 @@ async function buildDeliveryFields(
     launchTargetLabel,
     handoffSummaryPath,
     handoffManifestPath,
-    handoffNotes: realRunnableTarget
+    handoffNotes: launchReady
       ? "Review the linked assembly manifest, runnable result, and handoff bundle before any manual publish or release step."
       : scaffoldOnlyTarget
         ? "Review the linked assembly manifest, attempt scaffold, and handoff bundle before any manual publish or release step. A real runnable result still needs separate proof."
@@ -576,7 +583,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     (await listDeliveries({ initiativeId: input.initiativeId })).find(
       (candidate) => candidate.verificationRunId === verification.id
     ) ?? null;
-  if (existingDelivery) {
+  if (existingDelivery?.status === "ready") {
     return {
       ...(await buildOrchestrationDirectoryMeta([
         `Delivery ${existingDelivery.id} already exists for initiative ${input.initiativeId}.`,
@@ -587,7 +594,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     };
   }
   const occurredAt = nowIso();
-  const deliveryId = buildOrchestrationId("delivery");
+  const deliveryId = existingDelivery?.id ?? buildOrchestrationId("delivery");
   const previewId = buildOrchestrationId("preview");
   const fields = await buildDeliveryFields(
     input.initiativeId,
@@ -636,7 +643,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
       rootPath: fields.localOutputPath,
       finalSummaryPath: fields.handoffSummaryPath,
       manifestPath: fields.handoffManifestPath,
-      status: "ready",
+      status: launchReady ? "ready" : "building",
     });
     delivery.previewUrl = preview?.url ?? null;
     draft.orchestration.deliveries = [
@@ -662,7 +669,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
       stage: launchReady ? "handed_off" : preview ? "preview_ready" : "delivering",
       health: launchReady ? "healthy" : "degraded",
       previewStatus: preview ? "ready" : "failed",
-      handoffStatus: handoff ? "ready" : "failed",
+      handoffStatus: launchReady ? (handoff ? "ready" : "failed") : handoff ? "building" : "failed",
       completedAt: launchReady && handoff ? occurredAt : null,
     });
     appendAutonomousRunEvent(draft, input.initiativeId, {
@@ -705,7 +712,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
         },
       });
     }
-    if (handoff) {
+    if (handoff && launchReady) {
       appendAutonomousRunEvent(draft, input.initiativeId, {
         kind: "handoff.ready",
         stage: launchReady ? "handed_off" : preview ? "preview_ready" : "delivering",
@@ -715,18 +722,16 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
           manifestPath: handoff.manifestPath,
         },
       });
-      if (launchReady) {
-        appendAutonomousRunEvent(draft, input.initiativeId, {
-          kind: "run.completed",
-          stage: "handed_off",
-          summary: `Run ${handoff.runId} completed with runnable localhost result and handoff ready.`,
-          payload: {
-            deliveryId: delivery.id,
-            previewId: preview?.id ?? null,
-            handoffPacketId: handoff.id,
-          },
-        });
-      }
+      appendAutonomousRunEvent(draft, input.initiativeId, {
+        kind: "run.completed",
+        stage: "handed_off",
+        summary: `Run ${handoff.runId} completed with runnable localhost result and handoff ready.`,
+        payload: {
+          deliveryId: delivery.id,
+          previewId: preview?.id ?? null,
+          handoffPacketId: handoff.id,
+        },
+      });
     }
   });
   await writeDeliveryManifest({

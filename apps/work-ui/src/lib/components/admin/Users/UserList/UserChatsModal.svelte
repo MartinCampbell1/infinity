@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import { getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import dayjs from 'dayjs';
 	import localizedFormat from 'dayjs/plugin/localizedFormat';
@@ -54,6 +55,7 @@
 	let chatListLoading = false;
 
 	let searchDebounceTimeout: ReturnType<typeof setTimeout> | undefined;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const searchHandler = async () => {
 		if (!show) {
@@ -68,10 +70,10 @@
 		chatList = null;
 
 		if (query === '') {
-			chatList = await getChatListByUserId(localStorage.token, user.id, page, filter);
+			chatList = await getChatListByUserId(getWorkspaceAuthToken(), user.id, page, filter);
 		} else {
 			searchDebounceTimeout = setTimeout(async () => {
-				chatList = await getChatListByUserId(localStorage.token, user.id, page, filter);
+				chatList = await getChatListByUserId(getWorkspaceAuthToken(), user.id, page, filter);
 			}, 500);
 		}
 
@@ -89,7 +91,7 @@
 		let newChatList = [];
 
 			newChatList = (await getChatListByUserId(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				user.id,
 				page,
 				filter
@@ -108,7 +110,7 @@
 	};
 
 	const init = async () => {
-		chatList = (await getChatListByUserId(localStorage.token, user.id, page, filter)) as ChatListItem[];
+		chatList = (await getChatListByUserId(getWorkspaceAuthToken(), user.id, page, filter)) as ChatListItem[];
 	};
 
 	$: if (show) {

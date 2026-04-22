@@ -52,7 +52,10 @@ export type ExecutionKernelHealthResponse = {
   service: "execution-kernel";
   generatedAt: string;
   authMode?: "localhost_only" | string;
+  deploymentScope?: "localhost_only_solo" | string;
+  maturity?: "phase3_scaffold" | string;
   storageKind?: "memory" | "file" | string;
+  durabilityTier?: "ephemeral_memory" | "local_file_snapshot" | string;
   statePath?: string | null;
   stateConfigured?: boolean;
   runtimeState?: "idle" | "running" | "blocked" | string;

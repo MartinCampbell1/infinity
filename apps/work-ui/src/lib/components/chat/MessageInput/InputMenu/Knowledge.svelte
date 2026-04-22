@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick, getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { decodeString } from '$lib/utils';
 	import { knowledge } from '$lib/stores';
@@ -15,6 +16,7 @@
 	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
 
 	const i18n = getContext('i18n');
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	type KnowledgeBaseItem = {
 		id: string;
@@ -90,7 +92,7 @@
 		selectedFileItemsLoading = true;
 
 		const res = await searchKnowledgeFilesById(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			selectedItem.id,
 			null,
 			null,
@@ -163,7 +165,7 @@
 
 	const getItemsPage = async () => {
 		itemsLoading = true;
-		const res = await getKnowledgeBases(localStorage.token, page).catch(() => {
+		const res = await getKnowledgeBases(getWorkspaceAuthToken(), page).catch(() => {
 			return null;
 		});
 

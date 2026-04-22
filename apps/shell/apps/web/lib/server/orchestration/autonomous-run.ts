@@ -28,6 +28,8 @@ import { resolveShellPublicOriginForLaunch } from "../control-plane/workspace/ro
 import { resolveInfinityRoot } from "./artifacts";
 import { buildOrchestrationId, nowIso } from "./shared";
 
+const AUTONOMOUS_PROOF_BRIEF_AUTHOR = "hermes-intake";
+
 function ensureDir(dirPath: string) {
   mkdirSync(dirPath, { recursive: true });
 }
@@ -351,6 +353,8 @@ export function upsertValidationProofRecord(
   draft: ControlPlaneState,
   initiativeId: string,
   params: {
+    autonomousOnePrompt: boolean;
+    manualStageProgression: boolean;
     previewReady: boolean;
     launchReady: boolean;
     handoffReady: boolean;
@@ -370,8 +374,8 @@ export function upsertValidationProofRecord(
   const next: AutonomousValidationProofRecord = {
     id: existing?.id ?? buildOrchestrationId("validation-proof"),
     runId: run.id,
-    autonomousOnePrompt: true,
-    manualStageProgression: false,
+    autonomousOnePrompt: params.autonomousOnePrompt,
+    manualStageProgression: params.manualStageProgression,
     previewReady: params.previewReady,
     launchReady: params.launchReady,
     handoffReady: params.handoffReady,
@@ -637,7 +641,19 @@ export function buildAutonomousValidationProof(
     return null;
   }
 
+  const latestBrief =
+    [...state.orchestration.briefs]
+      .filter((candidate) => candidate.initiativeId === initiativeId)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null;
+  const autonomousOnePrompt =
+    run.entryMode === "shell_chat" &&
+    run.automationMode === "autonomous" &&
+    latestBrief?.authoredBy?.trim() === AUTONOMOUS_PROOF_BRIEF_AUTHOR;
+  const manualStageProgression = run.manualStageProgression || !autonomousOnePrompt;
+
   return {
+    autonomousOnePrompt,
+    manualStageProgression,
     previewReady: preview?.healthStatus === "ready",
     launchReady:
       delivery.launchProofKind === "runnable_result" &&

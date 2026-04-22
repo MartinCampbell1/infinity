@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { onMount, getContext } from 'svelte';
 	import { v4 as uuidv4 } from 'uuid';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const i18n = getContext('i18n');
 
@@ -107,6 +108,7 @@
 	let editTerminalIdx: number | null = null;
 	let showDeleteTerminalConfirm = false;
 	let deleteTerminalIdx: number | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const addConnectionHandler = async (server: ToolServerConnection): Promise<void> => {
 		servers = [...(servers ?? []), server];
@@ -114,7 +116,7 @@
 	};
 
 	const updateHandler = async (): Promise<void> => {
-		const res = await setToolServerConnections(localStorage.token, {
+		const res = await setToolServerConnections(getWorkspaceAuthToken(), {
 			TOOL_SERVER_CONNECTIONS: servers
 		}).catch((err) => {
 			toast.error($i18n.t('Failed to save connections'));
@@ -127,7 +129,7 @@
 	};
 
 	const saveTerminalServers = async (): Promise<void> => {
-		const res = await setTerminalServerConnections(localStorage.token, {
+		const res = await setTerminalServerConnections(getWorkspaceAuthToken(), {
 			TERMINAL_SERVER_CONNECTIONS: terminalConnections
 		}).catch((err) => {
 			toast.error($i18n.t('Failed to save terminal servers'));
@@ -140,12 +142,12 @@
 			// Refresh the terminalServers store so changes are reflected immediately
 			// Preserve user direct terminals, refresh system terminals from backend
 			const existingDirectTerminals = ($terminalServers ?? []).filter((t) => !t.id);
-			const systemTerminals = await getTerminalServers(localStorage.token);
+			const systemTerminals = await getTerminalServers(getWorkspaceAuthToken());
 			const systemEntries = systemTerminals.map((t) => ({
 				id: t.id,
 				url: `${WEBUI_API_BASE_URL}/terminals/${t.id}`,
 				name: t.name,
-				key: localStorage.token
+				key: getWorkspaceAuthToken()
 			}));
 			terminalServers.set([...existingDirectTerminals, ...systemEntries]);
 		}
@@ -172,13 +174,13 @@
 	};
 
 	const loadConnections = async (): Promise<void> => {
-		const res = (await getToolServerConnections(localStorage.token)) as ToolServerConnectionsResponse;
+		const res = (await getToolServerConnections(getWorkspaceAuthToken())) as ToolServerConnectionsResponse;
 		servers = res?.TOOL_SERVER_CONNECTIONS ?? [];
 
 		// Load terminal server connections
 		try {
 			const terminalRes = (await getTerminalServerConnections(
-				localStorage.token
+				getWorkspaceAuthToken()
 			)) as TerminalServerConnectionsResponse;
 			terminalConnections = terminalRes?.TERMINAL_SERVER_CONNECTIONS ?? [];
 		} catch {

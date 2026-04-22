@@ -3,6 +3,7 @@
 	// @ts-nocheck
 	import { getContext, createEventDispatcher } from 'svelte';
 	import { fade } from 'svelte/transition';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const dispatch = createEventDispatcher();
 
@@ -58,6 +59,7 @@
 	let models = [];
 	let selectedModelIdx = 0;
 	let suggestionPrompts = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (selectedModels.length > 0) {
 		selectedModelIdx = models.length - 1;
@@ -79,11 +81,11 @@
 				<FolderTitle
 					folder={$selectedFolder}
 					onUpdate={async (folder) => {
-						await chats.set(await getChatList(localStorage.token, $currentChatPage));
+						await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 						currentChatPage.set(1);
 					}}
 					onDelete={async () => {
-						await chats.set(await getChatList(localStorage.token, $currentChatPage));
+						await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 						currentChatPage.set(1);
 
 						selectedFolder.set(null);
