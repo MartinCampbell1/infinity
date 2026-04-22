@@ -24,7 +24,7 @@ is closed on current evidence.
 
 The latest strict validation bundle is:
 
-- `/Users/martin/infinity/handoff-packets/validation/2026-04-21T23-37-59Z`
+- `/Users/martin/infinity/handoff-packets/validation/2026-04-22T00-24-50Z`
 
 Key evidence from that bundle:
 
@@ -56,13 +56,13 @@ Fresh current critic verdicts:
 ## Useful paths
 
 - latest strict bundle:
-  - `/Users/martin/infinity/handoff-packets/validation/2026-04-21T23-37-59Z`
+  - `/Users/martin/infinity/handoff-packets/validation/2026-04-22T00-24-50Z`
 - functional report:
-  - `/Users/martin/infinity/handoff-packets/validation/2026-04-21T23-37-59Z/functional-report.md`
+  - `/Users/martin/infinity/handoff-packets/validation/2026-04-22T00-24-50Z/functional-report.md`
 - final summary:
-  - `/Users/martin/infinity/handoff-packets/validation/2026-04-21T23-37-59Z/final-validation-summary.md`
+  - `/Users/martin/infinity/handoff-packets/validation/2026-04-22T00-24-50Z/final-validation-summary.md`
 - screenshot manifest:
-  - `/Users/martin/infinity/handoff-packets/validation/2026-04-21T23-37-59Z/screenshot-manifest.json`
+  - `/Users/martin/infinity/handoff-packets/validation/2026-04-22T00-24-50Z/screenshot-manifest.json`
 - git bundle:
   - `/Users/martin/Desktop/infinity-step10-go.bundle`
 - patch series:
