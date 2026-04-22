@@ -143,6 +143,14 @@ func latestAttemptTimestamp(attempt events.AttemptRecord) string {
 	return attempt.StartedAt
 }
 
+func parseAttemptTimestamp(value string) (time.Time, bool) {
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return parsed, true
+}
+
 func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 	svc.mu.RLock()
 	defer svc.mu.RUnlock()
@@ -166,7 +174,7 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 	attemptCounts := events.AttemptCounts{}
 	failedAttemptIDs := make([]string, 0)
 	var latestFailure *events.FailureSummary
-	var latestFailureAt string
+	var latestFailureAt time.Time
 	for _, attempt := range svc.attempts {
 		attemptCounts.Total += 1
 		switch attempt.Status {
@@ -178,8 +186,11 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 			attemptCounts.Failed += 1
 			failedAttemptIDs = append(failedAttemptIDs, attempt.ID)
 			attemptAt := latestAttemptTimestamp(attempt)
-			if latestFailure == nil || attemptAt > latestFailureAt {
-				latestFailureAt = attemptAt
+			parsedAttemptAt, ok := parseAttemptTimestamp(attemptAt)
+			if latestFailure == nil || (ok && (latestFailureAt.IsZero() || parsedAttemptAt.After(latestFailureAt))) {
+				if ok {
+					latestFailureAt = parsedAttemptAt
+				}
 				latestFailure = &events.FailureSummary{
 					AttemptID:    attempt.ID,
 					BatchID:      attempt.BatchID,

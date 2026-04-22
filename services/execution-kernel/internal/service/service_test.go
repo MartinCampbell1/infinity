@@ -177,6 +177,46 @@ func TestHealthReportsDurableAndRecoverableState(t *testing.T) {
 	}
 }
 
+func TestHealthLatestFailureUsesChronologicalOrdering(t *testing.T) {
+	t.Parallel()
+
+	svc := NewInMemory()
+
+	earlierFinishedAt := "2026-04-21T10:00:00.123456789Z"
+	laterFinishedAt := "2026-04-21T10:00:01Z"
+
+	svc.attempts["attempt-earlier"] = events.AttemptRecord{
+		ID:           "attempt-earlier",
+		BatchID:      stringPointer("batch-latest-failure"),
+		WorkUnitID:   "work-unit-earlier",
+		ExecutorType: "codex",
+		Status:       "failed",
+		StartedAt:    "2026-04-21T09:59:59Z",
+		FinishedAt:   stringPointer(laterFinishedAt),
+		ErrorCode:    stringPointer("LATER"),
+		ErrorSummary: stringPointer("later failure should win"),
+	}
+	svc.attempts["attempt-later"] = events.AttemptRecord{
+		ID:           "attempt-later",
+		BatchID:      stringPointer("batch-latest-failure"),
+		WorkUnitID:   "work-unit-later",
+		ExecutorType: "codex",
+		Status:       "failed",
+		StartedAt:    "2026-04-21T09:59:58Z",
+		FinishedAt:   stringPointer(earlierFinishedAt),
+		ErrorCode:    stringPointer("EARLIER"),
+		ErrorSummary: stringPointer("earlier failure should lose"),
+	}
+
+	health := svc.Health(context.Background())
+	if health.LatestFailure == nil {
+		t.Fatalf("expected latest failure to be populated")
+	}
+	if health.LatestFailure.AttemptID != "attempt-earlier" {
+		t.Fatalf("expected attempt-earlier to be latest failure, got %#v", health.LatestFailure)
+	}
+}
+
 func stringPointer(value string) *string {
 	return &value
 }
