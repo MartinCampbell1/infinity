@@ -6,10 +6,11 @@ Branch: `codex/infinity-step10-go`
 
 ## What landed
 
-This branch now includes two checkpoint commits that closed the hardening plan plus the later addendum:
+This branch now includes three checkpoint commits that closed the hardening plan, the later addendum, and the final repo-local handoff artifact:
 
 1. `b66958f` — `feat: complete solo-v1 hardening phases 1-8`
 2. `62f899a` — `feat: remove demo leakage and clean runtime restart health`
+3. `172458a` — `docs: add solo-v1 hardening handoff`
 
 ## Main outcomes
 
@@ -55,10 +56,11 @@ Recent green validation runs created during this work:
 
 ## Manual/live checks completed
 
-- shell root `/` answered as frontdoor
-- shell frontdoor one-prompt flow was started live from Safari
-- kernel health on committed state reported `status=ok`, `runtimeState=idle`, no live blocked/failed counts
-- localhost stack was shut down after checks; no persistent watcher/dev processes were intentionally left running
+- shell root `/` answered as the frontdoor on the committed state
+- shell frontdoor one-prompt flow was started live and produced a shell-owned run/session context
+- kernel health on committed state reported `status=ok`, `runtimeState=idle`, `recoveryState=archived`, `failureState=historical`, with zero live blocked/failed counts
+- the latest green full validation after the addendum is `handoff-packets/validation/2026-04-22T21-04-45Z`
+- localhost stack was repeatedly shut down after checks; no persistent watcher/dev processes were intentionally left running
 
 ## Non-blocking warnings still visible
 
