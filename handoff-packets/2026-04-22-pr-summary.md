@@ -20,13 +20,9 @@ Main outcomes:
 
 ## Commit stack
 
-- `44331ea` `feat: integrate strict shell-first execution frontend`
-- `38d1104` `fix: harden execution truth, auth seam, and validation gates`
-- `46fe7e3` `docs: add strict validation and release handoff artifacts`
-- `ed33ccd` `docs: refresh packaged branch status artifacts`
-- `997150f` `docs: record external transport artifact paths`
-- `93f6f87` `docs: sync packaged commit inventory`
-- `0a94b98` `docs: avoid self-referential packaged commit lists`
+- branch: `codex/infinity-step10-go`
+- inspect with:
+  - `git -C /Users/martin/infinity log --oneline --decorate -n 10`
 
 ## Verification
 
