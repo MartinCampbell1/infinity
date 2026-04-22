@@ -3,11 +3,7 @@ import type { FounderosLaunchContext } from '$lib/founderos';
 const DEFAULT_LOCAL_SHELL_ORIGIN = 'http://127.0.0.1:3737';
 const LOCAL_WORK_UI_ORIGINS = new Set([
 	'http://127.0.0.1:3101',
-	'http://localhost:3101',
-	'http://127.0.0.1:5050',
-	'http://localhost:5050',
-	'http://127.0.0.1:5173',
-	'http://localhost:5173'
+	'http://localhost:3101'
 ]);
 
 const trimOrigin = (value: string | null | undefined) => {

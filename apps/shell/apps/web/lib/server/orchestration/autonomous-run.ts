@@ -650,15 +650,16 @@ export function buildAutonomousValidationProof(
     run.automationMode === "autonomous" &&
     latestBrief?.authoredBy?.trim() === AUTONOMOUS_PROOF_BRIEF_AUTHOR;
   const manualStageProgression = run.manualStageProgression || !autonomousOnePrompt;
+  const launchReady =
+    delivery.launchProofKind === "runnable_result" &&
+    Boolean(delivery.launchProofAt && delivery.launchManifestPath);
 
   return {
     autonomousOnePrompt,
     manualStageProgression,
     previewReady: preview?.healthStatus === "ready",
-    launchReady:
-      delivery.launchProofKind === "runnable_result" &&
-      Boolean(delivery.launchProofAt && delivery.launchManifestPath),
-    handoffReady: handoff.status === "ready",
+    launchReady,
+    handoffReady: launchReady && handoff.status === "ready",
     launchManifestPath: delivery.launchManifestPath ?? null,
     launchProofUrl: delivery.launchProofUrl ?? null,
     eventTimelinePath,

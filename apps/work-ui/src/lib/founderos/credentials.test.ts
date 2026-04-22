@@ -13,6 +13,11 @@ describe('founderos embedded credentials', () => {
 	beforeEach(() => {
 		const storage = new Map<string, string>();
 		const sessionStorageState = new Map<string, string>();
+		vi.stubGlobal('window', {
+			location: {
+				href: 'http://localhost/'
+			}
+		});
 		vi.stubGlobal('localStorage', {
 			token: '',
 			getItem: (key: string) => storage.get(key) ?? null,
@@ -135,12 +140,34 @@ describe('founderos embedded credentials', () => {
 		});
 	});
 
+	test('fails closed in embedded mode when only a legacy browser token exists', () => {
+		(globalThis.window as { location: { href: string } }).location.href =
+			'http://localhost/workspace?embedded=1&project_id=project-1&session_id=session-1';
+		localStorage.token = 'legacy.browser.token';
+
+		expect(readFounderosEmbeddedSessionToken()).toBeNull();
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('');
+		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({});
+	});
+
 	test('fails closed in shell-issued session mode when embedded token is missing', () => {
 		localStorage.token = 'legacy.browser.token';
 
 		expect(
 			resolveFounderosEmbeddedAccessToken({
 				allowLegacyToken: false
+			})
+		).toBe('');
+	});
+
+	test('ignores explicit legacy-token allowance during embedded launch mode', () => {
+		(globalThis.window as { location: { href: string } }).location.href =
+			'http://localhost/workspace?founderos_launch=1&project_id=project-1&session_id=session-1';
+		localStorage.token = 'legacy.browser.token';
+
+		expect(
+			resolveFounderosEmbeddedAccessToken({
+				allowLegacyToken: true
 			})
 		).toBe('');
 	});

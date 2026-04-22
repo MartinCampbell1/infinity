@@ -277,6 +277,104 @@ func TestHealthTreatsReloadedBlockedStateAsHistorical(t *testing.T) {
 	}
 }
 
+func TestDiscardedBlockedStateStaysInspectableWithoutPoisoningHealth(t *testing.T) {
+	t.Parallel()
+
+	statePath := filepath.Join(t.TempDir(), "execution-kernel-discarded.json")
+	svc, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() error = %v", err)
+	}
+
+	launch, err := svc.LaunchBatch(context.Background(), events.LaunchBatchRequest{
+		BatchID:          "batch-discarded-001",
+		InitiativeID:     "initiative-discarded-001",
+		TaskGraphID:      "task-graph-discarded-001",
+		ConcurrencyLimit: 1,
+		WorkUnits: []events.WorkUnit{
+			{
+				ID:                 "work-unit-discarded-001",
+				Title:              "Discarded health",
+				Description:        "Keep discarded failures inspectable without retry pressure",
+				ExecutorType:       "codex",
+				ScopePaths:         []string{"/Users/martin/infinity/services/execution-kernel"},
+				Dependencies:       []string{},
+				AcceptanceCriteria: []string{"Discarded failures do not degrade fresh boots"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("LaunchBatch() error = %v", err)
+	}
+
+	if _, err := svc.FailAttempt(context.Background(), launch.Attempts[0].ID, events.AttemptActionRequest{
+		ErrorCode:    stringPointer("DISCARDED_FAILURE"),
+		ErrorSummary: stringPointer("discarded blocked tail"),
+	}); err != nil {
+		t.Fatalf("FailAttempt() error = %v", err)
+	}
+
+	discarded, err := svc.DiscardBatch(context.Background(), "batch-discarded-001")
+	if err != nil {
+		t.Fatalf("DiscardBatch() error = %v", err)
+	}
+	if discarded.Batch.RecoveryState != "discarded" {
+		t.Fatalf("expected discarded batch recovery state, got %s", discarded.Batch.RecoveryState)
+	}
+	if discarded.Attempts[0].RecoveryState != "discarded" {
+		t.Fatalf("expected discarded attempt recovery state, got %s", discarded.Attempts[0].RecoveryState)
+	}
+
+	reloaded, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() reload error = %v", err)
+	}
+
+	health := reloaded.Health(context.Background())
+	if health.Status != "ok" {
+		t.Fatalf("expected ok health after discard, got %s", health.Status)
+	}
+	if health.RuntimeState != "idle" {
+		t.Fatalf("expected idle runtime state after discard, got %s", health.RuntimeState)
+	}
+	if health.RecoveryState != "discarded" {
+		t.Fatalf("expected discarded recovery state after discard, got %s", health.RecoveryState)
+	}
+	if health.FailureState != "none" {
+		t.Fatalf("expected discarded failure state to be none, got %s", health.FailureState)
+	}
+	if health.BatchCounts.Blocked != 0 {
+		t.Fatalf("expected discarded batch to avoid live blocked counts, got %d", health.BatchCounts.Blocked)
+	}
+	if health.AttemptCounts.Failed != 0 {
+		t.Fatalf("expected discarded attempt to avoid live failed counts, got %d", health.AttemptCounts.Failed)
+	}
+	if len(health.BlockedBatchIDs) != 0 {
+		t.Fatalf("expected no live blocked batch ids after discard, got %#v", health.BlockedBatchIDs)
+	}
+	if len(health.FailedAttemptIDs) != 0 {
+		t.Fatalf("expected no live failed attempt ids after discard, got %#v", health.FailedAttemptIDs)
+	}
+	if len(health.ResumableBatchIDs) != 0 {
+		t.Fatalf("expected no resumable batch ids after discard, got %#v", health.ResumableBatchIDs)
+	}
+	if health.LatestFailure == nil || health.LatestFailure.AttemptID != launch.Attempts[0].ID {
+		t.Fatalf("expected latest failure to remain inspectable after discard, got %#v", health.LatestFailure)
+	}
+
+	detail, err := reloaded.BatchDetail(context.Background(), "batch-discarded-001")
+	if err != nil {
+		t.Fatalf("BatchDetail() error = %v", err)
+	}
+	if detail.Batch.RecoveryState != "discarded" {
+		t.Fatalf("expected discarded batch detail recovery state, got %s", detail.Batch.RecoveryState)
+	}
+
+	if _, err := reloaded.ResumeBatch(context.Background(), "batch-discarded-001"); err == nil {
+		t.Fatalf("expected discarded batch to reject resume")
+	}
+}
+
 func TestHealthLatestFailureUsesChronologicalOrdering(t *testing.T) {
 	t.Parallel()
 

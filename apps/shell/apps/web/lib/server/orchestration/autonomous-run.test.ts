@@ -140,4 +140,120 @@ describe("buildAutonomousValidationProof", () => {
     expect(proof?.launchReady).toBe(true);
     expect(proof?.handoffReady).toBe(true);
   });
+
+  test("does not mark handoff ready when runnable launch proof is missing", async () => {
+    const state = await readControlPlaneState();
+    const initiativeId = "initiative-proof-2";
+    const runId = "run-proof-2";
+
+    state.orchestration.initiatives = [
+      {
+        id: initiativeId,
+        title: "Partial delivery validation",
+        userRequest: "Validate partial delivery truth.",
+        requestedBy: "martin",
+        workspaceSessionId: null,
+        priority: "normal",
+        status: "verifying",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:00.000Z",
+      },
+    ];
+    state.orchestration.briefs = [
+      {
+        id: "brief-proof-2",
+        initiativeId,
+        summary: "Autonomous brief.",
+        goals: [],
+        nonGoals: [],
+        constraints: [],
+        assumptions: [],
+        acceptanceCriteria: [],
+        repoScope: [],
+        deliverables: [],
+        clarificationLog: [],
+        status: "approved",
+        authoredBy: "hermes-intake",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:01.000Z",
+      },
+    ];
+    state.orchestration.runs = [
+      {
+        id: runId,
+        initiativeId,
+        title: "Partial delivery validation",
+        originalPrompt: "Validate partial delivery truth.",
+        entryMode: "shell_chat",
+        currentStage: "preview_ready",
+        health: "degraded",
+        automationMode: "autonomous",
+        manualStageProgression: false,
+        operatorOverrideActive: false,
+        previewStatus: "ready",
+        handoffStatus: "building",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+        completedAt: null,
+      },
+    ];
+    state.orchestration.previewTargets = [
+      {
+        id: "preview-proof-2",
+        runId,
+        deliveryId: "delivery-proof-2",
+        mode: "local",
+        url: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-2",
+        healthStatus: "ready",
+        launchCommand: null,
+        sourcePath: "/tmp/preview.html",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.handoffPackets = [
+      {
+        id: "handoff-proof-2",
+        runId,
+        deliveryId: "delivery-proof-2",
+        status: "ready",
+        rootPath: "/tmp/delivery",
+        finalSummaryPath: "/tmp/delivery/final-summary.md",
+        manifestPath: "/tmp/delivery/manifest.json",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.deliveries = [
+      {
+        id: "delivery-proof-2",
+        initiativeId,
+        verificationRunId: "verification-proof-2",
+        taskGraphId: "task-graph-proof-2",
+        resultSummary:
+          "Attempt scaffold preview and handoff bundle were prepared, but the requested product is still unproven.",
+        localOutputPath: "/tmp/delivery",
+        manifestPath: "/tmp/delivery/delivery-manifest.json",
+        previewUrl: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-2",
+        launchManifestPath: "/tmp/delivery/launch-manifest.json",
+        launchProofKind: "attempt_scaffold",
+        launchTargetLabel: "Workspace launch scaffold",
+        launchProofUrl: null,
+        launchProofAt: null,
+        handoffNotes: "partial",
+        command: "python3 launch.py --port 0",
+        status: "pending",
+        deliveredAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+
+    const proof = buildAutonomousValidationProof(state, initiativeId);
+
+    expect(proof).toBeTruthy();
+    expect(proof?.autonomousOnePrompt).toBe(true);
+    expect(proof?.manualStageProgression).toBe(false);
+    expect(proof?.previewReady).toBe(true);
+    expect(proof?.launchReady).toBe(false);
+    expect(proof?.handoffReady).toBe(false);
+  });
 });

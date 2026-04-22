@@ -97,14 +97,8 @@ function formatResultState(
   ) {
     return "Runnable";
   }
-  if (delivery?.launchProofKind === "attempt_scaffold" && handoff?.status === "ready") {
-    return "Scaffold + handoff ready";
-  }
   if (delivery?.launchProofKind === "attempt_scaffold") {
     return "Scaffold only";
-  }
-  if (delivery?.launchProofKind === "synthetic_wrapper" && handoff?.status === "ready") {
-    return "Wrapper + handoff ready";
   }
   if (delivery?.launchProofKind === "synthetic_wrapper") {
     return "Wrapper only";

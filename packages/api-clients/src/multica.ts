@@ -87,6 +87,15 @@ export function createExecutionKernelClient(options: ExecutionKernelClientOption
       );
     },
 
+    discardBatch(batchId: string) {
+      return requestKernel<ExecutionKernelBatchEnvelope>(
+        baseUrl,
+        `/api/v1/batches/${encodeURIComponent(batchId)}/discard`,
+        { method: "POST" },
+        fetchImpl
+      );
+    },
+
     getAttempt(attemptId: string) {
       return requestKernel<ExecutionKernelAttemptEnvelope>(
         baseUrl,

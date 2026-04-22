@@ -1266,8 +1266,8 @@ def main() -> int:
         )
 
         wait_http(f"{kernel_origin}/healthz")
-        wait_http(f"{shell_origin}/execution")
-        wait_http(f"{work_origin}/auth")
+        wait_http(f"{shell_origin}/")
+        wait_http(f"{work_origin}/")
 
         with sync_playwright() as p:
             browser = p.chromium.launch(channel="chrome", headless=True)

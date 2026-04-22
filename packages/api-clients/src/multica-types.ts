@@ -29,6 +29,7 @@ export type ExecutionKernelBatchRecord = {
   workUnitIds: string[];
   concurrencyLimit: number;
   status: ExecutionKernelBatchStatus;
+  recoveryState?: "retryable" | "resolved" | "archived" | "discarded" | string;
   startedAt?: string | null;
   finishedAt?: string | null;
 };
@@ -39,6 +40,7 @@ export type ExecutionKernelAttemptRecord = {
   batchId?: string | null;
   executorType: "droid" | "codex" | "human";
   status: ExecutionKernelAttemptStatus;
+  recoveryState?: "retryable" | "resolved" | "archived" | "discarded" | string;
   startedAt: string;
   finishedAt?: string | null;
   summary?: string | null;
@@ -59,9 +61,9 @@ export type ExecutionKernelHealthResponse = {
   statePath?: string | null;
   stateConfigured?: boolean;
   runtimeState?: "idle" | "running" | "blocked" | string;
-  recoveryState?: "none" | "retryable" | string;
+  recoveryState?: "none" | "retryable" | "archived" | "discarded" | string;
   restartRecoverable?: boolean;
-  failureState?: "none" | "failed" | string;
+  failureState?: "none" | "failed" | "historical" | string;
   batchCounts?: {
     total: number;
     running: number;

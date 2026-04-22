@@ -5,7 +5,7 @@ import { PlaneWorkItemsShell } from "@/components/shell/plane-work-items-shell";
 import { readShellRouteScopeFromQueryRecord } from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
 import { buildSessionWorkspaceHostContext } from "../../lib/server/control-plane/workspace/launch";
-import { readWorkspaceLaunchSessionContext } from "../../lib/server/control-plane/workspace/mock";
+import { readWorkspaceLaunchSessionContext } from "../../lib/server/control-plane/workspace/session-context";
 import { listExecutionBatches } from "@/lib/server/orchestration/batches";
 import { listDeliveries } from "@/lib/server/orchestration/delivery";
 import { listOrchestrationInitiatives } from "@/lib/server/orchestration/initiatives";

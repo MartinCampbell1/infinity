@@ -355,7 +355,7 @@
 					{/if}
 
 					<div class="rounded-2xl border border-white/8 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
-						Use this page to inspect proof, rerun blocked steps, or recover a stalled result. The shell remains the primary place to continue the session.
+						Use this page only to inspect proof, replay blocked steps, or recover a stalled result. The shell remains the primary place to continue the session.
 					</div>
 
 					<div class="flex flex-wrap gap-3">
@@ -374,7 +374,7 @@
 							on:click={runVerification}
 							disabled={actionState === 'running' || !canVerify}
 						>
-							Run verification recovery
+							Replay verification as recovery
 						</button>
 						<button
 							type="button"
@@ -382,13 +382,13 @@
 							on:click={createDelivery}
 							disabled={actionState === 'running' || !canDeliver}
 						>
-							Create delivery recovery
+							Replay delivery as recovery
 						</button>
 						<a
 							class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900"
 							href={projectRunHref ?? '#'}
 						>
-							Open local run support view
+							Open local recovery run view
 						</a>
 						{#if !shellReturnHref && (batchShellHref || continuityShellHref || continuity)}
 							<a

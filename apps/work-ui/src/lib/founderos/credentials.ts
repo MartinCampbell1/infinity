@@ -9,6 +9,8 @@ export interface FounderosEmbeddedAccessTokenOptions {
 	allowLegacyToken?: boolean;
 }
 
+const isLaunchEnabled = (value: string | null) => value === '1' || value === 'true';
+
 const SESSION_TOKEN_STORAGE_KEY = 'founderos.workspace.sessionToken';
 const SESSION_GRANT_STORAGE_KEY = 'founderos.workspace.sessionGrant';
 let embeddedSessionTokenMemory: string | null = null;
@@ -21,6 +23,19 @@ const getSessionStorageBucket = (): StorageLike | null =>
 
 const getLegacyStorageBucket = (): StorageLike | null =>
 	typeof localStorage === 'undefined' ? null : localStorage;
+
+const isFounderosEmbeddedRuntime = () => {
+	if (typeof window === 'undefined') {
+		return false;
+	}
+
+	try {
+		const params = new URL(window.location.href).searchParams;
+		return isLaunchEnabled(params.get('embedded')) || isLaunchEnabled(params.get('founderos_launch'));
+	} catch {
+		return false;
+	}
+};
 
 const readStoredString = (storage: StorageLike | null, key: string): string | null => {
 	if (!storage) {
@@ -93,12 +108,14 @@ export const resolveFounderosEmbeddedAccessToken = (
 			: options && typeof options === 'object'
 				? (options.fallbackToken ?? null)
 				: null;
-	const allowLegacyToken =
+	const allowLegacyByOption =
 		typeof options === 'string'
-			? !shellIssuedSessionGrant
+			? true
 			: options && typeof options === 'object'
 				? options.allowLegacyToken !== false
-				: !shellIssuedSessionGrant;
+				: true;
+	const allowLegacyToken =
+		allowLegacyByOption && !shellIssuedSessionGrant && !isFounderosEmbeddedRuntime();
 	const embeddedToken = readFounderosEmbeddedSessionToken();
 	if (embeddedToken) {
 		return embeddedToken;

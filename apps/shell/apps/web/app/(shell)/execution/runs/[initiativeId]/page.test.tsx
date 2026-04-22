@@ -70,7 +70,7 @@ vi.mock("@/components/execution/primary-run-surface", () => ({
   ),
 }));
 
-vi.mock("../../../../../lib/server/control-plane/workspace/mock", () => ({
+vi.mock("../../../../../lib/server/control-plane/workspace/session-context", () => ({
   readWorkspaceLaunchSessionContext: vi.fn(async () => ({
     projectId: "project-1",
     projectName: "Atlas launch control plane",
@@ -290,7 +290,7 @@ vi.mock("@/lib/server/orchestration/task-graphs", () => ({
   })),
 }));
 
-import { readWorkspaceLaunchSessionContext } from "../../../../../lib/server/control-plane/workspace/mock";
+import { readWorkspaceLaunchSessionContext } from "../../../../../lib/server/control-plane/workspace/session-context";
 import { readShellRouteScopeFromQueryRecord } from "@/lib/route-scope";
 import { listOrchestrationInitiatives } from "@/lib/server/orchestration/initiatives";
 import Page from "./page";

@@ -282,7 +282,7 @@
 						{/if}
 
 						<div class="rounded-2xl border border-white/8 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
-							Use this page for operator support, inspection, or recovery overrides. The shell workspace remains the primary place to continue the run.
+							Use this page only for operator inspection, replay, or recovery overrides. The shell workspace remains the primary place to continue the run.
 						</div>
 
 						<div class="flex flex-wrap gap-3">
@@ -301,7 +301,7 @@
 								on:click={createAssembly}
 								disabled={actionState === 'running' || !canAssemble}
 							>
-								{assembly ? 'Refresh assembly recovery' : 'Create assembly recovery'}
+								{assembly ? 'Replay assembly as recovery' : 'Trigger assembly recovery'}
 							</button>
 							{#if batchShellHref && !shellReturnHref}
 								<a
@@ -316,7 +316,7 @@
 								class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900"
 								href={projectResultHref ?? '#'}
 							>
-								Open local result drill-down
+								Open local recovery result view
 							</a>
 						</div>
 					</section>
