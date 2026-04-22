@@ -6,6 +6,8 @@
   "packaged_commits_note": "Inspect the current packaged branch tip with `git -C /Users/martin/infinity log --oneline --decorate -n 10`.",
   "remote_repo": "https://github.com/MartinCampbell1/infinity",
   "draft_pr_url": "https://github.com/MartinCampbell1/infinity/pull/1",
+  "clean_history_branch": "codex/infinity-step10-go-clean",
+  "clean_history_pr_url": "https://github.com/MartinCampbell1/infinity/pull/2",
   "checklist_path": "/Users/martin/infinity/2026-04-21-infinity-strict-remaining-work-checklist-with-claude-design-frontend-integration.md",
   "step10_status": "go",
   "latest_strict_bundle": "/Users/martin/infinity/handoff-packets/validation/2026-04-22T00-59-30Z",
@@ -32,5 +34,5 @@
   },
   "stack_left_running": false,
   "worktree_clean": true,
-  "git_remote_configured": false
+  "git_remote_configured": true
 }
