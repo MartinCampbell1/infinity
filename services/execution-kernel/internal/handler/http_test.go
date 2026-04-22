@@ -29,6 +29,15 @@ func TestKernelHealthAndBatchLifecycle(t *testing.T) {
 	if healthBody["status"] != "ok" {
 		t.Fatalf("expected health status ok, got %#v", healthBody["status"])
 	}
+	if _, ok := healthBody["recoveryHint"]; !ok {
+		t.Fatalf("expected health response to include recoveryHint")
+	}
+	if _, ok := healthBody["blockedBatchIds"]; !ok {
+		t.Fatalf("expected health response to include blockedBatchIds")
+	}
+	if _, ok := healthBody["failedAttemptIds"]; !ok {
+		t.Fatalf("expected health response to include failedAttemptIds")
+	}
 
 	launchBody := map[string]any{
 		"batchId":          "batch-001",
@@ -96,5 +105,21 @@ func TestKernelHealthAndBatchLifecycle(t *testing.T) {
 	handler.ServeHTTP(attemptRecorder, attemptRequest)
 	if attemptRecorder.Code != http.StatusOK {
 		t.Fatalf("expected 200 from attempt detail, got %d", attemptRecorder.Code)
+	}
+
+	failBody := bytes.NewBufferString(`{"errorSummary":"resume smoke","errorCode":"RESUME"}`)
+	failRequest := httptest.NewRequest(http.MethodPost, "/api/v1/attempts/attempt-batch-001-work-unit-001/fail", failBody)
+	failRequest.Header.Set("content-type", "application/json")
+	failRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(failRecorder, failRequest)
+	if failRecorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 from attempt fail, got %d", failRecorder.Code)
+	}
+
+	resumeRequest := httptest.NewRequest(http.MethodPost, "/api/v1/batches/batch-001/resume", nil)
+	resumeRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(resumeRecorder, resumeRequest)
+	if resumeRecorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 from batch resume, got %d with body %s", resumeRecorder.Code, resumeRecorder.Body.String())
 	}
 }

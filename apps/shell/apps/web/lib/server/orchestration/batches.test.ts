@@ -52,6 +52,11 @@ describe("getExecutionKernelAvailability", () => {
         recoveryState: null,
         restartRecoverable: null,
         failureState: null,
+        blockedBatchIds: null,
+        failedAttemptIds: null,
+        resumableBatchIds: null,
+        latestFailure: null,
+        recoveryHint: null,
       });
     } finally {
       await new Promise<void>((resolve, reject) =>
@@ -91,6 +96,19 @@ describe("getExecutionKernelAvailability", () => {
             recoveryState: "retryable",
             restartRecoverable: true,
             failureState: "failed",
+            blockedBatchIds: ["batch-health-001"],
+            failedAttemptIds: ["attempt-health-001"],
+            resumableBatchIds: ["batch-health-001"],
+            latestFailure: {
+              attemptId: "attempt-health-001",
+              batchId: "batch-health-001",
+              workUnitId: "work-unit-health-001",
+              errorCode: "HEALTH_CHECK",
+              errorSummary: "blocked for health snapshot",
+              finishedAt: "2026-04-20T12:00:00.000Z",
+            },
+            recoveryHint:
+              "Restart the kernel if needed, then retry blocked batches from the shell: batch-health-001.",
             detail:
               "execution-kernel is reachable with localhost-only auth, file-backed state configured=true, runtime blocked, recovery retryable, restart-recoverable true, 1 blocked batch(es), and 1 failed attempt(s).",
           })
@@ -113,6 +131,11 @@ describe("getExecutionKernelAvailability", () => {
       expect(availability.recoveryState).toBe("retryable");
       expect(availability.restartRecoverable).toBe(true);
       expect(availability.failureState).toBe("failed");
+      expect(availability.blockedBatchIds).toEqual(["batch-health-001"]);
+      expect(availability.failedAttemptIds).toEqual(["attempt-health-001"]);
+      expect(availability.resumableBatchIds).toEqual(["batch-health-001"]);
+      expect(availability.latestFailure?.errorCode).toBe("HEALTH_CHECK");
+      expect(availability.recoveryHint).toContain("retry blocked batches");
       expect(availability.detail).toContain("runtime blocked");
       expect(availability.detail).toContain("recovery retryable");
       expect(availability.detail).toContain("restart-recoverable true");

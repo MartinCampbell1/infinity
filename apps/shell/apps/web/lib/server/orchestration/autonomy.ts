@@ -369,3 +369,28 @@ export async function runAutonomousLoopSafely(initiativeId?: string | null) {
     return false;
   }
 }
+
+function shouldRunAutonomousLoopInline() {
+  return process.env.NODE_ENV === "test" || Boolean(process.env.VITEST);
+}
+
+export async function triggerAutonomousLoopSafely(initiativeId?: string | null) {
+  if (!initiativeId) {
+    return false;
+  }
+
+  if (shouldRunAutonomousLoopInline()) {
+    return runAutonomousLoopSafely(initiativeId);
+  }
+
+  setTimeout(() => {
+    void runAutonomousLoopSafely(initiativeId).catch((error) => {
+      console.error("Autonomous orchestration loop trigger failed", {
+        initiativeId,
+        error,
+      });
+    });
+  }, 0);
+
+  return false;
+}

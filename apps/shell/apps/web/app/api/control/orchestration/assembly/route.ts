@@ -4,7 +4,7 @@ import {
   buildAssembliesDirectoryResponse,
   createAssembly,
 } from "../../../../../lib/server/orchestration/assembly";
-import { runAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
+import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateAssemblyRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     );
   }
 
-  await runAutonomousLoopSafely(response.assembly.initiativeId);
+  await triggerAutonomousLoopSafely(response.assembly.initiativeId);
 
   return NextResponse.json(response, { status: 201 });
 }

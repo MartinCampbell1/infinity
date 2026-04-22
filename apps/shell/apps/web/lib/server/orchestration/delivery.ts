@@ -21,7 +21,7 @@ import {
   upsertPreviewTargetRecord,
   upsertValidationProofRecord,
 } from "./autonomous-run";
-import { readRunnableAttemptTarget } from "./attempt-artifacts";
+import { materializeAttemptArtifacts, readRunnableAttemptTarget } from "./attempt-artifacts";
 import { listAssemblies } from "./assembly";
 import { resolveOrchestrationDeliveriesRoot, writeDeliveryManifest } from "./artifacts";
 import { listVerifications } from "./verification";
@@ -118,6 +118,14 @@ async function findRunnableAttemptTarget(
     if (!workUnit.latestAttemptId) {
       continue;
     }
+
+    materializeAttemptArtifacts({
+      initiativeId,
+      taskGraphId,
+      batchId: null,
+      workUnit,
+      attemptId: workUnit.latestAttemptId,
+    });
 
     const target = readRunnableAttemptTarget({
       initiativeId,
@@ -289,6 +297,10 @@ async function buildDeliveryFields(
     assembly?.taskGraphId
       ? await findRunnableAttemptTarget(initiativeId, assembly.taskGraphId)
       : null;
+  const scaffoldOnlyTarget =
+    runnableTarget && runnableTarget.launchProofKind === "attempt_scaffold";
+  const realRunnableTarget =
+    runnableTarget && runnableTarget.launchProofKind === "runnable_result";
   const previewHtml = [
     "<!doctype html>",
     '<html lang="en">',
@@ -297,26 +309,107 @@ async function buildDeliveryFields(
     `  <title>Infinity Preview ${deliveryId}</title>`,
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
     "  <style>",
-    "    body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #f4efe6; color: #111827; }",
-    "    main { max-width: 760px; margin: 48px auto; padding: 32px; background: rgba(255,255,255,0.92); border: 1px solid rgba(15,23,42,0.08); border-radius: 28px; box-shadow: 0 18px 48px rgba(15,23,42,0.08); }",
-    "    h1 { margin: 0 0 12px; font-size: 30px; }",
-    "    p, li { font-size: 15px; line-height: 1.7; }",
-    "    code { background: rgba(15,23,42,0.06); border-radius: 999px; padding: 2px 8px; }",
-    "    ul { padding-left: 20px; }",
+    "    :root { color-scheme: dark; }",
+    "    * { box-sizing: border-box; }",
+    "    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f12; color: #edf0f3; }",
+    "    .frame { min-height: 100vh; padding: 28px; background: #0d0f12; }",
+    "    .shell { border: 1px solid rgba(255,255,255,0.08); border-radius: 22px; overflow: hidden; background: #111315; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }",
+    "    .topbar { display:flex; align-items:center; gap:10px; padding: 12px 16px; border-bottom:1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); }",
+    "    .dot { width: 8px; height: 8px; border-radius: 999px; background: rgba(255,255,255,0.14); }",
+    "    .url { flex:1; display:flex; align-items:center; gap:8px; min-width:0; padding: 8px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:999px; background: rgba(255,255,255,0.03); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: rgba(255,255,255,0.72); }",
+    "    .live { width: 7px; height: 7px; border-radius: 999px; background: #49d18d; box-shadow: 0 0 8px rgba(73,209,141,0.45); }",
+    "    .content { padding: 24px; display:grid; gap: 18px; }",
+    "    .eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: 0.18em; color: rgba(255,255,255,0.45); }",
+    "    .hero { display:grid; gap: 16px; grid-template-columns: 1.15fr 0.85fr; }",
+    "    .panel { border:1px solid rgba(255,255,255,0.08); border-radius: 18px; background: rgba(255,255,255,0.025); padding: 20px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }",
+    "    .title { margin: 10px 0 0; font-size: 30px; line-height: 1.08; letter-spacing: -0.05em; }",
+    "    .body { margin-top: 12px; font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.64); }",
+    "    .badge-row { display:flex; flex-wrap:wrap; gap: 8px; margin-top: 14px; }",
+    "    .badge { display:inline-flex; align-items:center; gap:6px; padding: 5px 10px; border-radius: 999px; border:1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); font-size: 11px; color: rgba(255,255,255,0.76); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }",
+    "    .badge-ready { border-color: rgba(73,209,141,0.22); background: rgba(73,209,141,0.12); color: #bef0d6; }",
+    "    .badge-warn { border-color: rgba(245,158,11,0.22); background: rgba(245,158,11,0.12); color: #fde3b5; }",
+    "    .metric-strip { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); border:1px solid rgba(73,209,141,0.18); background: rgba(73,209,141,0.05); border-radius: 16px; overflow:hidden; }",
+    "    .metric { padding: 14px 16px; border-right: 1px solid rgba(73,209,141,0.14); }",
+    "    .metric:last-child { border-right: none; }",
+    "    .metric .k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: rgba(190,240,214,0.62); }",
+    "    .metric .v { margin-top: 8px; font-size: 20px; font-weight: 700; letter-spacing: -0.03em; }",
+    "    .metric .d { margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.54); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }",
+    "    .grid { display:grid; gap: 16px; grid-template-columns: 1.1fr 0.9fr; }",
+    "    .list { display:grid; gap: 10px; }",
+    "    .list-row { border:1px solid rgba(255,255,255,0.06); border-radius: 12px; background: rgba(255,255,255,0.02); padding: 12px 14px; }",
+    "    .list-row .k { font-size:10px; text-transform: uppercase; letter-spacing:0.14em; color: rgba(255,255,255,0.45); }",
+    "    .list-row .v { margin-top: 6px; font-size: 12px; line-height: 1.7; color: rgba(255,255,255,0.76); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }",
+    "    .summary { display:grid; gap: 10px; }",
+    "    .summary-row { display:grid; grid-template-columns: 110px 90px 1fr; gap: 12px; align-items:center; border:1px solid rgba(255,255,255,0.06); border-radius: 12px; background: rgba(255,255,255,0.02); padding: 10px 12px; }",
+    "    .summary-row .a { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: rgba(255,255,255,0.82); }",
+    "    .summary-row .b { font-size: 11px; color: #bef0d6; }",
+    "    .summary-row .c { font-size: 10.5px; color: rgba(255,255,255,0.48); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }",
+    "    @media (max-width: 900px) { .hero, .grid { grid-template-columns: 1fr; } .metric-strip { grid-template-columns: 1fr 1fr; } }",
     "  </style>",
     "</head>",
     "<body>",
-    "  <main>",
-    '    <div style="text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: #6b7280;">Infinity Local Preview</div>',
-    `    <h1>Delivery ${deliveryId}</h1>`,
-    `    <p>This local preview was generated by the shell-owned autonomous loop for <code>${initiativeId}</code>.</p>`,
-    "    <ul>",
-    `      <li>Verification: <code>${verificationId}</code></li>`,
-    `      <li>Assembly: <code>${assembly?.id ?? "n/a"}</code></li>`,
-    `      <li>Assembly output: <code>${assembly?.outputLocation ?? "n/a"}</code></li>`,
-    "    </ul>",
-    `    <p>This bundle exposes a shell-generated evidence wrapper.${runnableTarget ? ` The actual runnable target is <code>${runnableTarget.launchTargetLabel}</code>.` : " It does not prove that the actual product result is runnable yet."}</p>`,
-    "  </main>",
+    '  <div class="frame">',
+    '    <main class="shell">',
+    '      <div class="topbar">',
+    '        <span class="dot"></span><span class="dot"></span><span class="dot"></span>',
+    '        <div class="url"><span class="live"></span><span>localhost wrapper preview</span></div>',
+    '        <span style="font-size:11px;color:rgba(255,255,255,0.48);font-family:ui-monospace, SFMono-Regular, Menlo, monospace;">shell evidence</span>',
+    "      </div>",
+    '      <div class="content">',
+    '        <div class="eyebrow">Infinity Local Preview</div>',
+    '        <div class="hero">',
+    '          <section class="panel">',
+    `            <div class="title">Delivery ${deliveryId}</div>`,
+    `            <div class="body">This shell-generated wrapper exposes local delivery evidence for <strong style="color:#fff;font-weight:600;">${initiativeId}</strong>.${
+      realRunnableTarget
+        ? ` A real runnable target was detected as <strong style="color:#fff;font-weight:600;">${runnableTarget.launchTargetLabel}</strong>.`
+        : scaffoldOnlyTarget
+          ? ` An attempt scaffold was detected as <strong style="color:#fff;font-weight:600;">${runnableTarget.launchTargetLabel}</strong>, but it does not prove the requested product is runnable yet.`
+          : " It does not prove that the actual product result is runnable yet."
+    }</div>`,
+    '            <div class="badge-row">',
+    '              <span class="badge badge-warn">wrapper evidence</span>',
+    '              <span class="badge badge-ready">verification linked</span>',
+    '              <span class="badge">handoff packet ready</span>',
+    "            </div>",
+    "          </section>",
+    '          <section class="panel">',
+    '            <div class="eyebrow">Wrapper notes</div>',
+    '            <div class="body" style="margin-top:10px;">Review the linked manifest, preview wrapper, and handoff bundle before any manual publish or release step.</div>',
+    "          </section>",
+    "        </div>",
+    '        <div class="metric-strip">',
+    '          <div class="metric"><div class="k">Status</div><div class="v">Pending</div><div class="d">wrapper evidence</div></div>',
+    '          <div class="metric"><div class="k">Verification</div><div class="v">Passed</div><div class="d">linked</div></div>',
+    '          <div class="metric"><div class="k">Artifacts</div><div class="v">Ready</div><div class="d">manifest + handoff</div></div>',
+    `          <div class="metric"><div class="k">Target</div><div class="v">${
+      realRunnableTarget ? "Runnable" : scaffoldOnlyTarget ? "Scaffold" : "Wrapper"
+    }</div><div class="d">${runnableTarget?.launchTargetLabel ?? "shell evidence wrapper"}</div></div>`,
+    "        </div>",
+    '        <div class="grid">',
+    '          <section class="panel">',
+    '            <div class="eyebrow">Changed files</div>',
+    '            <div class="list" style="margin-top:12px;">',
+    `              <div class="list-row"><div class="k">Preview</div><div class="v">${previewPath}</div></div>`,
+    `              <div class="list-row"><div class="k">Launch manifest</div><div class="v">${wrapperLaunchManifestPath}</div></div>`,
+    `              <div class="list-row"><div class="k">Handoff</div><div class="v">${path.join(localOutputPath, "HANDOFF.md")}</div></div>`,
+    "            </div>",
+    "          </section>",
+    '          <section class="panel">',
+    '            <div class="eyebrow">Validation</div>',
+    '            <div class="summary" style="margin-top:12px;">',
+    `              <div class="summary-row"><div class="a">verification</div><div class="b">passed</div><div class="c">${verificationId}</div></div>`,
+    `              <div class="summary-row"><div class="a">assembly</div><div class="b">assembled</div><div class="c">${assembly?.id ?? "n/a"}</div></div>`,
+    `              <div class="summary-row"><div class="a">output</div><div class="b">ready</div><div class="c">${assembly?.outputLocation ?? "n/a"}</div></div>`,
+    `              <div class="summary-row"><div class="a">proof</div><div class="b">${
+      realRunnableTarget ? "runnable" : scaffoldOnlyTarget ? "scaffold" : "wrapper"
+    }</div><div class="c">${runnableTarget?.launchTargetLabel ?? "shell wrapper"}</div></div>`,
+    "            </div>",
+    "          </section>",
+    "        </div>",
+    "      </div>",
+    "    </main>",
+    "  </div>",
     "</body>",
     "</html>",
   ].join("\n");
@@ -346,8 +439,8 @@ async function buildDeliveryFields(
     workingDirectory: localOutputPath,
     entryPath: "/preview.html",
     expectedMarker: LOCALHOST_PROOF_MARKER,
-    targetKind: launchProofKind,
-    targetLabel: launchTargetLabel,
+    targetKind: "synthetic_wrapper",
+    targetLabel: "Shell wrapper preview",
     command: wrapperLaunchCommand,
     shellCommand: wrapperLaunchShellCommand,
     proof: wrapperLaunchProof
@@ -434,18 +527,28 @@ async function buildDeliveryFields(
       2
     )
   );
+  const durablePreviewPath =
+    runnableTarget && launchProof
+      ? path.join(
+          runnableTarget.workingDirectory,
+          runnableTarget.entryPath.replace(/^\/+/, "")
+        )
+      : previewPath;
 
   return {
     localOutputPath,
     manifestPath: path.join(localOutputPath, "delivery-manifest.json"),
-    previewPath,
+    previewPath: durablePreviewPath,
     launchManifestPath,
     launchProofKind,
     launchTargetLabel,
     handoffSummaryPath,
     handoffManifestPath,
-    handoffNotes:
-      "Review the linked assembly manifest, shell evidence wrapper, and handoff bundle before any manual publish or release step. A real runnable result still needs separate proof.",
+    handoffNotes: realRunnableTarget
+      ? "Review the linked assembly manifest, runnable result, and handoff bundle before any manual publish or release step."
+      : scaffoldOnlyTarget
+        ? "Review the linked assembly manifest, attempt scaffold, and handoff bundle before any manual publish or release step. A real runnable result still needs separate proof."
+        : "Review the linked assembly manifest, shell evidence wrapper, and handoff bundle before any manual publish or release step. A real runnable result still needs separate proof.",
     command: launchShellCommand,
     launchProofUrl: launchProof?.url ?? null,
     launchProofAt: launchProof?.observedAt ?? null,
@@ -462,28 +565,26 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     return null;
   }
 
-  const existing = (await listDeliveries({ initiativeId: input.initiativeId }))[0];
-  if (existing && existing.verificationRunId === verification.id) {
-    const assembly =
-      (await listAssemblies({ initiativeId: input.initiativeId })).find(
-        (candidate) => candidate.id === verification.assemblyId
-      ) ?? null;
-    return {
-      ...(await buildOrchestrationDirectoryMeta([
-        `Delivery ${existing.id} already exists for initiative ${input.initiativeId}.`,
-      ])),
-      delivery: existing,
-      verification,
-      assembly,
-    };
-  }
-
   const assembly =
     (await listAssemblies({ initiativeId: input.initiativeId })).find(
       (candidate) => candidate.id === verification.assemblyId
     ) ?? null;
   if (!assembly) {
     return null;
+  }
+  const existingDelivery =
+    (await listDeliveries({ initiativeId: input.initiativeId })).find(
+      (candidate) => candidate.verificationRunId === verification.id
+    ) ?? null;
+  if (existingDelivery) {
+    return {
+      ...(await buildOrchestrationDirectoryMeta([
+        `Delivery ${existingDelivery.id} already exists for initiative ${input.initiativeId}.`,
+      ])),
+      delivery: existingDelivery,
+      verification,
+      assembly,
+    };
   }
   const occurredAt = nowIso();
   const deliveryId = buildOrchestrationId("delivery");
@@ -505,7 +606,9 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     resultSummary:
       launchReady
         ? "Runnable localhost delivery bundle backed by verified assembly evidence."
-        : `Evidence wrapper and handoff bundle were prepared for initiative ${input.initiativeId}, but the actual runnable result is still unproven.`,
+        : fields.launchProofKind === "attempt_scaffold"
+          ? `Attempt scaffold preview and handoff bundle were prepared for initiative ${input.initiativeId}, but the requested product is still unproven as a real runnable result.`
+          : `Evidence wrapper and handoff bundle were prepared for initiative ${input.initiativeId}, but the actual runnable result is still unproven.`,
     localOutputPath: fields.localOutputPath,
     manifestPath: fields.manifestPath,
     previewUrl: null,
@@ -536,7 +639,16 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
       status: "ready",
     });
     delivery.previewUrl = preview?.url ?? null;
-    draft.orchestration.deliveries = [delivery, ...draft.orchestration.deliveries];
+    draft.orchestration.deliveries = [
+      delivery,
+      ...draft.orchestration.deliveries.filter(
+        (candidate) =>
+          !(
+            candidate.initiativeId === input.initiativeId &&
+            candidate.verificationRunId === verification.id
+          )
+      ),
+    ];
     draft.orchestration.initiatives = draft.orchestration.initiatives.map((initiative) =>
       initiative.id === input.initiativeId
         ? {
@@ -566,7 +678,9 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
       stage: launchReady ? "preview_ready" : preview ? "preview_ready" : "delivering",
       summary: launchReady
         ? `Delivery ${delivery.id} is ready with localhost launch proof.`
-        : `Delivery ${delivery.id} has shell wrapper evidence and handoff metadata, but no real runnable result proof yet.`,
+        : fields.launchProofKind === "attempt_scaffold"
+          ? `Delivery ${delivery.id} has attempt scaffold evidence and handoff metadata, but no real runnable result proof yet.`
+          : `Delivery ${delivery.id} has shell wrapper evidence and handoff metadata, but no real runnable result proof yet.`,
       payload: {
         deliveryId: delivery.id,
         localOutputPath: delivery.localOutputPath,
@@ -582,7 +696,9 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
         stage: launchReady ? "preview_ready" : "preview_ready",
         summary: launchReady
           ? `Preview ${preview.id} is ready.`
-          : `Preview ${preview.id} is available as shell evidence wrapper only.`,
+          : fields.launchProofKind === "attempt_scaffold"
+            ? `Preview ${preview.id} is available as attempt scaffold evidence only.`
+            : `Preview ${preview.id} is available as shell evidence wrapper only.`,
         payload: {
           previewId: preview.id,
           url: preview.url,

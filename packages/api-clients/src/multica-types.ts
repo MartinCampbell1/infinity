@@ -71,6 +71,18 @@ export type ExecutionKernelHealthResponse = {
     succeeded: number;
     failed: number;
   };
+  blockedBatchIds?: string[];
+  failedAttemptIds?: string[];
+  resumableBatchIds?: string[];
+  latestFailure?: {
+    attemptId: string;
+    batchId?: string | null;
+    workUnitId: string;
+    errorCode?: string | null;
+    errorSummary?: string | null;
+    finishedAt?: string | null;
+  } | null;
+  recoveryHint?: string;
   detail?: string;
 };
 

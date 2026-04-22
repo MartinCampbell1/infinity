@@ -46,6 +46,18 @@ export type ExecutionKernelAvailability = {
   recoveryState?: string | null;
   restartRecoverable?: boolean | null;
   failureState?: string | null;
+  blockedBatchIds?: string[] | null;
+  failedAttemptIds?: string[] | null;
+  resumableBatchIds?: string[] | null;
+  latestFailure?: {
+    attemptId: string;
+    batchId?: string | null;
+    workUnitId: string;
+    errorCode?: string | null;
+    errorSummary?: string | null;
+    finishedAt?: string | null;
+  } | null;
+  recoveryHint?: string | null;
 };
 
 function cloneBatch(value: ExecutionBatchRecord) {
@@ -85,6 +97,11 @@ export async function getExecutionKernelAvailability(): Promise<ExecutionKernelA
       recoveryState: health.recoveryState ?? null,
       restartRecoverable: health.restartRecoverable ?? null,
       failureState: health.failureState ?? null,
+      blockedBatchIds: health.blockedBatchIds ?? null,
+      failedAttemptIds: health.failedAttemptIds ?? null,
+      resumableBatchIds: health.resumableBatchIds ?? null,
+      latestFailure: health.latestFailure ?? null,
+      recoveryHint: health.recoveryHint ?? null,
     };
   } catch (error) {
     const cause =
@@ -111,6 +128,11 @@ export async function getExecutionKernelAvailability(): Promise<ExecutionKernelA
       recoveryState: null,
       restartRecoverable: null,
       failureState: null,
+      blockedBatchIds: null,
+      failedAttemptIds: null,
+      resumableBatchIds: null,
+      latestFailure: null,
+      recoveryHint: null,
     };
   }
 }

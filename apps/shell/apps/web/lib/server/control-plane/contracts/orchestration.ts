@@ -450,7 +450,10 @@ export interface CreateVerificationRequest {
 }
 
 export type DeliveryStatus = "pending" | "ready" | "delivered" | "rejected";
-export type DeliveryLaunchProofKind = "synthetic_wrapper" | "runnable_result";
+export type DeliveryLaunchProofKind =
+  | "synthetic_wrapper"
+  | "attempt_scaffold"
+  | "runnable_result";
 
 export const DELIVERY_STATUS_FLOW = [
   "pending",

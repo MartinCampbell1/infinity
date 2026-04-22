@@ -67,6 +67,23 @@ func TestFileBackedServiceRestoresPersistedState(t *testing.T) {
 	if batch.Attempts[0].ErrorSummary == nil || *batch.Attempts[0].ErrorSummary != "persistence smoke" {
 		t.Fatalf("expected persisted error summary, got %#v", batch.Attempts[0].ErrorSummary)
 	}
+
+	resumed, err := reloaded.ResumeBatch(context.Background(), "batch-persisted-001")
+	if err != nil {
+		t.Fatalf("ResumeBatch() error = %v", err)
+	}
+	if resumed.Batch.Status != "running" {
+		t.Fatalf("expected resumed batch to be running, got %s", resumed.Batch.Status)
+	}
+	if len(resumed.Attempts) != 1 {
+		t.Fatalf("expected one resumed attempt, got %d", len(resumed.Attempts))
+	}
+	if resumed.Attempts[0].Status != "started" {
+		t.Fatalf("expected resumed attempt to be started, got %s", resumed.Attempts[0].Status)
+	}
+	if resumed.Attempts[0].ErrorSummary != nil {
+		t.Fatalf("expected resumed attempt error summary to clear, got %#v", resumed.Attempts[0].ErrorSummary)
+	}
 }
 
 func TestHealthReportsDurableAndRecoverableState(t *testing.T) {
@@ -139,6 +156,64 @@ func TestHealthReportsDurableAndRecoverableState(t *testing.T) {
 	}
 	if health.AttemptCounts.Failed != 1 {
 		t.Fatalf("expected one failed attempt, got %d", health.AttemptCounts.Failed)
+	}
+	if len(health.BlockedBatchIDs) != 1 || health.BlockedBatchIDs[0] != "batch-health-001" {
+		t.Fatalf("expected blocked batch ids to include batch-health-001, got %#v", health.BlockedBatchIDs)
+	}
+	if len(health.FailedAttemptIDs) != 1 || health.FailedAttemptIDs[0] != launch.Attempts[0].ID {
+		t.Fatalf("expected failed attempt ids to include %s, got %#v", launch.Attempts[0].ID, health.FailedAttemptIDs)
+	}
+	if len(health.ResumableBatchIDs) != 1 || health.ResumableBatchIDs[0] != "batch-health-001" {
+		t.Fatalf("expected resumable batch ids to include batch-health-001, got %#v", health.ResumableBatchIDs)
+	}
+	if health.LatestFailure == nil || health.LatestFailure.AttemptID != launch.Attempts[0].ID {
+		t.Fatalf("expected latest failure to reference %s, got %#v", launch.Attempts[0].ID, health.LatestFailure)
+	}
+	if health.LatestFailure.ErrorCode == nil || *health.LatestFailure.ErrorCode != "HEALTH_CHECK" {
+		t.Fatalf("expected latest failure error code HEALTH_CHECK, got %#v", health.LatestFailure)
+	}
+	if health.RecoveryHint == "" {
+		t.Fatalf("expected a recovery hint for degraded runtime")
+	}
+}
+
+func TestHealthLatestFailureUsesChronologicalOrdering(t *testing.T) {
+	t.Parallel()
+
+	svc := NewInMemory()
+
+	earlierFinishedAt := "2026-04-21T10:00:00.123456789Z"
+	laterFinishedAt := "2026-04-21T10:00:01Z"
+
+	svc.attempts["attempt-earlier"] = events.AttemptRecord{
+		ID:           "attempt-earlier",
+		BatchID:      stringPointer("batch-latest-failure"),
+		WorkUnitID:   "work-unit-earlier",
+		ExecutorType: "codex",
+		Status:       "failed",
+		StartedAt:    "2026-04-21T09:59:59Z",
+		FinishedAt:   stringPointer(laterFinishedAt),
+		ErrorCode:    stringPointer("LATER"),
+		ErrorSummary: stringPointer("later failure should win"),
+	}
+	svc.attempts["attempt-later"] = events.AttemptRecord{
+		ID:           "attempt-later",
+		BatchID:      stringPointer("batch-latest-failure"),
+		WorkUnitID:   "work-unit-later",
+		ExecutorType: "codex",
+		Status:       "failed",
+		StartedAt:    "2026-04-21T09:59:58Z",
+		FinishedAt:   stringPointer(earlierFinishedAt),
+		ErrorCode:    stringPointer("EARLIER"),
+		ErrorSummary: stringPointer("earlier failure should lose"),
+	}
+
+	health := svc.Health(context.Background())
+	if health.LatestFailure == nil {
+		t.Fatalf("expected latest failure to be populated")
+	}
+	if health.LatestFailure.AttemptID != "attempt-earlier" {
+		t.Fatalf("expected attempt-earlier to be latest failure, got %#v", health.LatestFailure)
 	}
 }
 

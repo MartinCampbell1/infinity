@@ -4,7 +4,7 @@ import {
   buildVerificationsDirectoryResponse,
   createVerification,
 } from "../../../../../lib/server/orchestration/verification";
-import { runAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
+import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateVerificationRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     );
   }
 
-  await runAutonomousLoopSafely(response.verification.initiativeId);
+  await triggerAutonomousLoopSafely(response.verification.initiativeId);
 
   return NextResponse.json(response, { status: 201 });
 }

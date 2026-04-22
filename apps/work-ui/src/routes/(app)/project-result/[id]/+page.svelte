@@ -370,25 +370,25 @@
 						{/if}
 						<button
 							type="button"
-							class="rounded-full border border-white/10 bg-slate-950/80 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+							class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
 							on:click={runVerification}
 							disabled={actionState === 'running' || !canVerify}
 						>
-							Run verification override
+							Run verification recovery
 						</button>
 						<button
 							type="button"
-							class="rounded-full border border-white/10 bg-slate-950/80 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+							class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
 							on:click={createDelivery}
 							disabled={actionState === 'running' || !canDeliver}
 						>
-							Create delivery override
+							Create delivery recovery
 						</button>
 						<a
-							class="rounded-full border border-white/10 bg-slate-950/80 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-slate-900"
+							class="rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-900"
 							href={projectRunHref ?? '#'}
 						>
-							Open local run drill-down
+							Open local run support view
 						</a>
 						{#if !shellReturnHref && (batchShellHref || continuityShellHref || continuity)}
 							<a

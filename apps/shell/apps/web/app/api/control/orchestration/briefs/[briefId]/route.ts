@@ -5,7 +5,7 @@ import {
   buildProjectBriefMutationResponse,
   updateOrchestrationBrief,
 } from "../../../../../../lib/server/orchestration/briefs";
-import { runAutonomousLoopSafely } from "../../../../../../lib/server/orchestration/autonomy";
+import { triggerAutonomousLoopSafely } from "../../../../../../lib/server/orchestration/autonomy";
 import { isUpdateProjectBriefRequest } from "../../../../../../lib/server/control-plane/contracts/orchestration";
 
 export const dynamic = "force-dynamic";
@@ -56,7 +56,7 @@ export async function PATCH(
     );
   }
 
-  await runAutonomousLoopSafely(result.brief.initiativeId);
+  await triggerAutonomousLoopSafely(result.brief.initiativeId);
 
   return NextResponse.json(await buildProjectBriefMutationResponse(briefId));
 }

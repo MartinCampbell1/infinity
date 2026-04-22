@@ -202,9 +202,9 @@ describe("/api/control/orchestration/delivery", () => {
       expect.objectContaining({
         initiativeId,
         taskGraphId,
-        status: "pending",
-        launchProofKind: "synthetic_wrapper",
-        launchTargetLabel: "Shell evidence wrapper",
+        status: "ready",
+        launchProofKind: "runnable_result",
+        launchTargetLabel: "Integrated product preview",
       })
     );
     expect(deliveryBody.delivery.localOutputPath).toMatch(
@@ -214,10 +214,10 @@ describe("/api/control/orchestration/delivery", () => {
     expect(deliveryBody.delivery.command).toMatch(/launch-localhost\.py' --port 0$/);
     expect(deliveryBody.delivery.launchManifestPath).toMatch(/launch-manifest\.json$/);
     expect(deliveryBody.delivery.launchProofUrl).toMatch(
-      /^http:\/\/127\.0\.0\.1:\d+\/preview\.html$/
+      /^http:\/\/127\.0\.0\.1:\d+\/index\.html$/
     );
     expect(deliveryBody.delivery.launchProofAt).toBeTruthy();
-    expect(deliveryBody.delivery.resultSummary).toMatch(/actual runnable result is still unproven/i);
+    expect(deliveryBody.delivery.resultSummary).toMatch(/runnable localhost delivery bundle backed by verified assembly evidence/i);
 
     const listResponse = await getDelivery(
       new Request(
@@ -230,14 +230,14 @@ describe("/api/control/orchestration/delivery", () => {
     expect(listBody.deliveries).toEqual([
       expect.objectContaining({
         id: deliveryBody.delivery.id,
-        status: "pending",
+        status: "ready",
       }),
     ]);
 
     const state = await readControlPlaneState();
     expect(
       state.orchestration.initiatives.find((initiative) => initiative.id === initiativeId)?.status
-    ).toBe("verifying");
+    ).toBe("ready");
   });
 
   test("failed verification blocks delivery creation", async () => {
@@ -343,12 +343,62 @@ describe("/api/control/orchestration/delivery", () => {
     const deliveryBody = await deliveryResponse.json();
 
     expect(deliveryResponse.status).toBe(201);
-    expect(deliveryBody.delivery.resultSummary).toMatch(/actual runnable result is still unproven/i);
+    expect(deliveryBody.delivery.resultSummary).toMatch(/runnable localhost delivery bundle backed by verified assembly evidence/i);
     expect(deliveryBody.delivery.localOutputPath).toMatch(
       /\.local-state\/orchestration\/deliveries/
     );
     expect(deliveryBody.verification.assemblyId).toBe(firstAssemblyBody.assembly.id);
     expect(deliveryBody.delivery.verificationRunId).toBe(deliveryBody.verification.id);
     expect(deliveryBody.delivery.taskGraphId).toBe(firstAssemblyBody.assembly.taskGraphId);
+  });
+
+  test("repeated delivery creation for the same verification is idempotent", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const firstDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    const firstDeliveryBody = await firstDeliveryResponse.json();
+    expect(firstDeliveryResponse.status).toBe(201);
+
+    const secondDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    const secondDeliveryBody = await secondDeliveryResponse.json();
+    expect(secondDeliveryResponse.status).toBe(201);
+    expect(secondDeliveryBody.delivery.id).toBe(firstDeliveryBody.delivery.id);
+
+    const state = await readControlPlaneState();
+    const deliveriesForInitiative = state.orchestration.deliveries.filter(
+      (candidate) => candidate.initiativeId === initiativeId
+    );
+    expect(deliveriesForInitiative).toHaveLength(1);
   });
 });

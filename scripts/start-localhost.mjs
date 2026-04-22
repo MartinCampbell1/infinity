@@ -91,10 +91,14 @@ const children = [
   ),
   startProcess(
     "work-ui",
-    `PUBLIC_FOUNDEROS_SHELL_ORIGIN=${JSON.stringify(
-      shellOrigin
-    )} npm run dev --workspace open-webui -- --host ${config.workUiHost} --port ${config.workUiPort}`,
-    sharedEnv
+    `npm run dev --workspace open-webui`,
+    {
+      ...sharedEnv,
+      PUBLIC_FOUNDEROS_SHELL_ORIGIN:
+        process.env.PUBLIC_FOUNDEROS_SHELL_ORIGIN ?? shellOrigin,
+      WORK_UI_HOST: config.workUiHost,
+      WORK_UI_PORT: config.workUiPort,
+    }
   ),
 ];
 
@@ -115,9 +119,9 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("exit", () => shutdown("SIGTERM"));
 
 console.log("Infinity localhost stack");
-console.log(`- shell:   ${shellOrigin}/execution`);
-console.log(`- work-ui: ${workUiOrigin}/auth`);
-console.log(`- kernel:  ${kernelOrigin}/healthz`);
+console.log(`- shell entry:        ${shellOrigin}/execution`);
+console.log(`- work-ui (internal): ${workUiOrigin}/auth`);
+console.log(`- kernel (internal):  ${kernelOrigin}/healthz`);
 console.log(`- state:   ${stateDir}`);
 console.log("Press Ctrl+C to stop.");
 
@@ -134,4 +138,3 @@ for (const child of children) {
     process.exitCode = typeof code === "number" ? code : 1;
   });
 }
-

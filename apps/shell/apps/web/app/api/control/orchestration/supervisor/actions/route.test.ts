@@ -145,6 +145,7 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 		let launchedBatchId = "";
 		let launchedInitiativeId = "";
 		let launchedWorkUnitId = "";
+		let batchResumed = false;
 
 		const kernelServer = createServer(async (request: IncomingMessage, response: ServerResponse) => {
 			if (request.method === "POST" && request.url === "/api/v1/batches") {
@@ -352,6 +353,7 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 		let launchedBatchId = "";
 		let launchedInitiativeId = "";
 		let launchedWorkUnitId = "";
+		let batchResumed = false;
 
 		const kernelServer = createServer(async (request: IncomingMessage, response: ServerResponse) => {
 			if (request.method === "POST" && request.url === "/api/v1/batches") {
@@ -437,7 +439,7 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 							taskGraphId,
 							workUnitIds: [launchedWorkUnitId],
 							concurrencyLimit: 1,
-							status: "blocked",
+							status: batchResumed ? "running" : "blocked",
 							startedAt: "2026-04-18T10:00:00.000Z",
 							finishedAt: null,
 						},
@@ -447,13 +449,48 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 								workUnitId: launchedWorkUnitId,
 								batchId: launchedBatchId,
 								executorType: "droid",
-								status: "failed",
+								status: batchResumed ? "started" : "failed",
 								startedAt: "2026-04-18T10:00:00.000Z",
-								finishedAt: "2026-04-18T10:03:00.000Z",
+								finishedAt: batchResumed ? null : "2026-04-18T10:03:00.000Z",
 								summary: null,
 								artifactUris: [],
-								errorCode: "TOOL_FAILURE",
-								errorSummary: "tool crashed",
+								errorCode: batchResumed ? null : "TOOL_FAILURE",
+								errorSummary: batchResumed ? null : "tool crashed",
+							},
+						],
+					})
+				);
+				return;
+			}
+
+			if (request.method === "POST" && request.url === `/api/v1/batches/${launchedBatchId}/resume`) {
+				batchResumed = true;
+				response.writeHead(200, { "content-type": "application/json" });
+				response.end(
+					JSON.stringify({
+						batch: {
+							id: launchedBatchId,
+							initiativeId: launchedInitiativeId,
+							taskGraphId,
+							workUnitIds: [launchedWorkUnitId],
+							concurrencyLimit: 1,
+							status: "running",
+							startedAt: "2026-04-18T10:00:00.000Z",
+							finishedAt: null,
+						},
+						attempts: [
+							{
+								id: "attempt-foundation-002",
+								workUnitId: launchedWorkUnitId,
+								batchId: launchedBatchId,
+								executorType: "droid",
+								status: "started",
+								startedAt: "2026-04-18T10:04:00.000Z",
+								finishedAt: null,
+								summary: null,
+								artifactUris: [],
+								errorCode: null,
+								errorSummary: null,
 							},
 						],
 					})
@@ -532,6 +569,7 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 
 			expect(reassignResponse.status).toBe(200);
 			expect(reassignBody.workUnit.executorType).toBe("codex");
+			expect(reassignBody.batch.status).toBe("running");
 			expect(reassignBody.supervisorActions).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
@@ -541,6 +579,7 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 					}),
 				])
 			);
+			expect(batchResumed).toBe(true);
 		} finally {
 			await new Promise<void>((resolve, reject) =>
 				kernelServer.close((error) => (error ? reject(error) : resolve()))

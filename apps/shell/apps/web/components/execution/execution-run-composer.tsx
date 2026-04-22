@@ -6,6 +6,7 @@ import {
   buildExecutionRunScopeHref,
   type ShellRouteScope,
 } from "@/lib/route-scope";
+import { buildAutonomousBriefCreateRequest } from "@/components/frontdoor/plane-root-composer-logic";
 
 function deriveTitleFromPrompt(prompt: string) {
   const normalized = prompt.trim().split("\n")[0]?.trim() ?? "";
@@ -61,26 +62,13 @@ export function ExecutionRunComposer({
       const initiativePayload = (await initiativeResponse.json()) as {
         initiative: { id: string };
       };
-
+      const initiativeId = initiativePayload.initiative.id;
       const briefResponse = await fetch("/api/control/orchestration/briefs", {
         method: "POST",
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({
-          initiativeId: initiativePayload.initiative.id,
-          summary: normalizedPrompt,
-          goals: [],
-          nonGoals: [],
-          constraints: [],
-          assumptions: [],
-          acceptanceCriteria: [],
-          repoScope: [],
-          deliverables: [],
-          clarificationLog: [],
-          authoredBy: "hermes-intake",
-          status: "clarifying",
-        }),
+        body: JSON.stringify(buildAutonomousBriefCreateRequest(initiativeId, normalizedPrompt)),
       });
       if (!briefResponse.ok) {
         const payload = (await briefResponse.json().catch(() => null)) as {
@@ -91,7 +79,7 @@ export function ExecutionRunComposer({
 
       setStatusMessage("Autonomous run started. Redirecting to the primary run surface...");
       window.location.assign(
-        buildExecutionRunScopeHref(initiativePayload.initiative.id, routeScope)
+        buildExecutionRunScopeHref(initiativeId, routeScope)
       );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Run creation failed.");
