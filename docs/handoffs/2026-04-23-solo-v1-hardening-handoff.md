@@ -53,14 +53,14 @@ Recent green validation runs created during this work:
 
 - `handoff-packets/validation/2026-04-22T20-40-38Z`
 - `handoff-packets/validation/2026-04-22T21-04-45Z`
-- `handoff-packets/validation/2026-04-22T21-17-06Z`
+- `handoff-packets/validation/2026-04-22T21-21-37Z`
 
 ## Manual/live checks completed
 
 - shell root `/` answered as the frontdoor on the committed state
 - shell frontdoor one-prompt flow was started live and produced a shell-owned run/session context
 - kernel health on committed state reported `status=ok`, `runtimeState=idle`, `recoveryState=archived`, `failureState=historical`, with zero live blocked/failed counts
-- the latest green full validation after the addendum is `handoff-packets/validation/2026-04-22T21-17-06Z`
+- the latest green full validation after the addendum is `handoff-packets/validation/2026-04-22T21-21-37Z`
 - localhost stack was repeatedly shut down after checks; no persistent watcher/dev processes were intentionally left running
 
 ## Non-blocking warnings still visible
