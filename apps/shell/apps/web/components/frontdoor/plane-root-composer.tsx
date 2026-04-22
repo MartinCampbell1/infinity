@@ -63,35 +63,23 @@ export function PlaneRootComposer({
         initiative: { id: string };
       };
       const initiativeId = initiativePayload.initiative.id;
-      const briefRequest = fetch("/api/control/orchestration/briefs", {
+      const briefResponse = await fetch("/api/control/orchestration/briefs", {
         method: "POST",
         headers: {
           "content-type": "application/json",
         },
         body: JSON.stringify(buildAutonomousBriefCreateRequest(initiativeId, normalizedPrompt)),
-        keepalive: true,
-      }).then(async (briefResponse) => {
-        if (briefResponse.ok) {
-          return;
-        }
-
+      });
+      if (!briefResponse.ok) {
         const payload = (await briefResponse.json().catch(() => null)) as {
           detail?: string;
         } | null;
         throw new Error(payload?.detail ?? "Brief creation failed.");
-      });
+      }
 
       setPendingMessage("Autonomous run started. Opening the primary run surface...");
 
-      router.push(
-        buildExecutionRunScopeHref(initiativeId, routeScope)
-      );
-      void briefRequest.catch((error) => {
-        console.error("Autonomous brief bootstrap failed", {
-          initiativeId,
-          error,
-        });
-      });
+      router.push(buildExecutionRunScopeHref(initiativeId, routeScope));
     } catch (error) {
       setPendingMessage(null);
       setErrorMessage(error instanceof Error ? error.message : "Run creation failed.");
