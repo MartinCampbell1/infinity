@@ -355,26 +355,7 @@ export async function performSupervisorAction(
   }
 
   if (input.actionKind === "reassign_work_unit") {
-    let resumedBatchStatus: ExecutionBatchRecord["status"] | null = null;
-    let resumedAttemptIds: string[] = [];
-    if (batch.status === "blocked") {
-      const resumed = await kernel.resumeBatch(batch.id);
-      resumedBatchStatus = resumed.batch.status;
-      resumedAttemptIds = resumed.attempts.map((attempt) => attempt.id);
-    }
-
     await updateControlPlaneState((draft) => {
-      if (resumedBatchStatus) {
-        draft.orchestration.batches = draft.orchestration.batches.map((candidate) =>
-          candidate.id === batch.id
-            ? {
-                ...candidate,
-                status: resumedBatchStatus,
-                finishedAt: null,
-              }
-            : candidate
-        );
-      }
       draft.orchestration.workUnits = draft.orchestration.workUnits.map((candidate) =>
         candidate.id === workUnit.id
           ? {
@@ -382,9 +363,7 @@ export async function performSupervisorAction(
               executorType: input.executorType,
               status:
                 candidate.status === "retryable" || candidate.status === "blocked"
-                  ? resumedBatchStatus
-                    ? "running"
-                    : "ready"
+                  ? "ready"
                   : candidate.status,
               updatedAt: occurredAt,
             }
@@ -411,11 +390,55 @@ export async function performSupervisorAction(
         ...draft.orchestration.supervisorActions,
       ];
       updateAutonomousRunStage(draft, batch.initiativeId, {
-        stage: resumedBatchStatus ? "executing" : "queued",
+        stage: "queued",
         health: "degraded",
         operatorOverrideActive: true,
       });
-      if (resumedBatchStatus) {
+      appendAutonomousRunEvent(draft, batch.initiativeId, {
+        kind: "recovery.reroute.started",
+        stage: "queued",
+        summary: `Work item ${workUnit.id} rerouted to ${input.executorType}.`,
+        payload: {
+          batchId: batch.id,
+          workUnitId: workUnit.id,
+          executorType: input.executorType,
+          resumedAttemptIds: [],
+        },
+      });
+    });
+
+    let resumedBatchStatus: ExecutionBatchRecord["status"] | null = null;
+    let resumedAttemptIds: string[] = [];
+    if (batch.status === "blocked") {
+      const resumed = await kernel.resumeBatch(batch.id);
+      const resumedStatus = resumed.batch.status;
+      resumedBatchStatus = resumedStatus;
+      resumedAttemptIds = resumed.attempts.map((attempt) => attempt.id);
+
+      await updateControlPlaneState((draft) => {
+        draft.orchestration.batches = draft.orchestration.batches.map((candidate) =>
+          candidate.id === batch.id
+            ? {
+                ...candidate,
+                status: resumedStatus,
+                finishedAt: null,
+              }
+            : candidate
+        );
+        draft.orchestration.workUnits = draft.orchestration.workUnits.map((candidate) =>
+          candidate.id === workUnit.id
+            ? {
+                ...candidate,
+                status:
+                  candidate.status === "ready" ||
+                  candidate.status === "retryable" ||
+                  candidate.status === "blocked"
+                    ? "running"
+                    : candidate.status,
+                updatedAt: nowIso(),
+              }
+            : candidate
+        );
         const resumedAttemptId = resumedAttemptIds[0];
         if (resumedAttemptId) {
           upsertAgentSessionRecord(draft, batch.initiativeId, {
@@ -426,21 +449,24 @@ export async function performSupervisorAction(
             runtimeRef: resumedAttemptId,
           });
         }
-      }
-      appendAutonomousRunEvent(draft, batch.initiativeId, {
-        kind: resumedBatchStatus ? "batch.resumed" : "recovery.reroute.started",
-        stage: resumedBatchStatus ? "executing" : "queued",
-        summary: resumedBatchStatus
-          ? `Batch ${batch.id} resumed after work item ${workUnit.id} was reassigned to ${input.executorType}.`
-          : `Work item ${workUnit.id} rerouted to ${input.executorType}.`,
-        payload: {
-          batchId: batch.id,
-          workUnitId: workUnit.id,
-          executorType: input.executorType,
-          resumedAttemptIds,
-        },
+        updateAutonomousRunStage(draft, batch.initiativeId, {
+          stage: "executing",
+          health: "degraded",
+          operatorOverrideActive: true,
+        });
+        appendAutonomousRunEvent(draft, batch.initiativeId, {
+          kind: "batch.resumed",
+          stage: "executing",
+          summary: `Batch ${batch.id} resumed after work item ${workUnit.id} was reassigned to ${input.executorType}.`,
+          payload: {
+            batchId: batch.id,
+            workUnitId: workUnit.id,
+            executorType: input.executorType,
+            resumedAttemptIds,
+          },
+        });
       });
-    });
+    }
   }
 
   const detail = await buildExecutionBatchDetailResponse(batch.id);
