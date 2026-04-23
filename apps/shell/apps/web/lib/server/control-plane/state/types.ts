@@ -41,7 +41,7 @@ export interface AutonomousRunRecord {
   currentStage: AutonomousRunStage;
   health: AutonomousRunHealth;
   automationMode: "autonomous";
-  manualStageProgression: false;
+  manualStageProgression: boolean;
   operatorOverrideActive: boolean;
   previewStatus: "none" | "building" | "ready" | "failed";
   handoffStatus: "none" | "building" | "ready" | "failed";
@@ -131,8 +131,8 @@ export interface AutonomousHandoffPacketRecord {
 export interface AutonomousValidationProofRecord {
   id: string;
   runId: string;
-  autonomousOnePrompt: true;
-  manualStageProgression: false;
+  autonomousOnePrompt: boolean;
+  manualStageProgression: boolean;
   previewReady: boolean;
   launchReady: boolean;
   handoffReady: boolean;

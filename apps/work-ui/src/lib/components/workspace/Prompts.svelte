@@ -14,6 +14,7 @@
 		getPromptItems,
 		getPromptTags
 	} from '$lib/apis/prompts';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { capitalizeFirstLetter, slugify, copyToClipboard } from '$lib/utils';
 
 	import PromptMenu from './Prompts/PromptMenu.svelte';
@@ -81,6 +82,7 @@
 	let copiedId: string | null = null;
 
 	let page = 1;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	// Debounce only query changes
 	$: if (query !== undefined) {
@@ -103,7 +105,7 @@
 		loading = true;
 		try {
 			const res = await getPromptItems(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				query,
 				viewOption,
 				selectedTag,
@@ -120,7 +122,7 @@
 				total = res.total as number;
 
 				// get tags
-				tags = (await getPromptTags(localStorage.token).catch((error) => {
+				tags = (await getPromptTags(getWorkspaceAuthToken()).catch((error) => {
 					toast.error(`${error}`);
 					return [];
 				})) as string[];
@@ -185,7 +187,7 @@
 	const deleteHandler = async (prompt: PromptListItem) => {
 		const command = prompt.command;
 
-		const res = await deletePromptById(localStorage.token, prompt.id).catch((err) => {
+		const res = await deletePromptById(getWorkspaceAuthToken(), prompt.id).catch((err) => {
 			toast.error(err);
 			return null;
 		});
@@ -279,7 +281,7 @@
 
 					try {
 						for (const prompt of savedPrompts) {
-							await createNewPrompt(localStorage.token, {
+							await createNewPrompt(getWorkspaceAuthToken(), {
 								command: prompt.command,
 								name: prompt.name,
 								content: prompt.content
@@ -531,7 +533,7 @@
 										<Switch
 											bind:state={prompt.is_active}
 											on:change={async () => {
-												togglePromptById(localStorage.token, prompt.id);
+												togglePromptById(getWorkspaceAuthToken(), prompt.id);
 											}}
 										/>
 									</Tooltip>

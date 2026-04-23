@@ -130,8 +130,17 @@ func TestHealthReportsDurableAndRecoverableState(t *testing.T) {
 	if health.AuthMode != "localhost_only" {
 		t.Fatalf("expected localhost_only auth mode, got %s", health.AuthMode)
 	}
+	if health.DeploymentScope != "localhost_only_solo" {
+		t.Fatalf("expected localhost_only_solo deployment scope, got %s", health.DeploymentScope)
+	}
+	if health.Maturity != "localhost_solo_v1" {
+		t.Fatalf("expected localhost_solo_v1 maturity, got %s", health.Maturity)
+	}
 	if health.StorageKind != "file" {
 		t.Fatalf("expected file storage kind, got %s", health.StorageKind)
+	}
+	if health.DurabilityTier != "local_file_snapshot" {
+		t.Fatalf("expected local_file_snapshot durability tier, got %s", health.DurabilityTier)
 	}
 	if health.StatePath != statePath {
 		t.Fatalf("expected state path %s, got %s", statePath, health.StatePath)
@@ -174,6 +183,276 @@ func TestHealthReportsDurableAndRecoverableState(t *testing.T) {
 	}
 	if health.RecoveryHint == "" {
 		t.Fatalf("expected a recovery hint for degraded runtime")
+	}
+}
+
+func TestHealthTreatsReloadedBlockedStateAsHistorical(t *testing.T) {
+	t.Parallel()
+
+	statePath := filepath.Join(t.TempDir(), "execution-kernel-historical.json")
+	svc, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() error = %v", err)
+	}
+
+	launch, err := svc.LaunchBatch(context.Background(), events.LaunchBatchRequest{
+		BatchID:          "batch-historical-001",
+		InitiativeID:     "initiative-historical-001",
+		TaskGraphID:      "task-graph-historical-001",
+		ConcurrencyLimit: 1,
+		WorkUnits: []events.WorkUnit{
+			{
+				ID:                 "work-unit-historical-001",
+				Title:              "Historical health",
+				Description:        "Persist a stale blocked tail across restart",
+				ExecutorType:       "codex",
+				ScopePaths:         []string{"/Users/martin/infinity/services/execution-kernel"},
+				Dependencies:       []string{},
+				AcceptanceCriteria: []string{"Historical health stays inspectable without degrading fresh boots"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("LaunchBatch() error = %v", err)
+	}
+
+	if _, err := svc.FailAttempt(context.Background(), launch.Attempts[0].ID, events.AttemptActionRequest{
+		ErrorCode:    stringPointer("STALE_FAILURE"),
+		ErrorSummary: stringPointer("historical blocked tail"),
+	}); err != nil {
+		t.Fatalf("FailAttempt() error = %v", err)
+	}
+
+	reloaded, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() reload error = %v", err)
+	}
+
+	health := reloaded.Health(context.Background())
+	if health.Status != "ok" {
+		t.Fatalf("expected ok health after reload, got %s", health.Status)
+	}
+	if health.RuntimeState != "idle" {
+		t.Fatalf("expected idle runtime state after reload, got %s", health.RuntimeState)
+	}
+	if health.RecoveryState != "archived" {
+		t.Fatalf("expected archived recovery state after reload, got %s", health.RecoveryState)
+	}
+	if health.FailureState != "historical" {
+		t.Fatalf("expected historical failure state after reload, got %s", health.FailureState)
+	}
+	if health.BatchCounts.Blocked != 0 {
+		t.Fatalf("expected no live blocked batches after reload, got %d", health.BatchCounts.Blocked)
+	}
+	if health.AttemptCounts.Failed != 0 {
+		t.Fatalf("expected no live failed attempts after reload, got %d", health.AttemptCounts.Failed)
+	}
+	if len(health.BlockedBatchIDs) != 0 {
+		t.Fatalf("expected no live blocked batch ids after reload, got %#v", health.BlockedBatchIDs)
+	}
+	if len(health.FailedAttemptIDs) != 0 {
+		t.Fatalf("expected no live failed attempt ids after reload, got %#v", health.FailedAttemptIDs)
+	}
+	if len(health.ResumableBatchIDs) != 1 || health.ResumableBatchIDs[0] != "batch-historical-001" {
+		t.Fatalf("expected archived batch to remain resumable, got %#v", health.ResumableBatchIDs)
+	}
+	if health.LatestFailure == nil || health.LatestFailure.AttemptID != launch.Attempts[0].ID {
+		t.Fatalf("expected latest failure to remain inspectable, got %#v", health.LatestFailure)
+	}
+
+	detail, err := reloaded.BatchDetail(context.Background(), "batch-historical-001")
+	if err != nil {
+		t.Fatalf("BatchDetail() error = %v", err)
+	}
+	if detail.Batch.RecoveryState != "archived" {
+		t.Fatalf("expected batch detail recovery state archived, got %s", detail.Batch.RecoveryState)
+	}
+
+	resumed, err := reloaded.ResumeBatch(context.Background(), "batch-historical-001")
+	if err != nil {
+		t.Fatalf("ResumeBatch() error = %v", err)
+	}
+	if resumed.Batch.Status != "running" {
+		t.Fatalf("expected archived batch to resume into running, got %s", resumed.Batch.Status)
+	}
+	if resumed.Batch.RecoveryState != "retryable" {
+		t.Fatalf("expected resumed batch recovery state retryable, got %s", resumed.Batch.RecoveryState)
+	}
+}
+
+func TestDiscardedBlockedStateStaysInspectableWithoutPoisoningHealth(t *testing.T) {
+	t.Parallel()
+
+	statePath := filepath.Join(t.TempDir(), "execution-kernel-discarded.json")
+	svc, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() error = %v", err)
+	}
+
+	launch, err := svc.LaunchBatch(context.Background(), events.LaunchBatchRequest{
+		BatchID:          "batch-discarded-001",
+		InitiativeID:     "initiative-discarded-001",
+		TaskGraphID:      "task-graph-discarded-001",
+		ConcurrencyLimit: 1,
+		WorkUnits: []events.WorkUnit{
+			{
+				ID:                 "work-unit-discarded-001",
+				Title:              "Discarded health",
+				Description:        "Keep discarded failures inspectable without retry pressure",
+				ExecutorType:       "codex",
+				ScopePaths:         []string{"/Users/martin/infinity/services/execution-kernel"},
+				Dependencies:       []string{},
+				AcceptanceCriteria: []string{"Discarded failures do not degrade fresh boots"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("LaunchBatch() error = %v", err)
+	}
+
+	if _, err := svc.FailAttempt(context.Background(), launch.Attempts[0].ID, events.AttemptActionRequest{
+		ErrorCode:    stringPointer("DISCARDED_FAILURE"),
+		ErrorSummary: stringPointer("discarded blocked tail"),
+	}); err != nil {
+		t.Fatalf("FailAttempt() error = %v", err)
+	}
+
+	discarded, err := svc.DiscardBatch(context.Background(), "batch-discarded-001")
+	if err != nil {
+		t.Fatalf("DiscardBatch() error = %v", err)
+	}
+	if discarded.Batch.RecoveryState != "discarded" {
+		t.Fatalf("expected discarded batch recovery state, got %s", discarded.Batch.RecoveryState)
+	}
+	if discarded.Attempts[0].RecoveryState != "discarded" {
+		t.Fatalf("expected discarded attempt recovery state, got %s", discarded.Attempts[0].RecoveryState)
+	}
+
+	reloaded, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() reload error = %v", err)
+	}
+
+	health := reloaded.Health(context.Background())
+	if health.Status != "ok" {
+		t.Fatalf("expected ok health after discard, got %s", health.Status)
+	}
+	if health.RuntimeState != "idle" {
+		t.Fatalf("expected idle runtime state after discard, got %s", health.RuntimeState)
+	}
+	if health.RecoveryState != "discarded" {
+		t.Fatalf("expected discarded recovery state after discard, got %s", health.RecoveryState)
+	}
+	if health.FailureState != "none" {
+		t.Fatalf("expected discarded failure state to be none, got %s", health.FailureState)
+	}
+	if health.BatchCounts.Blocked != 0 {
+		t.Fatalf("expected discarded batch to avoid live blocked counts, got %d", health.BatchCounts.Blocked)
+	}
+	if health.AttemptCounts.Failed != 0 {
+		t.Fatalf("expected discarded attempt to avoid live failed counts, got %d", health.AttemptCounts.Failed)
+	}
+	if len(health.BlockedBatchIDs) != 0 {
+		t.Fatalf("expected no live blocked batch ids after discard, got %#v", health.BlockedBatchIDs)
+	}
+	if len(health.FailedAttemptIDs) != 0 {
+		t.Fatalf("expected no live failed attempt ids after discard, got %#v", health.FailedAttemptIDs)
+	}
+	if len(health.ResumableBatchIDs) != 0 {
+		t.Fatalf("expected no resumable batch ids after discard, got %#v", health.ResumableBatchIDs)
+	}
+	if health.LatestFailure == nil || health.LatestFailure.AttemptID != launch.Attempts[0].ID {
+		t.Fatalf("expected latest failure to remain inspectable after discard, got %#v", health.LatestFailure)
+	}
+
+	detail, err := reloaded.BatchDetail(context.Background(), "batch-discarded-001")
+	if err != nil {
+		t.Fatalf("BatchDetail() error = %v", err)
+	}
+	if detail.Batch.RecoveryState != "discarded" {
+		t.Fatalf("expected discarded batch detail recovery state, got %s", detail.Batch.RecoveryState)
+	}
+
+	if _, err := reloaded.ResumeBatch(context.Background(), "batch-discarded-001"); err == nil {
+		t.Fatalf("expected discarded batch to reject resume")
+	}
+}
+
+func TestHealthTreatsReloadedRunningStateAsArchivedBacklog(t *testing.T) {
+	t.Parallel()
+
+	statePath := filepath.Join(t.TempDir(), "execution-kernel-running.json")
+	svc, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() error = %v", err)
+	}
+
+	launch, err := svc.LaunchBatch(context.Background(), events.LaunchBatchRequest{
+		BatchID:          "batch-running-001",
+		InitiativeID:     "initiative-running-001",
+		TaskGraphID:      "task-graph-running-001",
+		ConcurrencyLimit: 1,
+		WorkUnits: []events.WorkUnit{
+			{
+				ID:                 "work-unit-running-001",
+				Title:              "Interrupted runtime",
+				Description:        "Fresh boot should not preserve stale running state as live work",
+				ExecutorType:       "codex",
+				ScopePaths:         []string{"/Users/martin/infinity/services/execution-kernel"},
+				Dependencies:       []string{},
+				AcceptanceCriteria: []string{"Stale in-flight work stays resumable without poisoning fresh health"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("LaunchBatch() error = %v", err)
+	}
+
+	reloaded, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() reload error = %v", err)
+	}
+
+	health := reloaded.Health(context.Background())
+	if health.Status != "ok" {
+		t.Fatalf("expected ok health after reload, got %s", health.Status)
+	}
+	if health.RuntimeState != "idle" {
+		t.Fatalf("expected idle runtime state after reload, got %s", health.RuntimeState)
+	}
+	if health.RecoveryState != "archived" {
+		t.Fatalf("expected archived recovery state after reload, got %s", health.RecoveryState)
+	}
+	if health.FailureState != "historical" {
+		t.Fatalf("expected historical failure state after reload, got %s", health.FailureState)
+	}
+	if len(health.ResumableBatchIDs) != 1 || health.ResumableBatchIDs[0] != "batch-running-001" {
+		t.Fatalf("expected interrupted batch to remain resumable, got %#v", health.ResumableBatchIDs)
+	}
+
+	detail, err := reloaded.BatchDetail(context.Background(), "batch-running-001")
+	if err != nil {
+		t.Fatalf("BatchDetail() error = %v", err)
+	}
+	if detail.Batch.Status != "blocked" {
+		t.Fatalf("expected interrupted batch to reload as blocked, got %s", detail.Batch.Status)
+	}
+	if detail.Batch.RecoveryState != "archived" {
+		t.Fatalf("expected interrupted batch recovery state archived, got %s", detail.Batch.RecoveryState)
+	}
+	if len(detail.Attempts) != 1 || detail.Attempts[0].Status != "abandoned" {
+		t.Fatalf("expected interrupted attempt to reload as abandoned, got %#v", detail.Attempts)
+	}
+
+	resumed, err := reloaded.ResumeBatch(context.Background(), launch.Batch.ID)
+	if err != nil {
+		t.Fatalf("ResumeBatch() error = %v", err)
+	}
+	if resumed.Batch.Status != "running" {
+		t.Fatalf("expected resumed batch to return to running, got %s", resumed.Batch.Status)
+	}
+	if resumed.Attempts[0].Status != "started" {
+		t.Fatalf("expected resumed attempt to return to started, got %s", resumed.Attempts[0].Status)
 	}
 }
 

@@ -3,6 +3,7 @@
 	import { getContext, onMount, onDestroy } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import dayjs from 'dayjs';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { searchFiles, deleteFileById } from '$lib/apis/files';
 	import Modal from '$lib/components/common/Modal.svelte';
@@ -37,6 +38,7 @@
 	let showFileItemModal = false;
 
 	let shiftKey = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const PAGE_SIZE = 50;
 
@@ -67,7 +69,7 @@
 
 		try {
 			const pattern = query ? `*${query}*` : '*';
-			const newFiles = await searchFiles(localStorage.token, pattern, 0, PAGE_SIZE);
+			const newFiles = await searchFiles(getWorkspaceAuthToken(), pattern, 0, PAGE_SIZE);
 			files = sortFiles(newFiles);
 			allFilesLoaded = newFiles.length < PAGE_SIZE;
 		} catch (error) {
@@ -85,7 +87,7 @@
 
 		try {
 			const pattern = query ? `*${query}*` : '*';
-			const newFiles = await searchFiles(localStorage.token, pattern, page * PAGE_SIZE, PAGE_SIZE);
+			const newFiles = await searchFiles(getWorkspaceAuthToken(), pattern, page * PAGE_SIZE, PAGE_SIZE);
 
 			allFilesLoaded = newFiles.length < PAGE_SIZE;
 
@@ -120,7 +122,7 @@
 
 	const deleteHandler = async (fileId: string) => {
 		try {
-			await deleteFileById(localStorage.token, fileId);
+			await deleteFileById(getWorkspaceAuthToken(), fileId);
 			toast.success($i18n.t('File deleted successfully.'));
 			// Remove from local array instead of re-fetching to allow rapid deletion
 			files = files?.filter((f) => f.id !== fileId) ?? null;

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import dayjs from 'dayjs';
 	import { onMount, tick, getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { decodeString } from '$lib/utils';
 	import { getChatList } from '$lib/apis/chats';
@@ -11,6 +12,7 @@
 	import { chatId } from '$lib/stores';
 
 	const i18n = getContext('i18n');
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	type ChatListItem = {
 		id: string;
@@ -41,7 +43,7 @@
 
 	const getItemsPage = async () => {
 		itemsLoading = true;
-		const res: ChatListItem[] = await getChatList(localStorage.token, page, true, true).catch(() => {
+		const res: ChatListItem[] = await getChatList(getWorkspaceAuthToken(), page, true, true).catch(() => {
 			return [];
 		});
 

@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { getNoteById } from '$lib/apis/notes';
 	import { getUserInfoById } from '$lib/apis/users';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { capitalizeFirstLetter } from '$lib/utils';
 
 	const i18n = getContext('i18n');
@@ -13,16 +14,17 @@
 	let title = '';
 	let author = '';
 	let loading = true;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	onMount(async () => {
 		try {
-			const note = await getNoteById(localStorage.token, noteId);
+			const note = await getNoteById(getWorkspaceAuthToken(), noteId);
 			if (note) {
 				title = note.title || $i18n.t('Untitled');
 
 				if (note.user_id) {
 					try {
-						const userInfo = await getUserInfoById(localStorage.token, note.user_id);
+						const userInfo = await getUserInfoById(getWorkspaceAuthToken(), note.user_id);
 						if (userInfo) {
 							author = capitalizeFirstLetter(userInfo.name ?? userInfo.email ?? '');
 						}

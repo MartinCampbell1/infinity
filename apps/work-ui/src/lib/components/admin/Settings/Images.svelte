@@ -3,6 +3,7 @@
 
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
 	import { config as backendConfig, user } from '$lib/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { getBackendConfig } from '$lib/apis';
 	import {
@@ -145,9 +146,10 @@
 			node_ids: ''
 		}
 	];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getModels = async () => {
-		models = (await getImageGenerationModels(localStorage.token).catch((error) => {
+		models = (await getImageGenerationModels(getWorkspaceAuthToken()).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		})) as ImageGenerationModel[] | null;
@@ -193,7 +195,7 @@
 			return null;
 		}
 
-		const res = await updateConfig(localStorage.token, {
+		const res = await updateConfig(getWorkspaceAuthToken(), {
 			...currentConfig,
 			AUTOMATIC1111_PARAMS:
 				typeof currentConfig.AUTOMATIC1111_PARAMS === 'string' &&
@@ -286,7 +288,7 @@
 
 	onMount(async () => {
 		if ($user?.role === 'admin') {
-			const res = await getConfig(localStorage.token).catch((error) => {
+			const res = await getConfig(getWorkspaceAuthToken()).catch((error) => {
 				toast.error(`${error}`);
 				return null;
 			});
@@ -603,7 +605,7 @@
 										aria-label="verify connection"
 										on:click={async () => {
 											await updateConfigHandler();
-											const res = await verifyConfigUrl(localStorage.token).catch((error) => {
+											const res = await verifyConfigUrl(getWorkspaceAuthToken()).catch((error) => {
 												toast.error(`${error}`);
 												return null;
 											});
@@ -717,7 +719,7 @@
 										aria-label="verify connection"
 										on:click={async () => {
 											await updateConfigHandler();
-											const res = await verifyConfigUrl(localStorage.token).catch((error) => {
+											const res = await verifyConfigUrl(getWorkspaceAuthToken()).catch((error) => {
 												toast.error(`${error}`);
 												return null;
 											});
@@ -1143,7 +1145,7 @@
 										aria-label="verify connection"
 										on:click={async () => {
 											await updateConfigHandler();
-											const res = await verifyConfigUrl(localStorage.token).catch((error) => {
+											const res = await verifyConfigUrl(getWorkspaceAuthToken()).catch((error) => {
 												toast.error(`${error}`);
 												return null;
 											});

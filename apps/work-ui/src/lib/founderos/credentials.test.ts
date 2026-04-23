@@ -13,6 +13,11 @@ describe('founderos embedded credentials', () => {
 	beforeEach(() => {
 		const storage = new Map<string, string>();
 		const sessionStorageState = new Map<string, string>();
+		vi.stubGlobal('window', {
+			location: {
+				href: 'http://localhost/'
+			}
+		});
 		vi.stubGlobal('localStorage', {
 			token: '',
 			getItem: (key: string) => storage.get(key) ?? null,
@@ -122,7 +127,7 @@ describe('founderos embedded credentials', () => {
 		expect(sessionStorage.getItem('founderos.workspace.sessionGrant')).toContain('grant.token');
 		expect(localStorage.getItem('founderos.workspace.sessionToken')).toBeNull();
 		expect(localStorage.getItem('founderos.workspace.sessionGrant')).toBeNull();
-		expect(localStorage.token).toBe('bearer.session.token');
+		expect(localStorage.token).toBe('');
 	});
 
 	test('falls back to the legacy localStorage token when no embedded token exists', () => {
@@ -135,12 +140,53 @@ describe('founderos embedded credentials', () => {
 		});
 	});
 
+	test('fails closed in embedded mode when only a legacy browser token exists', () => {
+		(globalThis.window as { location: { href: string } }).location.href =
+			'http://localhost/workspace?embedded=1&project_id=project-1&session_id=session-1';
+		localStorage.token = 'legacy.browser.token';
+
+		expect(readFounderosEmbeddedSessionToken()).toBeNull();
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('');
+		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({});
+	});
+
+	test('fails closed in embedded mode when only legacy localStorage session keys exist', () => {
+		(globalThis.window as { location: { href: string } }).location.href =
+			'http://localhost/workspace?embedded=1&project_id=project-1&session_id=session-1';
+		localStorage.setItem('founderos.workspace.sessionToken', 'legacy.session.token');
+		localStorage.setItem(
+			'founderos.workspace.sessionGrant',
+			JSON.stringify({
+				token: 'legacy.grant.token',
+				issuedAt: '2026-04-12T00:00:00.000Z',
+				expiresAt: '2026-04-12T00:30:00.000Z'
+			})
+		);
+
+		expect(readFounderosEmbeddedSessionToken()).toBeNull();
+		expect(readFounderosEmbeddedSessionGrant()).toBeNull();
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('');
+		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({});
+	});
+
 	test('fails closed in shell-issued session mode when embedded token is missing', () => {
 		localStorage.token = 'legacy.browser.token';
 
 		expect(
 			resolveFounderosEmbeddedAccessToken({
 				allowLegacyToken: false
+			})
+		).toBe('');
+	});
+
+	test('ignores explicit legacy-token allowance during embedded launch mode', () => {
+		(globalThis.window as { location: { href: string } }).location.href =
+			'http://localhost/workspace?founderos_launch=1&project_id=project-1&session_id=session-1';
+		localStorage.token = 'legacy.browser.token';
+
+		expect(
+			resolveFounderosEmbeddedAccessToken({
+				allowLegacyToken: true
 			})
 		).toBe('');
 	});
@@ -156,6 +202,7 @@ describe('founderos embedded credentials', () => {
 			})
 		);
 
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('');
 		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({
 			'x-founderos-workspace-session-grant': 'grant.token'
 		});
@@ -178,7 +225,23 @@ describe('founderos embedded credentials', () => {
 		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({});
 	});
 
-	test('restores the previous bearer token when clearing embedded credentials', () => {
+	test('does not overwrite the legacy browser token when persisting embedded credentials', () => {
+		localStorage.token = 'user.session.token';
+
+		persistFounderosEmbeddedCredentials({
+			token: 'bearer.session.token',
+			sessionGrant: {
+				token: 'grant.token',
+				issuedAt: '2026-04-12T00:00:00.000Z',
+				expiresAt: '2026-04-12T00:30:00.000Z'
+			}
+		});
+
+		expect(localStorage.token).toBe('user.session.token');
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('bearer.session.token');
+	});
+
+	test('leaves the previous bearer token untouched when clearing embedded credentials', () => {
 		localStorage.token = 'user.session.token';
 
 		persistFounderosEmbeddedCredentials({

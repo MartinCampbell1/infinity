@@ -63,6 +63,7 @@
 
 	import { WEBUI_BASE_URL, WEBUI_API_BASE_URL, PASTED_TEXT_CHARACTER_LIMIT } from '$lib/constants';
 	import { getOAuthClientAuthorizationUrl } from '$lib/apis/configs';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { createNoteHandler } from '../notes/utils';
 	import { getSuggestionRenderer } from '../common/RichTextInput/suggestions';
@@ -119,6 +120,8 @@
 		error?: string;
 		[key: string]: unknown;
 	};
+
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	type ChatInputElement = {
 		replaceVariables: (variables: Record<string, unknown>) => void;
@@ -289,7 +292,7 @@
 			text = text.replaceAll('{{USER_LOCATION}}', String(location));
 		}
 
-		const sessionUser = await getSessionUser(localStorage.token);
+		const sessionUser = await getSessionUser(getWorkspaceAuthToken());
 
 		if (text.includes('{{USER_NAME}}')) {
 			const name = sessionUser?.name || 'User';
@@ -718,7 +721,12 @@
 				}
 
 				// During the file upload, file content is automatically extracted.
-				const uploadedFile = await uploadFile(localStorage.token, file, metadata, process);
+				const uploadedFile = await uploadFile(
+					getWorkspaceAuthToken(),
+					file,
+					metadata,
+					process
+				);
 
 				if (uploadedFile) {
 					console.log('File upload completed:', {
@@ -942,7 +950,7 @@
 				const data = JSON.parse(textData);
 				if (data.type === 'chat' && data.id) {
 					// Fetch the chat to get its title, then add as a reference chat
-					const chat = await getChatById(localStorage.token, data.id);
+					const chat = await getChatById(getWorkspaceAuthToken(), data.id);
 					if (chat) {
 						const chatItem = {
 							type: 'chat',
@@ -1166,7 +1174,7 @@
 				dropzoneElement.addEventListener('dragleave', onDragLeave);
 			}
 
-			tools.set(await getTools(localStorage.token));
+			tools.set(await getTools(getWorkspaceAuthToken()));
 		};
 		initialize();
 
@@ -1539,7 +1547,7 @@
 														}
 
 														const res = await generateAutoCompletion(
-															localStorage.token,
+															getWorkspaceAuthToken(),
 															selectedModelIds.at(0),
 															text,
 															history?.currentId

@@ -7,6 +7,7 @@
 	const i18n = getContext('i18n');
 
 	import { WEBUI_NAME, config, mobile, models as _models, settings, user } from '$lib/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import {
 		createNewModel,
 		deleteAllModels,
@@ -99,6 +100,7 @@
 	let showManageModal = false;
 
 	let viewOption = ''; // '' = All, 'enabled', 'disabled', 'visible', 'hidden'
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const perPage = 30;
 	let currentPage = 1;
@@ -224,8 +226,8 @@
 	const init = async () => {
 		models = null;
 
-		workspaceModels = (await getBaseModels(localStorage.token)) as ModelRecord[] | null;
-		baseModels = (await getModels(localStorage.token, null, true)) as ModelRecord[] | null;
+		workspaceModels = (await getBaseModels(getWorkspaceAuthToken())) as ModelRecord[] | null;
+		baseModels = (await getModels(getWorkspaceAuthToken(), null, true)) as ModelRecord[] | null;
 
 		models = (baseModels ?? []).map((model) => {
 			const workspaceModel = (workspaceModels ?? []).find((workspaceModel) => workspaceModel.id === model.id);
@@ -246,7 +248,7 @@
 			}
 		});
 
-		_models.set(await getModels(localStorage.token, getDirectConnections()));
+		_models.set(await getModels(getWorkspaceAuthToken(), getDirectConnections()));
 	};
 
 	const upsertModelHandler = async (
@@ -257,7 +259,7 @@
 		model = { ...model, base_model_id: null, ...overrides };
 
 		if ((workspaceModels ?? []).find((workspaceModel) => workspaceModel.id === model.id)) {
-			const res = await updateModelById(localStorage.token, model.id, model).catch((error) => {
+			const res = await updateModelById(getWorkspaceAuthToken(), model.id, model).catch((error) => {
 				return null;
 			});
 
@@ -265,7 +267,7 @@
 				toast.success($i18n.t('Model updated successfully'));
 			}
 		} else {
-			const res = await createNewModel(localStorage.token, {
+			const res = await createNewModel(getWorkspaceAuthToken(), {
 				...model,
 				meta: model.meta ?? {},
 				base_model_id: null,
@@ -284,7 +286,7 @@
 
 	const toggleModelHandler = async (model: ModelRecord) => {
 		if (!Object.keys(model).includes('base_model_id')) {
-			await createNewModel(localStorage.token, {
+			await createNewModel(getWorkspaceAuthToken(), {
 				id: model.id,
 				name: model.name,
 				base_model_id: null,
@@ -296,11 +298,11 @@
 				return null;
 			});
 		} else {
-			await toggleModelById(localStorage.token, model.id);
+			await toggleModelById(getWorkspaceAuthToken(), model.id);
 		}
 
 		// await init();
-		_models.set(await getModels(localStorage.token, getDirectConnections()));
+		_models.set(await getModels(getWorkspaceAuthToken(), getDirectConnections()));
 	};
 
 	const hideModelHandler = async (model: ModelRecord) => {
@@ -362,7 +364,7 @@
 		}
 
 		settings.set({ ...$settings, pinnedModels: pinnedModels });
-		await updateUserSettings(localStorage.token, { ui: $settings });
+		await updateUserSettings(getWorkspaceAuthToken(), { ui: $settings });
 	};
 
 	const submitModelEditor = async (model: ModelRecord) => {
@@ -441,7 +443,7 @@
 
 										try {
 											const importedModels = JSON.parse(String(event.target?.result ?? '[]'));
-											const res = await importModels(localStorage.token, importedModels);
+											const res = await importModels(getWorkspaceAuthToken(), importedModels);
 
 											if (res) {
 												toast.success($i18n.t('Models imported successfully'));

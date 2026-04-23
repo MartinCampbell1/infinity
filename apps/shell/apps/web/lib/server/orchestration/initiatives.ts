@@ -86,7 +86,8 @@ export async function createOrchestrationInitiative(input: CreateInitiativeReque
     title: trimRequiredString(input.title),
     userRequest: trimRequiredString(input.userRequest),
     requestedBy: trimRequiredString(input.requestedBy),
-    workspaceSessionId: trimOptionalString(input.workspaceSessionId),
+    workspaceSessionId:
+      trimOptionalString(input.workspaceSessionId) ?? buildOrchestrationId("session"),
     priority: input.priority ?? "normal",
     status: "clarifying",
     createdAt: occurredAt,

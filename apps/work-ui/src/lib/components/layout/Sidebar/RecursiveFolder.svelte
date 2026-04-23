@@ -10,6 +10,7 @@
 
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { chatId, mobile, selectedFolder, showSidebar } from '$lib/stores';
 
@@ -74,6 +75,7 @@
 	let clickTimer = null;
 
 	let name = '';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const onDragOver = (e) => {
 		e.preventDefault();
@@ -127,7 +129,7 @@
 								}
 
 								const res = await updateFolderParentIdById(
-									localStorage.token,
+									getWorkspaceAuthToken(),
 									id,
 									folderId
 								).catch((error) => {
@@ -141,11 +143,11 @@
 							} else if (type === 'chat') {
 								open = true;
 
-								let chat = await getChatById(localStorage.token, id).catch(() => {
+								let chat = await getChatById(getWorkspaceAuthToken(), id).catch(() => {
 									return null;
 								});
 								if (!chat && item) {
-									chat = await importChats(localStorage.token, [
+									chat = await importChats(getWorkspaceAuthToken(), [
 										{
 											chat: item.chat,
 											meta: item?.meta ?? {},
@@ -161,7 +163,7 @@
 								}
 
 								const res = await updateChatFolderIdById(
-									localStorage.token,
+									getWorkspaceAuthToken(),
 									chat.id,
 									folderId
 								).catch((error) => {
@@ -272,7 +274,7 @@
 	let showDeleteConfirm = false;
 
 	const deleteHandler = async () => {
-		const res = await deleteFolderById(localStorage.token, folderId, deleteFolderContents).catch(
+		const res = await deleteFolderById(getWorkspaceAuthToken(), folderId, deleteFolderContents).catch(
 			(error) => {
 				toast.error(`${error}`);
 				return null;
@@ -296,7 +298,7 @@
 		name = name.trim();
 		folders[folderId].name = name;
 
-		const res = await updateFolderById(localStorage.token, folderId, {
+		const res = await updateFolderById(getWorkspaceAuthToken(), folderId, {
 			name,
 			...(meta ? { meta } : {}),
 			...(data ? { data } : {})
@@ -315,7 +317,7 @@
 			toast.success($i18n.t('Folder updated successfully'));
 
 			if ($selectedFolder?.id === folderId) {
-				const folder = await getFolderById(localStorage.token, folderId).catch((error) => {
+			const folder = await getFolderById(getWorkspaceAuthToken(), folderId).catch((error) => {
 					toast.error(`${error}`);
 					return null;
 				});
@@ -329,7 +331,7 @@
 	};
 
 	const isExpandedUpdateHandler = async () => {
-		await updateFolderIsExpandedById(localStorage.token, folderId, open).catch((error) => {
+		await updateFolderIsExpandedById(getWorkspaceAuthToken(), folderId, open).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -348,7 +350,7 @@
 	export const setFolderItems = async () => {
 		await tick();
 		if (open) {
-			chats = await getChatListByFolderId(localStorage.token, folderId).catch((error) => {
+			chats = await getChatListByFolderId(getWorkspaceAuthToken(), folderId).catch((error) => {
 				toast.error(`${error}`);
 				return [];
 			});
@@ -377,7 +379,7 @@
 	};
 
 	const exportHandler = async () => {
-		const exportedChats = await getChatsByFolderId(localStorage.token, folderId).catch((error) => {
+		const exportedChats = await getChatsByFolderId(getWorkspaceAuthToken(), folderId).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -400,7 +402,7 @@
 
 		name = name.trim();
 
-		const res = await createNewFolder(localStorage.token, {
+		const res = await createNewFolder(getWorkspaceAuthToken(), {
 			name,
 			data,
 			meta,
@@ -497,7 +499,7 @@
 					}
 
 					clickTimer = setTimeout(async () => {
-						const folder = await getFolderById(localStorage.token, folderId).catch((error) => {
+						const folder = await getFolderById(getWorkspaceAuthToken(), folderId).catch((error) => {
 							toast.error(`${error}`);
 							return null;
 						});

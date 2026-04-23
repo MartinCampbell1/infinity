@@ -9,6 +9,7 @@
 	import { goto } from '$app/navigation';
 
 	import { createNewChannel, deleteChannelById } from '$lib/apis/channels';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { user } from '$lib/stores';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -39,6 +40,7 @@
 	let userIds = [];
 
 	let loading = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (name) {
 		name = name.replace(/\s/g, '-').toLocaleLowerCase();
@@ -115,7 +117,7 @@
 
 		const channelId = channel.id;
 
-		const res = await deleteChannelById(localStorage.token, channelId).catch((error) => {
+		const res = await deleteChannelById(getWorkspaceAuthToken(), channelId).catch((error) => {
 			toast.error(error.message);
 		});
 

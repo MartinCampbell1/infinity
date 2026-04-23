@@ -2,6 +2,7 @@
 	import Checkbox from '$lib/components/common/Checkbox.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { getContext, onMount } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { getSkillItems } from '$lib/apis/skills';
 
@@ -20,9 +21,10 @@
 	let skillEntries: [string, SkillItem][] = [];
 
 	const i18n = getContext('i18n');
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	onMount(async () => {
-		const res = await getSkillItems(localStorage.token).catch(() => null);
+		const res = await getSkillItems(getWorkspaceAuthToken()).catch(() => null);
 		const skills = (res?.items ?? []) as SkillItem[];
 		_skills = skills.reduce((acc: SkillMap, skill) => {
 			acc[skill.id] = {

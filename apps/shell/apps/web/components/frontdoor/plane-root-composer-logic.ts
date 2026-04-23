@@ -19,7 +19,7 @@ export function buildInitiativeCreateRequest(
   return {
     title: deriveTitleFromPrompt(normalizedPrompt),
     userRequest: normalizedPrompt,
-    requestedBy: requestedBy.trim() || "martin",
+    requestedBy: requestedBy.trim() || "operator",
     workspaceSessionId: routeScope?.sessionId || null,
   };
 }

@@ -21,6 +21,7 @@
 		getChatPinnedStatusById,
 		toggleChatPinnedStatusById
 	} from '$lib/apis/chats';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { chats, folders, settings, theme, user } from '$lib/stores';
 	import { createMessagesList } from '$lib/utils';
 	import { downloadChatAsPDF } from '$lib/apis/utils';
@@ -48,14 +49,15 @@
 	let showFullMessages = false;
 
 	export let onPinChange: () => void = () => {};
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const pinHandler = async () => {
-		await toggleChatPinnedStatusById(localStorage.token, chatId);
+		await toggleChatPinnedStatusById(getWorkspaceAuthToken(), chatId);
 		onPinChange();
 	};
 
 	const checkPinned = async () => {
-		pinned = await getChatPinnedStatusById(localStorage.token, chatId);
+		pinned = await getChatPinnedStatusById(getWorkspaceAuthToken(), chatId);
 	};
 
 	const getChatAsText = async (chat) => {
@@ -69,7 +71,7 @@
 	};
 
 	const downloadTxt = async () => {
-		const chat = await getChatById(localStorage.token, chatId);
+		const chat = await getChatById(getWorkspaceAuthToken(), chatId);
 		if (!chat) {
 			return;
 		}
@@ -83,7 +85,7 @@
 	};
 
 	const downloadPdf = async () => {
-		chat = await getChatById(localStorage.token, chatId);
+		chat = await getChatById(getWorkspaceAuthToken(), chatId);
 		if (!chat) {
 			return;
 		}
@@ -244,7 +246,7 @@
 	};
 
 	const downloadJSONExport = async () => {
-		const chat = await getChatById(localStorage.token, chatId);
+		const chat = await getChatById(getWorkspaceAuthToken(), chatId);
 
 		if (chat) {
 			let blob = new Blob([JSON.stringify([chat])], {

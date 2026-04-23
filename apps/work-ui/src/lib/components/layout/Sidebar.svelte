@@ -4,6 +4,7 @@
 
 	import { goto } from '$app/navigation';
 	import { founderosLaunchContext } from '$lib/founderos';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { buildFounderosChatHref, buildFounderosRootHref } from '$lib/founderos/navigation';
 	import {
 		user,
@@ -118,6 +119,7 @@
 	};
 
 	type SidebarTouchPoint = Pick<Touch, 'clientX' | 'screenX'>;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const BREAKPOINT = 768;
 	const SIDEBAR_CHAT_PAGE_SIZE = 60;
@@ -172,7 +174,7 @@
 			return;
 		}
 
-		const folderList = ((await getFolders(localStorage.token).catch((error) => {
+		const folderList = ((await getFolders(getWorkspaceAuthToken()).catch((error) => {
 			return [];
 		})) ?? []) as SidebarFolder[];
 		_folders.set(
@@ -230,7 +232,8 @@
 	};
 
 	const loadHermesSidebarSessions = async () => {
-		if (!localStorage?.token) {
+		const token = getWorkspaceAuthToken();
+		if (!token) {
 			return;
 		}
 
@@ -242,7 +245,7 @@
 		hermesSidebarSessionsLoading = true;
 
 		try {
-			const sessionsPayload = await getHermesSessions(localStorage.token);
+			const sessionsPayload = await getHermesSessions(token);
 			const sessions = sessionsPayload?.items ?? [];
 			setHermesSidebarSessions(sessions);
 		} catch (error) {
@@ -272,8 +275,8 @@
 
 		try {
 			const [nextPinnedChats, nextChatsPageOne] = await Promise.all([
-				getPinnedChatList(localStorage.token),
-				getChatList(localStorage.token, 1)
+				getPinnedChatList(getWorkspaceAuthToken()),
+				getChatList(getWorkspaceAuthToken(), 1)
 			]);
 			const nextPageOneIds = new Set(
 				((nextChatsPageOne ?? []) as HermesAwareChatListItem[]).map((chat) => chat.id)
@@ -355,7 +358,7 @@
 			}
 		};
 
-		const res = await createNewFolder(localStorage.token, {
+		const res = await createNewFolder(getWorkspaceAuthToken(), {
 			name: normalizedName,
 			data,
 			parent_id
@@ -374,7 +377,7 @@
 	const initChannels = async () => {
 		// default (none), group, dm type
 		const channelTypeOrder: Array<string | null> = ['', null, 'group', 'dm'];
-		const res = await getChannels(localStorage.token).catch((error) => {
+		const res = await getChannels(getWorkspaceAuthToken()).catch((error) => {
 			return null;
 		});
 
@@ -410,17 +413,17 @@
 		await Promise.all([
 			await (async () => {
 				console.log('Init tags');
-				const _tags = await getAllTags(localStorage.token);
+				const _tags = await getAllTags(getWorkspaceAuthToken());
 				tags.set(_tags);
 			})(),
 			await (async () => {
 				console.log('Init pinned chats');
-				const _pinnedChats = await getPinnedChatList(localStorage.token);
+				const _pinnedChats = await getPinnedChatList(getWorkspaceAuthToken());
 				pinnedChats.set(_pinnedChats);
 			})(),
 			await (async () => {
 				console.log('Init chat list');
-				const _chats = await getChatList(localStorage.token, $currentChatPage);
+				const _chats = await getChatList(getWorkspaceAuthToken(), $currentChatPage);
 				await chats.set(_chats);
 			})()
 		]);
@@ -461,7 +464,7 @@
 		hermesSessionActionId = session.session_id;
 
 		try {
-			const res = await importHermesSession(localStorage.token, session.session_id).catch(
+			const res = await importHermesSession(getWorkspaceAuthToken(), session.session_id).catch(
 				(error) => {
 					toast.error(`${error}`);
 					return null;
@@ -492,7 +495,7 @@
 
 		let newChatList: HermesAwareChatListItem[] = [];
 
-		newChatList = await getChatList(localStorage.token, $currentChatPage);
+		newChatList = await getChatList(getWorkspaceAuthToken(), $currentChatPage);
 
 		// once the bottom of the list has been reached (no results) there is no need to continue querying
 		allChatsLoaded = newChatList.length === 0;
@@ -570,7 +573,7 @@
 		for (const item of items) {
 			console.log(item);
 			if (item.chat) {
-				await importChats(localStorage.token, [
+				await importChats(getWorkspaceAuthToken(), [
 					{
 						chat: item.chat,
 						meta: item?.meta ?? {},
@@ -805,7 +808,7 @@
 					];
 					if (allChatIds.length > 0) {
 						try {
-							const res = await checkActiveChats(localStorage.token, allChatIds);
+							const res = await checkActiveChats(getWorkspaceAuthToken(), allChatIds);
 							activeChatIds.set(new Set(res.active_chat_ids || []));
 						} catch (e) {
 							console.debug('Failed to check active chats:', e);
@@ -958,7 +961,7 @@
 			}
 		}
 
-		const res = await createNewChannel(localStorage.token, {
+		const res = await createNewChannel(getWorkspaceAuthToken(), {
 			type: type,
 			name: name,
 			is_private: is_private,
@@ -1523,7 +1526,7 @@
 									return;
 								}
 
-								const res = await updateFolderParentIdById(localStorage.token, id, undefined).catch(
+								const res = await updateFolderParentIdById(getWorkspaceAuthToken(), id, undefined).catch(
 									(error) => {
 										toast.error(`${error}`);
 										return null;
@@ -1573,11 +1576,11 @@
 							const { type, id, item } = e.detail;
 
 						if (type === 'chat') {
-							let chat = await getChatById(localStorage.token, id).catch((error) => {
+							let chat = await getChatById(getWorkspaceAuthToken(), id).catch((error) => {
 								return null;
 							});
 							if (!chat && item) {
-								chat = await importChats(localStorage.token, [
+								chat = await importChats(getWorkspaceAuthToken(), [
 									{
 										chat: item.chat,
 										meta: item?.meta ?? {},
@@ -1593,7 +1596,7 @@
 								console.log(chat);
 								if (chat.folder_id) {
 									const res = await updateChatFolderIdById(
-										localStorage.token,
+										getWorkspaceAuthToken(),
 										chat.id,
 										undefined
 									).catch(
@@ -1607,7 +1610,7 @@
 								}
 
 								if (chat.pinned) {
-									const res = await toggleChatPinnedStatusById(localStorage.token, chat.id);
+									const res = await toggleChatPinnedStatusById(getWorkspaceAuthToken(), chat.id);
 								}
 
 								initChatList();
@@ -1617,7 +1620,7 @@
 								return;
 							}
 
-							const res = await updateFolderParentIdById(localStorage.token, id, undefined).catch(
+							const res = await updateFolderParentIdById(getWorkspaceAuthToken(), id, undefined).catch(
 								(error) => {
 									toast.error(`${error}`);
 									return null;
@@ -1643,11 +1646,11 @@
 										const { type, id, item } = e.detail;
 
 										if (type === 'chat') {
-											let chat = await getChatById(localStorage.token, id).catch((error) => {
+											let chat = await getChatById(getWorkspaceAuthToken(), id).catch((error) => {
 												return null;
 											});
 											if (!chat && item) {
-												chat = await importChats(localStorage.token, [
+												chat = await importChats(getWorkspaceAuthToken(), [
 													{
 														chat: item.chat,
 														meta: item?.meta ?? {},
@@ -1663,7 +1666,7 @@
 												console.log(chat);
 												if (chat.folder_id) {
 									const res = await updateChatFolderIdById(
-														localStorage.token,
+														getWorkspaceAuthToken(),
 														chat.id,
 														undefined
 													).catch((error) => {
@@ -1673,7 +1676,7 @@
 												}
 
 												if (!chat.pinned) {
-													const res = await toggleChatPinnedStatusById(localStorage.token, chat.id);
+													const res = await toggleChatPinnedStatusById(getWorkspaceAuthToken(), chat.id);
 												}
 
 												initChatList();

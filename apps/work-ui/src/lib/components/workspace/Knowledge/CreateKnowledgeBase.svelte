@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { getContext } from 'svelte';
 	const i18n = getContext('i18n');
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { user } from '$lib/stores';
 	import { createNewKnowledge } from '$lib/apis/knowledge';
@@ -16,6 +17,7 @@
 	let name = '';
 	let description = '';
 	let accessGrants = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const submitHandler = async () => {
 		loading = true;
@@ -28,7 +30,7 @@
 			return;
 		}
 
-		const res = await createNewKnowledge(localStorage.token, name, description, accessGrants).catch(
+		const res = await createNewKnowledge(getWorkspaceAuthToken(), name, description, accessGrants).catch(
 			(e) => {
 				toast.error(`${e}`);
 			}

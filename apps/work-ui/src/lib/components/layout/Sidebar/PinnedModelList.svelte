@@ -5,6 +5,7 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 
 	import { chatId, config, mobile, models, settings, showSidebar } from '$lib/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { WEBUI_BASE_URL } from '$lib/constants';
 	import { updateUserSettings } from '$lib/apis/users';
 	import PinnedModelItem from './PinnedModelItem.svelte';
@@ -14,6 +15,7 @@
 	export let shiftKey = false;
 
 	let pinnedModels = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const initPinnedModelsSortable = () => {
 		const pinnedModelsList = document.getElementById('pinned-models-list');
@@ -31,7 +33,7 @@
 					pinnedModels.splice(newIndex, 0, modelId);
 
 					settings.set({ ...$settings, pinnedModels: pinnedModels });
-					await updateUserSettings(localStorage.token, { ui: $settings });
+					await updateUserSettings(getWorkspaceAuthToken(), { ui: $settings });
 				}
 			});
 		}
@@ -49,7 +51,7 @@
 		if (validModels.length !== modelIds.length) {
 			pinnedModels = validModels;
 			settings.set({ ...$settings, pinnedModels: validModels });
-			await updateUserSettings(localStorage.token, { ui: $settings });
+			await updateUserSettings(getWorkspaceAuthToken(), { ui: $settings });
 		}
 	};
 
@@ -61,7 +63,7 @@
 			pinnedModels = defaultPinnedModels.filter((id) => $models.find((model) => model.id === id));
 
 			settings.set({ ...$settings, pinnedModels });
-			await updateUserSettings(localStorage.token, { ui: $settings });
+			await updateUserSettings(getWorkspaceAuthToken(), { ui: $settings });
 		}
 
 		// Auto-unpin hidden or deleted models
@@ -102,7 +104,7 @@
 					? () => {
 							const pinnedModels = $settings.pinnedModels.filter((id) => id !== modelId);
 							settings.set({ ...$settings, pinnedModels });
-							updateUserSettings(localStorage.token, { ui: $settings });
+							updateUserSettings(getWorkspaceAuthToken(), { ui: $settings });
 						}
 					: null}
 			/>

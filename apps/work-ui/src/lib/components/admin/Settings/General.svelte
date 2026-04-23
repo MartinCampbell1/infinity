@@ -1,6 +1,7 @@
 <script lang="ts">
 	import DOMPurify from 'dompurify';
 	import { v4 as uuidv4 } from 'uuid';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { getBackendConfig, getVersionUpdates, getWebhookUrl, updateWebhookUrl } from '$lib/apis';
 	import {
@@ -79,10 +80,11 @@
 		certificate_path: '',
 		ciphers: ''
 	};
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const checkForVersionUpdates = async () => {
 		updateAvailable = null;
-		version = await getVersionUpdates(localStorage.token).catch((error) => {
+		version = await getVersionUpdates(getWorkspaceAuthToken()).catch((error) => {
 			return {
 				current: WEBUI_VERSION,
 				latest: WEBUI_VERSION
@@ -97,7 +99,7 @@
 
 	const updateLdapServerHandler = async () => {
 		if (!ENABLE_LDAP) return;
-		const res = await updateLdapServer(localStorage.token, LDAP_SERVER).catch((error) => {
+		const res = await updateLdapServer(getWorkspaceAuthToken(), LDAP_SERVER).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -107,15 +109,15 @@
 	};
 
 	const updateBanners = async () => {
-		_banners.set(await setBanners(localStorage.token, banners));
+		_banners.set(await setBanners(getWorkspaceAuthToken(), banners));
 	};
 
 	const updateHandler = async () => {
 		if (!adminConfig) return;
 
-		webhookUrl = await updateWebhookUrl(localStorage.token, webhookUrl);
-		const res = await updateAdminConfig(localStorage.token, adminConfig);
-		await updateLdapConfig(localStorage.token, ENABLE_LDAP);
+		webhookUrl = await updateWebhookUrl(getWorkspaceAuthToken(), webhookUrl);
+		const res = await updateAdminConfig(getWorkspaceAuthToken(), adminConfig);
+		await updateLdapConfig(getWorkspaceAuthToken(), ENABLE_LDAP);
 		await updateLdapServerHandler();
 
 		await updateBanners();
@@ -136,24 +138,24 @@
 
 		await Promise.all([
 			(async () => {
-				adminConfig = await getAdminConfig(localStorage.token);
+				adminConfig = await getAdminConfig(getWorkspaceAuthToken());
 			})(),
 
 			(async () => {
-				webhookUrl = await getWebhookUrl(localStorage.token);
+				webhookUrl = await getWebhookUrl(getWorkspaceAuthToken());
 			})(),
 			(async () => {
-				LDAP_SERVER = await getLdapServer(localStorage.token);
+				LDAP_SERVER = await getLdapServer(getWorkspaceAuthToken());
 			})(),
 			(async () => {
-				groups = await getGroups(localStorage.token);
+				groups = await getGroups(getWorkspaceAuthToken());
 			})()
 		]);
 
-		const ldapConfig = await getLdapConfig(localStorage.token);
+		const ldapConfig = await getLdapConfig(getWorkspaceAuthToken());
 		ENABLE_LDAP = ldapConfig.ENABLE_LDAP;
 
-		banners = await getBanners(localStorage.token);
+		banners = await getBanners(getWorkspaceAuthToken());
 	});
 </script>
 

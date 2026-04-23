@@ -119,10 +119,11 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("exit", () => shutdown("SIGTERM"));
 
 console.log("Infinity localhost stack");
-console.log(`- shell entry:        ${shellOrigin}/execution`);
-console.log(`- work-ui (internal): ${workUiOrigin}/auth`);
-console.log(`- kernel (internal):  ${kernelOrigin}/healthz`);
+console.log(`- shell entry:         ${shellOrigin}/`);
+console.log(`- work-ui internal:    ${workUiOrigin}/`);
+console.log(`- kernel internal:     ${kernelOrigin}/healthz`);
 console.log(`- state:   ${stateDir}`);
+console.log("- shell is the only user-facing entry; work-ui and kernel stay internal.");
 console.log("Press Ctrl+C to stop.");
 
 for (const child of children) {

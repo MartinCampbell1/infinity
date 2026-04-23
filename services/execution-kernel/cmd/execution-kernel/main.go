@@ -21,7 +21,7 @@ import (
 func main() {
 	addr := os.Getenv("EXECUTION_KERNEL_ADDR")
 	if addr == "" {
-		addr = "127.0.0.1:8787"
+		addr = "127.0.0.1:8798"
 	}
 
 	statePath := os.Getenv("EXECUTION_KERNEL_STATE_PATH")

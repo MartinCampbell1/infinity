@@ -13,7 +13,7 @@ import {
   getControlPlaneStorageSource,
 } from "../state/store";
 import { buildSessionWorkspaceHostContext } from "./launch";
-import { buildWorkspaceLaunchSessionContext } from "./mock";
+import { buildWorkspaceLaunchSessionContext } from "./session-context";
 export function buildWorkspaceBootstrapUser(): WorkspaceLaunchBootstrapUser {
   return {
     id: "founderos-embedded-user",

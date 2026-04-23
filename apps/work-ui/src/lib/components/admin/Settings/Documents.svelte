@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { onMount, getContext, createEventDispatcher } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const dispatch = createEventDispatcher<{ save: undefined }>();
 
@@ -250,6 +251,7 @@
 	let OllamaKey = '';
 	let RAGConfig: DocumentsRAGConfig = createDefaultRAGConfig();
 	let isRAGConfigLoaded = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const embeddingModelUpdateHandler = async () => {
 		if (RAG_EMBEDDING_ENGINE === '' && RAG_EMBEDDING_MODEL.split('/').length - 1 > 1) {
@@ -318,7 +320,7 @@
 				version: AzureOpenAIVersion
 			}
 		};
-		const res = await updateEmbeddingConfig(localStorage.token, payload).catch(async (error) => {
+		const res = await updateEmbeddingConfig(getWorkspaceAuthToken(), payload).catch(async (error) => {
 			toast.error(`${error}`);
 			await setEmbeddingConfig();
 			return null;
@@ -428,12 +430,12 @@
 					? JSON.parse(RAGConfig.MINERU_PARAMS)
 					: {}
 		};
-		const res = await updateRAGConfig(localStorage.token, payload);
+		const res = await updateRAGConfig(getWorkspaceAuthToken(), payload);
 		dispatch('save');
 	};
 
 	const setEmbeddingConfig = async () => {
-		const embeddingConfig = await getEmbeddingConfig(localStorage.token);
+		const embeddingConfig = await getEmbeddingConfig(getWorkspaceAuthToken());
 
 		if (embeddingConfig) {
 			RAG_EMBEDDING_ENGINE = embeddingConfig.RAG_EMBEDDING_ENGINE;
@@ -456,7 +458,7 @@
 	onMount(async () => {
 		await setEmbeddingConfig();
 
-		const config = await getRAGConfig(localStorage.token);
+		const config = await getRAGConfig(getWorkspaceAuthToken());
 		RAGConfig = normalizeRAGConfig(config);
 		isRAGConfigLoaded = true;
 	});
@@ -465,7 +467,7 @@
 <ResetUploadDirConfirmDialog
 	bind:show={showResetUploadDirConfirm}
 	on:confirm={async () => {
-		const res = await deleteAllFiles(localStorage.token).catch((error) => {
+		const res = await deleteAllFiles(getWorkspaceAuthToken()).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -479,7 +481,7 @@
 <ResetVectorDBConfirmDialog
 	bind:show={showResetConfirm}
 	on:confirm={async () => {
-		const res = await resetVectorDB(localStorage.token).catch((error) => {
+		const res = await resetVectorDB(getWorkspaceAuthToken()).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -493,7 +495,7 @@
 <ReindexKnowledgeFilesConfirmDialog
 	bind:show={showReindexConfirm}
 	on:confirm={async () => {
-		const res = await reindexKnowledgeFiles(localStorage.token).catch((error) => {
+		const res = await reindexKnowledgeFiles(getWorkspaceAuthToken()).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});

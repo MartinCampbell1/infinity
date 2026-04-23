@@ -3,6 +3,7 @@
 	import Switch from '$lib/components/common/Switch.svelte';
 
 	import { onMount, getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Textarea from '$lib/components/common/Textarea.svelte';
@@ -76,6 +77,7 @@
 	const i18n = getContext('i18n');
 
 	export let saveHandler: () => void | Promise<void> = async () => {};
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let webSearchEngines = [
 		'ollama_cloud',
@@ -242,13 +244,13 @@
 		}
 		const submissionWebConfig = buildSubmissionWebConfig(webConfig);
 
-		await updateRAGConfig(localStorage.token, {
+		await updateRAGConfig(getWorkspaceAuthToken(), {
 			web: submissionWebConfig
 		} as unknown as RAGConfigPayload);
 	};
 
 	const loadConfig = async () => {
-		const res = await getRAGConfig(localStorage.token);
+		const res = await getRAGConfig(getWorkspaceAuthToken());
 
 		if (res) {
 			webConfig = normalizeWebConfig((res.web ?? {}) as RawWebConfig);

@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { getContext, onMount } from 'svelte';
 	const i18n = getContext('i18n');
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { settings } from '$lib/stores';
 
@@ -82,6 +83,7 @@
 	let policyStorage = 'ephemeral';
 	let policyStorageSize = '5Gi';
 	let policyIdleTimeout = 30;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const init = () => {
 		if (connection) {
@@ -148,7 +150,7 @@
 		try {
 			if (!direct) {
 				// System connection: proxy through backend to avoid CORS / key exposure
-				const result = await verifyTerminalServerConnection(localStorage.token, {
+				const result = await verifyTerminalServerConnection(getWorkspaceAuthToken(), {
 					url: _url,
 					key,
 					auth_type
@@ -235,7 +237,13 @@
 		// Save policy to orchestrator if applicable
 		if (serverType === 'orchestrator' && !direct && policyId) {
 			try {
-				await putOrchestratorPolicy(localStorage.token, url, key, policyId, buildPolicyData());
+				await putOrchestratorPolicy(
+					getWorkspaceAuthToken(),
+					url,
+					key,
+					policyId,
+					buildPolicyData()
+				);
 			} catch (err) {
 				toast.error($i18n.t('Failed to save policy: {{error}}', { error: err }));
 				return;

@@ -145,9 +145,7 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 		let launchedBatchId = "";
 		let launchedInitiativeId = "";
 		let launchedWorkUnitId = "";
-		let batchResumed = false;
-
-		const kernelServer = createServer(async (request: IncomingMessage, response: ServerResponse) => {
+			const kernelServer = createServer(async (request: IncomingMessage, response: ServerResponse) => {
 			if (request.method === "POST" && request.url === "/api/v1/batches") {
 				const body = await readJsonBody(request);
 				launchedBatchId = String(body.batchId ?? "");

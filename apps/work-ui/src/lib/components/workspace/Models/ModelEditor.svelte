@@ -4,6 +4,7 @@
 	import { onMount, getContext, tick } from 'svelte';
 	import { models, tools, functions, user } from '$lib/stores';
 	import { WEBUI_BASE_URL, DEFAULT_CAPABILITIES } from '$lib/constants';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { getTools } from '$lib/apis/tools';
 	import { getFunctions } from '$lib/apis/functions';
@@ -294,6 +295,7 @@
 	let showAccessControlModal = false;
 
 	let loaded = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	// ///////////
 	// model
@@ -518,12 +520,12 @@
 	};
 
 	onMount(async () => {
-		await tools.set(await getTools(localStorage.token));
-		await functions.set(await getFunctions(localStorage.token));
+		await tools.set(await getTools(getWorkspaceAuthToken()));
+		await functions.set(await getFunctions(getWorkspaceAuthToken()));
 
 		// Fetch admin-configured default model metadata so the editor
 		// reflects the actual defaults rather than hardcoded values
-		const modelsConfig = await getModelsDefaults(localStorage.token).catch(() => null);
+		const modelsConfig = await getModelsDefaults(getWorkspaceAuthToken()).catch(() => null);
 		const defaultMeta = modelsConfig?.DEFAULT_MODEL_METADATA ?? {};
 
 		// Use admin defaults as base, falling back to hardcoded defaults
@@ -626,7 +628,7 @@
 			if (edit && model?.id) {
 				try {
 					await updateModelAccessGrants(
-						localStorage.token,
+						getWorkspaceAuthToken(),
 						model.id,
 						model.name ?? name,
 						accessGrants

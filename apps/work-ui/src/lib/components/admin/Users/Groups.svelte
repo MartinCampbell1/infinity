@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { onMount, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { user } from '$lib/stores';
 
@@ -90,25 +91,26 @@
 
 	let showAddGroupModal = false;
 	let showDefaultPermissionsModal = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const setGroups = async () => {
-		groups = (await getGroups(localStorage.token)) ?? [];
+		groups = (await getGroups(getWorkspaceAuthToken())) ?? [];
 	};
 
 	const addGroupHandler = async (group: GroupSubmitPayload) => {
-		const res = await createNewGroup(localStorage.token, group).catch((error) => {
+		const res = await createNewGroup(getWorkspaceAuthToken(), group).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
 
 		if (res) {
 			toast.success($i18n.t('Group created successfully'));
-			groups = (await getGroups(localStorage.token)) ?? [];
+			groups = (await getGroups(getWorkspaceAuthToken())) ?? [];
 		}
 	};
 
 	const updateDefaultPermissionsHandler = async (group: GroupSubmitPayload) => {
-		const res = await updateUserDefaultPermissions(localStorage.token, group.permissions).catch(
+		const res = await updateUserDefaultPermissions(getWorkspaceAuthToken(), group.permissions).catch(
 			(error) => {
 				toast.error(`${error}`);
 				return null;
@@ -118,7 +120,7 @@
 		if (res) {
 			toast.success($i18n.t('Default permissions updated successfully'));
 			defaultPermissions = mergeGroupPermissions(
-				await getUserDefaultPermissions(localStorage.token)
+				await getUserDefaultPermissions(getWorkspaceAuthToken())
 			);
 		}
 	};
@@ -129,7 +131,7 @@
 			return;
 		}
 
-		defaultPermissions = mergeGroupPermissions(await getUserDefaultPermissions(localStorage.token));
+		defaultPermissions = mergeGroupPermissions(await getUserDefaultPermissions(getWorkspaceAuthToken()));
 		await setGroups();
 		loaded = true;
 	});

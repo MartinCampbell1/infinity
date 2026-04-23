@@ -114,12 +114,12 @@ export function ExecutionHomeSurface({
   const kernelLabel = !kernelAvailability.available
     ? "execution-kernel offline"
     : kernelAvailability.recoveryState === "retryable"
-      ? "execution-kernel retryable"
+      ? "execution-kernel local scaffold retryable"
     : kernelAvailability.runtimeState === "blocked"
-      ? "execution-kernel blocked"
-      : kernelAvailability.restartRecoverable
-        ? "execution-kernel restart-recoverable"
-        : "execution-kernel ready";
+      ? "execution-kernel local scaffold blocked"
+    : kernelAvailability.restartRecoverable
+        ? "execution-kernel local scaffold restart-recoverable"
+        : "execution-kernel local scaffold";
 
   return (
     <main className="mx-auto flex max-w-[1480px] flex-col gap-5">
@@ -267,6 +267,21 @@ export function ExecutionHomeSurface({
                   {kernelAvailability.recoveryState === "retryable" ? (
                     <span className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/62">
                       retryable
+                    </span>
+                  ) : null}
+                  {kernelAvailability.maturity ? (
+                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/62">
+                      {kernelAvailability.maturity.replace(/_/g, "-")}
+                    </span>
+                  ) : null}
+                  {kernelAvailability.deploymentScope ? (
+                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/62">
+                      {kernelAvailability.deploymentScope.replace(/_/g, "-")}
+                    </span>
+                  ) : null}
+                  {kernelAvailability.durabilityTier ? (
+                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] text-white/62">
+                      {kernelAvailability.durabilityTier.replace(/_/g, "-")}
                     </span>
                   ) : null}
                   {kernelAvailability.restartRecoverable ? (

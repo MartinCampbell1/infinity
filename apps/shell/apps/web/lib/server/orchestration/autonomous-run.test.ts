@@ -1,0 +1,373 @@
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
+
+import { readControlPlaneState } from "../control-plane/state/store";
+import { createIsolatedControlPlaneStateDir } from "../control-plane/state/test-helpers";
+import { buildAutonomousValidationProof } from "./autonomous-run";
+
+const ORIGINAL_INTEGRATION_ROOT = process.env.FOUNDEROS_INTEGRATION_ROOT;
+
+let isolatedState:
+  | ReturnType<typeof createIsolatedControlPlaneStateDir>
+  | null = null;
+
+beforeEach(() => {
+  isolatedState = createIsolatedControlPlaneStateDir();
+  process.env.FOUNDEROS_INTEGRATION_ROOT = isolatedState.directory;
+});
+
+afterEach(() => {
+  if (ORIGINAL_INTEGRATION_ROOT === undefined) {
+    delete process.env.FOUNDEROS_INTEGRATION_ROOT;
+  } else {
+    process.env.FOUNDEROS_INTEGRATION_ROOT = ORIGINAL_INTEGRATION_ROOT;
+  }
+
+  isolatedState?.restore();
+  isolatedState = null;
+});
+
+describe("buildAutonomousValidationProof", () => {
+  test("derives one-prompt autonomy from the latest brief instead of hardcoding it", async () => {
+    const state = await readControlPlaneState();
+    const initiativeId = "initiative-proof-1";
+    const runId = "run-proof-1";
+
+    state.orchestration.initiatives = [
+      {
+        id: initiativeId,
+        title: "Manual brief validation",
+        userRequest: "Validate a manually staged run.",
+        requestedBy: "martin",
+        workspaceSessionId: null,
+        priority: "normal",
+        status: "verifying",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:00.000Z",
+      },
+    ];
+    state.orchestration.briefs = [
+      {
+        id: "brief-proof-1",
+        initiativeId,
+        summary: "Manually authored brief.",
+        goals: [],
+        nonGoals: [],
+        constraints: [],
+        assumptions: [],
+        acceptanceCriteria: [],
+        repoScope: [],
+        deliverables: [],
+        clarificationLog: [],
+        status: "approved",
+        authoredBy: "droid-spec-writer",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:01.000Z",
+      },
+    ];
+    state.orchestration.runs = [
+      {
+        id: runId,
+        initiativeId,
+        title: "Manual brief validation",
+        originalPrompt: "Validate a manually staged run.",
+        entryMode: "shell_chat",
+        currentStage: "handed_off",
+        health: "healthy",
+        automationMode: "autonomous",
+        manualStageProgression: false,
+        operatorOverrideActive: false,
+        previewStatus: "ready",
+        handoffStatus: "ready",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+        completedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.previewTargets = [
+      {
+        id: "preview-proof-1",
+        runId,
+        deliveryId: "delivery-proof-1",
+        mode: "local",
+        url: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-1",
+        healthStatus: "ready",
+        launchCommand: null,
+        sourcePath: "/tmp/preview.html",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.handoffPackets = [
+      {
+        id: "handoff-proof-1",
+        runId,
+        deliveryId: "delivery-proof-1",
+        status: "ready",
+        rootPath: "/tmp/delivery",
+        finalSummaryPath: "/tmp/delivery/final-summary.md",
+        manifestPath: "/tmp/delivery/manifest.json",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.deliveries = [
+      {
+        id: "delivery-proof-1",
+        initiativeId,
+        verificationRunId: "verification-proof-1",
+        taskGraphId: "task-graph-proof-1",
+        resultSummary: "Runnable localhost delivery bundle backed by verified assembly evidence.",
+        localOutputPath: "/tmp/delivery",
+        manifestPath: "/tmp/delivery/delivery-manifest.json",
+        previewUrl: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-1",
+        launchManifestPath: "/tmp/delivery/launch-manifest.json",
+        launchProofKind: "runnable_result",
+        launchTargetLabel: "Integrated product preview",
+        launchProofUrl: "http://127.0.0.1:4100/index.html",
+        launchProofAt: "2026-04-22T00:00:02.000Z",
+        handoffNotes: "ready",
+        command: "python3 launch.py --port 0",
+        status: "ready",
+        deliveredAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+
+    const proof = buildAutonomousValidationProof(state, initiativeId);
+
+    expect(proof).toBeTruthy();
+    expect(proof?.autonomousOnePrompt).toBe(false);
+    expect(proof?.manualStageProgression).toBe(true);
+    expect(proof?.launchReady).toBe(true);
+    expect(proof?.handoffReady).toBe(true);
+  });
+
+  test("does not mark handoff ready when runnable launch proof is missing", async () => {
+    const state = await readControlPlaneState();
+    const initiativeId = "initiative-proof-2";
+    const runId = "run-proof-2";
+
+    state.orchestration.initiatives = [
+      {
+        id: initiativeId,
+        title: "Partial delivery validation",
+        userRequest: "Validate partial delivery truth.",
+        requestedBy: "martin",
+        workspaceSessionId: null,
+        priority: "normal",
+        status: "verifying",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:00.000Z",
+      },
+    ];
+    state.orchestration.briefs = [
+      {
+        id: "brief-proof-2",
+        initiativeId,
+        summary: "Autonomous brief.",
+        goals: [],
+        nonGoals: [],
+        constraints: [],
+        assumptions: [],
+        acceptanceCriteria: [],
+        repoScope: [],
+        deliverables: [],
+        clarificationLog: [],
+        status: "approved",
+        authoredBy: "hermes-intake",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:01.000Z",
+      },
+    ];
+    state.orchestration.runs = [
+      {
+        id: runId,
+        initiativeId,
+        title: "Partial delivery validation",
+        originalPrompt: "Validate partial delivery truth.",
+        entryMode: "shell_chat",
+        currentStage: "preview_ready",
+        health: "degraded",
+        automationMode: "autonomous",
+        manualStageProgression: false,
+        operatorOverrideActive: false,
+        previewStatus: "ready",
+        handoffStatus: "building",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+        completedAt: null,
+      },
+    ];
+    state.orchestration.previewTargets = [
+      {
+        id: "preview-proof-2",
+        runId,
+        deliveryId: "delivery-proof-2",
+        mode: "local",
+        url: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-2",
+        healthStatus: "ready",
+        launchCommand: null,
+        sourcePath: "/tmp/preview.html",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.handoffPackets = [
+      {
+        id: "handoff-proof-2",
+        runId,
+        deliveryId: "delivery-proof-2",
+        status: "ready",
+        rootPath: "/tmp/delivery",
+        finalSummaryPath: "/tmp/delivery/final-summary.md",
+        manifestPath: "/tmp/delivery/manifest.json",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.deliveries = [
+      {
+        id: "delivery-proof-2",
+        initiativeId,
+        verificationRunId: "verification-proof-2",
+        taskGraphId: "task-graph-proof-2",
+        resultSummary:
+          "Attempt scaffold preview and handoff bundle were prepared, but the requested product is still unproven.",
+        localOutputPath: "/tmp/delivery",
+        manifestPath: "/tmp/delivery/delivery-manifest.json",
+        previewUrl: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-2",
+        launchManifestPath: "/tmp/delivery/launch-manifest.json",
+        launchProofKind: "attempt_scaffold",
+        launchTargetLabel: "Workspace launch scaffold",
+        launchProofUrl: null,
+        launchProofAt: null,
+        handoffNotes: "partial",
+        command: "python3 launch.py --port 0",
+        status: "pending",
+        deliveredAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+
+    const proof = buildAutonomousValidationProof(state, initiativeId);
+
+    expect(proof).toBeTruthy();
+    expect(proof?.autonomousOnePrompt).toBe(true);
+    expect(proof?.manualStageProgression).toBe(false);
+    expect(proof?.previewReady).toBe(true);
+    expect(proof?.launchReady).toBe(false);
+    expect(proof?.handoffReady).toBe(false);
+  });
+
+  test("does not mark launch ready when a pending delivery only claims runnable proof metadata", async () => {
+    const state = await readControlPlaneState();
+    const initiativeId = "initiative-proof-3";
+    const runId = "run-proof-3";
+
+    state.orchestration.initiatives = [
+      {
+        id: initiativeId,
+        title: "Legacy runnable proof validation",
+        userRequest: "Validate a pending delivery with manual runnable proof metadata.",
+        requestedBy: "martin",
+        workspaceSessionId: null,
+        priority: "normal",
+        status: "verifying",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:00.000Z",
+      },
+    ];
+    state.orchestration.briefs = [
+      {
+        id: "brief-proof-3",
+        initiativeId,
+        summary: "Autonomous brief.",
+        goals: [],
+        nonGoals: [],
+        constraints: [],
+        assumptions: [],
+        acceptanceCriteria: [],
+        repoScope: [],
+        deliverables: [],
+        clarificationLog: [],
+        status: "approved",
+        authoredBy: "hermes-intake",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:01.000Z",
+      },
+    ];
+    state.orchestration.runs = [
+      {
+        id: runId,
+        initiativeId,
+        title: "Legacy runnable proof validation",
+        originalPrompt: "Validate a pending delivery with manual runnable proof metadata.",
+        entryMode: "shell_chat",
+        currentStage: "preview_ready",
+        health: "degraded",
+        automationMode: "autonomous",
+        manualStageProgression: false,
+        operatorOverrideActive: false,
+        previewStatus: "ready",
+        handoffStatus: "building",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+        completedAt: null,
+      },
+    ];
+    state.orchestration.previewTargets = [
+      {
+        id: "preview-proof-3",
+        runId,
+        deliveryId: "delivery-proof-3",
+        mode: "local",
+        url: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-3",
+        healthStatus: "ready",
+        launchCommand: null,
+        sourcePath: "/tmp/preview.html",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.handoffPackets = [
+      {
+        id: "handoff-proof-3",
+        runId,
+        deliveryId: "delivery-proof-3",
+        status: "building",
+        rootPath: "/tmp/delivery",
+        finalSummaryPath: "/tmp/delivery/final-summary.md",
+        manifestPath: "/tmp/delivery/manifest.json",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.deliveries = [
+      {
+        id: "delivery-proof-3",
+        initiativeId,
+        verificationRunId: "verification-proof-3",
+        taskGraphId: "task-graph-proof-3",
+        resultSummary:
+          "Legacy runnable proof metadata exists, but the delivery is still pending.",
+        localOutputPath: "/tmp/delivery",
+        manifestPath: "/tmp/delivery/delivery-manifest.json",
+        previewUrl: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-3",
+        launchManifestPath: "/tmp/delivery/launch-manifest.json",
+        launchProofKind: "runnable_result",
+        launchTargetLabel: "Legacy integrated preview",
+        launchProofUrl: "http://127.0.0.1:4100/index.html",
+        launchProofAt: "2026-04-22T00:00:02.000Z",
+        handoffNotes: "pending",
+        command: "python3 launch.py --port 0",
+        status: "pending",
+        deliveredAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+
+    const proof = buildAutonomousValidationProof(state, initiativeId);
+
+    expect(proof).toBeTruthy();
+    expect(proof?.previewReady).toBe(true);
+    expect(proof?.launchReady).toBe(false);
+    expect(proof?.handoffReady).toBe(false);
+  });
+});

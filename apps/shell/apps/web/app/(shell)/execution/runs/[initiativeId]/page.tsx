@@ -14,7 +14,7 @@ import { listDeliveries } from "@/lib/server/orchestration/delivery";
 import { listOrchestrationInitiatives } from "@/lib/server/orchestration/initiatives";
 import { buildTaskGraphDetailResponse } from "@/lib/server/orchestration/task-graphs";
 import { buildSessionWorkspaceHostContext } from "../../../../../lib/server/control-plane/workspace/launch";
-import { readWorkspaceLaunchSessionContext } from "../../../../../lib/server/control-plane/workspace/mock";
+import { readWorkspaceLaunchSessionContext } from "../../../../../lib/server/control-plane/workspace/session-context";
 
 type RunRouteParams = Promise<{ initiativeId: string }>;
 type RunRouteSearchParams = Promise<Record<string, string | string[] | undefined>>;

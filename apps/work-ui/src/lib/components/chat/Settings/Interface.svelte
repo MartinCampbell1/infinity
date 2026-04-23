@@ -5,6 +5,7 @@
 	import { toast } from 'svelte-sonner';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { updateUserInfo } from '$lib/apis/users';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { getUserPosition } from '$lib/utils';
 	import { setTextScale } from '$lib/utils/text-scale';
 
@@ -114,6 +115,7 @@
 	let showManageImageCompressionModal = false;
 
 	let textScale: number | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const toggleLandingPageMode = async () => {
 		landingPageMode = landingPageMode === '' ? 'chat' : '';
@@ -128,7 +130,7 @@
 			});
 
 			if (position) {
-				await updateUserInfo(localStorage.token, { location: position });
+				await updateUserInfo(getWorkspaceAuthToken(), { location: position });
 				toast.success($i18n.t('User location successfully retrieved.'));
 			} else {
 				userLocation = false;

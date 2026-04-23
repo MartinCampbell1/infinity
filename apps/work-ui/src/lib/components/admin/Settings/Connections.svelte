@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import { createEventDispatcher, onMount, getContext, tick } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const dispatch = createEventDispatcher();
 
@@ -34,7 +35,7 @@
 			$config?.features?.enable_direct_connections ? ($settings?.directConnections ?? null) : null;
 
 		const models = await _getModels(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			directConnections,
 			false,
 			true
@@ -58,6 +59,7 @@
 	let pipelineUrls: Record<string, boolean> = {};
 	let showAddOpenAIConnectionModal = false;
 	let showAddOllamaConnectionModal = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const updateOpenAIHandler = async () => {
 		if (ENABLE_OPENAI_API !== null) {
@@ -80,7 +82,7 @@
 				}
 			}
 
-			const res = await updateOpenAIConfig(localStorage.token, {
+			const res = await updateOpenAIConfig(getWorkspaceAuthToken(), {
 				ENABLE_OPENAI_API: ENABLE_OPENAI_API,
 				OPENAI_API_BASE_URLS: OPENAI_API_BASE_URLS,
 				OPENAI_API_KEYS: OPENAI_API_KEYS,
@@ -101,7 +103,7 @@
 			// Remove trailing slashes
 			OLLAMA_BASE_URLS = OLLAMA_BASE_URLS.map((url) => url.replace(/\/$/, ''));
 
-			const res = await updateOllamaConfig(localStorage.token, {
+			const res = await updateOllamaConfig(getWorkspaceAuthToken(), {
 				ENABLE_OLLAMA_API: ENABLE_OLLAMA_API,
 				OLLAMA_BASE_URLS: OLLAMA_BASE_URLS,
 				OLLAMA_API_CONFIGS: OLLAMA_API_CONFIGS
@@ -121,7 +123,7 @@
 			return;
 		}
 
-		const res = await setConnectionsConfig(localStorage.token, connectionsConfig).catch((error) => {
+		const res = await setConnectionsConfig(getWorkspaceAuthToken(), connectionsConfig).catch((error) => {
 			toast.error(`${error}`);
 		});
 
@@ -157,13 +159,13 @@
 
 			await Promise.all([
 				(async () => {
-					ollamaConfig = await getOllamaConfig(localStorage.token);
+					ollamaConfig = await getOllamaConfig(getWorkspaceAuthToken());
 				})(),
 				(async () => {
-					openaiConfig = await getOpenAIConfig(localStorage.token);
+					openaiConfig = await getOpenAIConfig(getWorkspaceAuthToken());
 				})(),
 				(async () => {
-					connectionsConfig = await getConnectionsConfig(localStorage.token);
+					connectionsConfig = await getConnectionsConfig(getWorkspaceAuthToken());
 				})()
 			]);
 
@@ -191,7 +193,7 @@
 					if (!(OPENAI_API_CONFIGS[idx]?.enable ?? true)) {
 						return;
 					}
-					const res = await getOpenAIModels(localStorage.token, idx);
+					const res = await getOpenAIModels(getWorkspaceAuthToken(), idx);
 					if (res.pipelines) {
 						pipelineUrls[url] = true;
 					}

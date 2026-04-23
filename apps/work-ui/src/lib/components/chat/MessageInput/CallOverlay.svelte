@@ -42,6 +42,7 @@
 	import { blobToFile } from '$lib/utils';
 	import { generateEmoji } from '$lib/apis';
 	import { synthesizeOpenAISpeech, transcribeAudio } from '$lib/apis/audio';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { toast } from 'svelte-sonner';
 
@@ -79,6 +80,7 @@
 	let mediaRecorder: MediaRecorder | null = null;
 	let audioStream: MediaStream | null = null;
 	let audioChunks: BlobPart[] = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let videoInputDevices: VideoInputDevice[] = [];
 	let selectedVideoInputDeviceId: string | null = null;
@@ -197,7 +199,7 @@
 		const file = blobToFile(audioBlob, 'recording.wav');
 
 		const res = await transcribeAudio(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			file,
 			$settings?.audio?.stt?.language
 		).catch((error) => {
@@ -518,7 +520,7 @@
 				// Set the emoji for the content if needed
 				if ($settings?.showEmojiInCall ?? false) {
 					const emoji = await generateEmoji(
-						localStorage.token,
+						getWorkspaceAuthToken(),
 						modelId ?? '',
 						content,
 						chatId ?? undefined
@@ -552,7 +554,7 @@
 						audioCache.set(content, new Audio(url));
 					}
 				} else if (audioConfig().tts?.engine !== '') {
-					const res = await synthesizeOpenAISpeech(localStorage.token, getVoiceId(), content).catch(
+					const res = await synthesizeOpenAISpeech(getWorkspaceAuthToken(), getVoiceId(), content).catch(
 						(error) => {
 							console.error(error);
 							return null;

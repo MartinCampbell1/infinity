@@ -31,7 +31,7 @@ import {
 } from "./shared";
 import { buildSupervisorActionRecord, cloneSupervisorAction } from "./supervisor-shared";
 
-const DEFAULT_EXECUTION_KERNEL_BASE_URL = "http://127.0.0.1:8787";
+const DEFAULT_EXECUTION_KERNEL_BASE_URL = "http://127.0.0.1:8798";
 
 export type ExecutionKernelAvailability = {
   available: boolean;
@@ -39,7 +39,10 @@ export type ExecutionKernelAvailability = {
   detail: string;
   generatedAt?: string | null;
   authMode?: string | null;
+  deploymentScope?: string | null;
+  maturity?: string | null;
   storageKind?: string | null;
+  durabilityTier?: string | null;
   statePath?: string | null;
   stateConfigured?: boolean | null;
   runtimeState?: string | null;
@@ -90,7 +93,10 @@ export async function getExecutionKernelAvailability(): Promise<ExecutionKernelA
       detail: health.detail?.trim() || `${health.service} is reachable.`,
       generatedAt: health.generatedAt,
       authMode: health.authMode ?? null,
+      deploymentScope: health.deploymentScope ?? null,
+      maturity: health.maturity ?? null,
       storageKind: health.storageKind ?? null,
+      durabilityTier: health.durabilityTier ?? null,
       statePath: health.statePath ?? null,
       stateConfigured: health.stateConfigured ?? null,
       runtimeState: health.runtimeState ?? null,
@@ -121,7 +127,10 @@ export async function getExecutionKernelAvailability(): Promise<ExecutionKernelA
       detail: message,
       generatedAt: null,
       authMode: null,
+      deploymentScope: null,
+      maturity: null,
       storageKind: null,
+      durabilityTier: null,
       statePath: null,
       stateConfigured: null,
       runtimeState: null,

@@ -12,6 +12,7 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { updateSkillAccessGrants } from '$lib/apis/skills';
 	import { goto } from '$app/navigation';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import type { I18nStore } from '$lib/i18n';
 
 	type SkillAccessGrant = {
@@ -65,6 +66,7 @@
 	let hasManualName = false;
 	let hasManualDescription = false;
 	let isFrontmatterDetected = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	// Auto-detect frontmatter and fill name/description in create mode
 	$: if (!edit && content) {
@@ -149,7 +151,7 @@
 	onChange={async () => {
 		if (edit && skill?.id) {
 			try {
-				await updateSkillAccessGrants(localStorage.token, skill.id, accessGrants);
+				await updateSkillAccessGrants(getWorkspaceAuthToken(), skill.id, accessGrants);
 				toast.success($i18n.t('Saved'));
 			} catch (error) {
 				toast.error(`${error}`);

@@ -14,6 +14,7 @@
 		getArchivedChatList,
 		unarchiveAllChats
 	} from '$lib/apis/chats';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import ChatsModal from './ChatsModal.svelte';
 	import UnarchiveAllConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
@@ -38,6 +39,7 @@
 	let searchDebounceTimeout: any;
 
 	let showUnarchiveAllConfirmDialog = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let filter: any = {};
 	$: filter = {
@@ -63,10 +65,10 @@
 		chatList = null;
 
 		if (query === '') {
-			chatList = await getArchivedChatList(localStorage.token, page, filter);
+			chatList = await getArchivedChatList(getWorkspaceAuthToken(), page, filter);
 		} else {
 			searchDebounceTimeout = setTimeout(async () => {
-				chatList = await getArchivedChatList(localStorage.token, page, filter);
+				chatList = await getArchivedChatList(getWorkspaceAuthToken(), page, filter);
 			}, 500);
 		}
 
@@ -84,9 +86,9 @@
 		let newChatList = [];
 
 		if (query) {
-			newChatList = await getArchivedChatList(localStorage.token, page, filter);
+			newChatList = await getArchivedChatList(getWorkspaceAuthToken(), page, filter);
 		} else {
-			newChatList = await getArchivedChatList(localStorage.token, page, filter);
+			newChatList = await getArchivedChatList(getWorkspaceAuthToken(), page, filter);
 		}
 
 		// once the bottom of the list has been reached (no results) there is no need to continue querying
@@ -100,7 +102,7 @@
 	};
 
 	const exportChatsHandler = async () => {
-		const chats = await getAllArchivedChats(localStorage.token);
+		const chats = await getAllArchivedChats(getWorkspaceAuthToken());
 		let blob = new Blob([JSON.stringify(chats)], {
 			type: 'application/json'
 		});
@@ -108,7 +110,7 @@
 	};
 
 	const unarchiveHandler = async (chatId: string) => {
-		const res = await archiveChatById(localStorage.token, chatId).catch((error) => {
+		const res = await archiveChatById(getWorkspaceAuthToken(), chatId).catch((error) => {
 			toast.error(`${error}`);
 		});
 
@@ -119,7 +121,7 @@
 	const unarchiveAllHandler = async () => {
 		loading = true;
 		try {
-			await unarchiveAllChats(localStorage.token);
+			await unarchiveAllChats(getWorkspaceAuthToken());
 			toast.success($i18n.t('All chats have been unarchived.'));
 			onUpdate();
 			await init();
@@ -131,7 +133,7 @@
 	};
 
 	const init = async () => {
-		chatList = await getArchivedChatList(localStorage.token);
+		chatList = await getArchivedChatList(getWorkspaceAuthToken());
 	};
 
 	$: if (show) {

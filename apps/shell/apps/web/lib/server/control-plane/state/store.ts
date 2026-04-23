@@ -58,6 +58,15 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function syntheticStateSeedsEnabled() {
+  const explicit = process.env.FOUNDEROS_ENABLE_SYNTHETIC_STATE_SEEDS;
+  if (explicit !== undefined) {
+    return explicit === "1";
+  }
+
+  return process.env.NODE_ENV === "test";
+}
+
 function stateDirPath() {
   return (
     process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR ??
@@ -78,25 +87,26 @@ function legacyRecoveriesStatePath() {
 }
 
 function defaultState(): ControlPlaneState {
+  const useSyntheticSeeds = syntheticStateSeedsEnabled();
   return {
     version: 1,
     seededAt: CONTROL_PLANE_DIRECTORY_AT,
     approvals: {
-      requests: clone(APPROVAL_REQUEST_SEEDS),
+      requests: useSyntheticSeeds ? clone(APPROVAL_REQUEST_SEEDS) : [],
       operatorActions: [],
       actionSequence: 1,
     },
     recoveries: {
-      incidents: clone(RECOVERY_INCIDENT_SEEDS),
+      incidents: useSyntheticSeeds ? clone(RECOVERY_INCIDENT_SEEDS) : [],
       operatorActions: [],
       actionSequence: 101,
     },
     accounts: {
-      snapshots: clone(ACCOUNT_QUOTA_SNAPSHOT_SEEDS),
-      updates: clone(ACCOUNT_QUOTA_UPDATE_SEEDS),
+      snapshots: useSyntheticSeeds ? clone(ACCOUNT_QUOTA_SNAPSHOT_SEEDS) : [],
+      updates: useSyntheticSeeds ? clone(ACCOUNT_QUOTA_UPDATE_SEEDS) : [],
     },
     sessions: {
-      events: clone(NORMALIZED_EVENT_SEEDS),
+      events: useSyntheticSeeds ? clone(NORMALIZED_EVENT_SEEDS) : [],
     },
     orchestration: {
       initiatives: [],

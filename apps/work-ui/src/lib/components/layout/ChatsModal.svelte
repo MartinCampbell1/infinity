@@ -18,6 +18,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import { hermesRecentSessions, hermesSessionsByChatId } from '$lib/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Spinner from '../common/Spinner.svelte';
 	import Loader from '../common/Loader.svelte';
@@ -68,6 +69,7 @@
 	let showDeleteConfirmDialog = false;
 	let orderedChatList: ChatListItem[] | null = null;
 	let hermesRefreshLoading = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	export let onUpdate = () => {};
 	export let onDelete: (id: string) => void = () => {};
@@ -107,7 +109,7 @@
 	};
 
 	const deleteHandler = async (chatId) => {
-		const res = await deleteChatById(localStorage.token, chatId).catch((error) => {
+		const res = await deleteChatById(getWorkspaceAuthToken(), chatId).catch((error) => {
 			toast.error(`${error}`);
 		});
 
@@ -118,14 +120,15 @@
 	};
 
 	const refreshHermesSessions = async () => {
-		if (!show || hermesRefreshLoading || !localStorage?.token) {
+		const token = getWorkspaceAuthToken();
+		if (!show || hermesRefreshLoading || !token) {
 			return;
 		}
 
 		hermesRefreshLoading = true;
 
 		try {
-			const sessionsPayload = await getHermesSessions(localStorage.token);
+			const sessionsPayload = await getHermesSessions(token);
 			const sessions = sessionsPayload?.items ?? [];
 			hermesRecentSessions.set(sessions);
 			hermesSessionsByChatId.set(buildHermesSessionMapByImportedChatId(sessions));

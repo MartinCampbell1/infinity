@@ -16,6 +16,7 @@
 
 	import { toast } from 'svelte-sonner';
 	import { getChatList, updateChatById } from '$lib/apis/chats';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { copyToClipboard, extractCurlyBraceWords } from '$lib/utils';
 
 	import Message from './Messages/Message.svelte';
@@ -64,6 +65,7 @@
 
 	export let messagesCount: number | null = 20;
 	let messagesLoading = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const loadMoreMessages = async () => {
 		// scroll slightly down to disable continuous loading
@@ -147,13 +149,13 @@
 		if (!$temporaryChatEnabled) {
 			history = history;
 			await tick();
-			await updateChatById(localStorage.token, chatId, {
+			await updateChatById(getWorkspaceAuthToken(), chatId, {
 				history: history,
 				messages: messages
 			});
 
 			currentChatPage.set(1);
-			await chats.set(await getChatList(localStorage.token, $currentChatPage));
+			await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 		}
 	};
 

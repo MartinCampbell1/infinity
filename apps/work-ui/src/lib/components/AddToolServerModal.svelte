@@ -7,6 +7,10 @@
 	import { toast } from 'svelte-sonner';
 	import { getContext, onMount } from 'svelte';
 	const i18n = getContext('i18n');
+	import {
+		getFounderosEmbeddedSessionAuthHeaders,
+		resolveFounderosEmbeddedAccessToken
+	} from '$lib/founderos/credentials';
 
 	import { settings } from '$lib/stores';
 	import Modal from '$lib/components/common/Modal.svelte';
@@ -97,6 +101,7 @@
 	let showAdvanced = false;
 	let showAccessControlModal = false;
 	let showDeleteConfirmDialog = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const registerOAuthClientHandler = async () => {
 		if (url === '') {
@@ -124,7 +129,7 @@
 			formData.client_secret = oauthClientSecret;
 		}
 
-		const res = await registerOAuthClient(localStorage.token, formData, 'mcp').catch((err) => {
+		const res = await registerOAuthClient(getWorkspaceAuthToken(), formData, 'mcp').catch((err) => {
 			toast.error($i18n.t('Registration failed'));
 			return null;
 		});
@@ -176,7 +181,9 @@
 
 		if (direct) {
 			const res = await getToolServerData(
-				auth_type === 'bearer' ? key : localStorage.token,
+				auth_type === 'bearer'
+					? { authorization: `Bearer ${key}` }
+					: getFounderosEmbeddedSessionAuthHeaders(),
 				path.includes('://') ? path : `${url}${path.startsWith('/') ? '' : '/'}${path}`
 			).catch((err) => {
 				toast.error($i18n.t('Connection failed'));
@@ -187,7 +194,7 @@
 				console.debug('Connection successful', res);
 			}
 		} else {
-			const res = await verifyToolServerConnection(localStorage.token, {
+			const res = await verifyToolServerConnection(getWorkspaceAuthToken(), {
 				url,
 				path,
 				type,

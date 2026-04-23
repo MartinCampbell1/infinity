@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { getContext, onMount } from 'svelte';
 	const i18n = getContext('i18n');
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	type ChannelGrant = {
 		principal_type?: string | null;
@@ -37,6 +38,7 @@
 
 	let showAddMembersModal = false;
 	const submitHandler = async () => {};
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 	$: channelForUserList = channel
 		? {
 				...channel,
@@ -70,7 +72,7 @@
 			return;
 		}
 
-		const res = await removeMembersById(localStorage.token, currentChannel.id, {
+		const res = await removeMembersById(getWorkspaceAuthToken(), currentChannel.id, {
 			user_ids: [userId]
 		}).catch((error) => {
 			toast.error(`${error}`);

@@ -4,6 +4,7 @@
 	import { models, showSettings, settings, user, mobile, config } from '$lib/stores';
 	import { onMount, tick, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import Selector from './ModelSelector/Selector.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
 
@@ -14,6 +15,7 @@
 	export let disabled = false;
 
 	export let showSetDefault = true;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const saveDefaultModel = async () => {
 		const hasEmptyModel = selectedModels.filter((it) => it === '');
@@ -22,7 +24,7 @@
 			return;
 		}
 		settings.set({ ...$settings, models: selectedModels });
-		await updateUserSettings(localStorage.token, { ui: $settings });
+		await updateUserSettings(getWorkspaceAuthToken(), { ui: $settings });
 
 		toast.success($i18n.t('Default model updated'));
 	};
@@ -37,7 +39,7 @@
 		}
 
 		settings.set({ ...$settings, pinnedModels: pinnedModels });
-		await updateUserSettings(localStorage.token, { ui: $settings });
+		await updateUserSettings(getWorkspaceAuthToken(), { ui: $settings });
 	};
 
 	$: if (selectedModels.length > 0 && $models.length > 0) {

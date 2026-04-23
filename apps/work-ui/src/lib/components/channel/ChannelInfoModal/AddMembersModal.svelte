@@ -3,6 +3,7 @@
 	import { getContext } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	const i18n: Writable<any> = getContext('i18n');
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { addMembersById } from '$lib/apis/channels';
 
@@ -25,6 +26,7 @@
 	let userIds: string[] = [];
 
 	let loading = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const submitHandler = async () => {
 		if (!channel?.id || loading) {
@@ -33,7 +35,7 @@
 
 		loading = true;
 		try {
-			const res = await addMembersById(localStorage.token, channel.id, {
+			const res = await addMembersById(getWorkspaceAuthToken(), channel.id, {
 				user_ids: userIds,
 				group_ids: groupIds
 			}).catch((error) => {

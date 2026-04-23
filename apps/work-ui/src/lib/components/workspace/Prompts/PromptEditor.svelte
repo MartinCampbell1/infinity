@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick, getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Textarea from '$lib/components/common/Textarea.svelte';
 	import { toast } from 'svelte-sonner';
@@ -91,6 +92,7 @@
 	let historyPage = 0;
 	let historyHasMore = true;
 	let contentCopied = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	// For debounced auto-save of name/command
 	let originalName = '';
@@ -161,7 +163,7 @@
 		}
 
 		try {
-			const newEntries = await getPromptHistory(localStorage.token, prompt.id, historyPage);
+			const newEntries = await getPromptHistory(getWorkspaceAuthToken(), prompt.id, historyPage);
 
 			if (reset) {
 				history = newEntries;
@@ -210,7 +212,7 @@
 		}
 
 		try {
-			await setProductionPromptVersion(localStorage.token, prompt.id, historyEntry.id);
+			await setProductionPromptVersion(getWorkspaceAuthToken(), prompt.id, historyEntry.id);
 			// Update local prompt object to trigger reactivity
 			prompt = { ...prompt, version_id: historyEntry.id };
 			toast.success($i18n.t('Production version updated'));
@@ -223,7 +225,7 @@
 		if (disabled || !prompt?.id) return;
 
 		try {
-			await deletePromptHistoryVersion(localStorage.token, prompt.id, historyId);
+			await deletePromptHistoryVersion(getWorkspaceAuthToken(), prompt.id, historyId);
 			toast.success($i18n.t('Version deleted'));
 			// Reload history from scratch
 			await loadHistory(true);
@@ -266,7 +268,7 @@
 
 			try {
 				await updatePromptMetadata(
-					localStorage.token,
+					getWorkspaceAuthToken(),
 					prompt.id,
 					name,
 					command,
@@ -314,7 +316,7 @@
 			}
 		}
 
-		const res = (await getPromptTags(localStorage.token)) as string[] | null;
+		const res = (await getPromptTags(getWorkspaceAuthToken())) as string[] | null;
 		if (res) {
 			suggestionTags = res.map((tag: string) => ({ name: tag }));
 		}
@@ -331,7 +333,7 @@
 	onChange={async () => {
 		if (edit && prompt?.id) {
 			try {
-				await updatePromptAccessGrants(localStorage.token, prompt.id, accessGrants);
+				await updatePromptAccessGrants(getWorkspaceAuthToken(), prompt.id, accessGrants);
 				toast.success($i18n.t('Saved'));
 			} catch (error) {
 				toast.error(`${error}`);

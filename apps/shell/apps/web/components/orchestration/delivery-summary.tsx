@@ -85,8 +85,6 @@ export function DeliverySummary({
       })
     : null;
   const handoffHref = handoffId ? buildExecutionHandoffScopeHref(handoffId, routeScope) : null;
-  const isClaudeHabitPresentation =
-    initiativeTitle.toLowerCase().includes("habit tracker") && launchReady;
   const metricTone = launchReady
     ? "border-emerald-400/20 bg-emerald-400/[0.05]"
     : scaffoldOnly
@@ -94,49 +92,48 @@ export function DeliverySummary({
     : wrapperOnly
       ? "border-amber-400/20 bg-amber-400/[0.05]"
       : "border-white/10 bg-white/[0.03]";
+  const changedFiles = [
+    delivery.manifestPath,
+    delivery.launchManifestPath,
+    delivery.localOutputPath ? `${delivery.localOutputPath}/preview.html` : null,
+    delivery.localOutputPath ? `${delivery.localOutputPath}/HANDOFF.md` : null,
+    delivery.localOutputPath ? `${delivery.localOutputPath}/delivery-summary.json` : null,
+  ].filter((value): value is string => Boolean(value));
+  const verificationPassedChecks =
+    verification?.checks.filter((check) => check.status === "passed").length ?? 0;
+  const verificationTotalChecks = verification?.checks.length ?? 0;
   const metrics = [
     {
       label: "Status",
-      value: isClaudeHabitPresentation
-        ? "Delivered"
-        : scaffoldOnly
-          ? "Pending"
-          : titleCase(delivery.status),
+      value: scaffoldOnly || wrapperOnly ? "Pending" : titleCase(delivery.status),
       detail: deliveryReadiness(delivery),
     },
     {
       label: "Build",
-      value: isClaudeHabitPresentation ? "41s" : verification ? "verified" : "pending",
-      detail: isClaudeHabitPresentation ? "192 KB gz" : verification ? "shell gate passed" : "verification pending",
+      value: verification ? titleCase(verification.overallStatus) : "pending",
+      detail:
+        verification && verificationTotalChecks > 0
+          ? `${verificationTotalChecks} checks recorded`
+          : "verification pending",
     },
     {
       label: "Tests",
-      value: isClaudeHabitPresentation ? "128 / 128" : verification ? titleCase(verification.overallStatus) : "pending",
-      detail: isClaudeHabitPresentation ? "all passing" : verification ? "all gates passed" : "assembly pending",
+      value: verification ? `${verificationPassedChecks} / ${verificationTotalChecks}` : "pending",
+      detail: verification ? titleCase(verification.overallStatus) : "assembly pending",
     },
     {
       label: "Files",
-      value: isClaudeHabitPresentation
-        ? "47"
-        : delivery.localOutputPath
-          ? scaffoldOnly
-            ? "scaffold bundle"
-            : "bundle ready"
-          : "pending",
-      detail: isClaudeHabitPresentation
-        ? "+3184 / -128"
-        : delivery.localOutputPath
-          ? scaffoldOnly
-            ? "attempt scaffold"
-            : "runnable result"
-          : "manifest pending",
+      value: changedFiles.length > 0 ? String(changedFiles.length) : "pending",
+      detail: delivery.localOutputPath
+        ? scaffoldOnly || wrapperOnly
+          ? "artifact bundle"
+          : "runnable result"
+        : "manifest pending",
     },
     {
       label: "Total time",
-      value: isClaudeHabitPresentation ? "4m 12s" : delivery.deliveredAt ? formatDeliveredTime(delivery.deliveredAt) : "pending",
-      detail: isClaudeHabitPresentation
-        ? "12 tasks · 1 recovery"
-        : `${taskGraphId ? "task graph linked" : "task graph pending"} · ${delivery.launchTargetLabel ?? "launch pending"}`,
+      value: delivery.deliveredAt ? formatDeliveredTime(delivery.deliveredAt) : "pending",
+      detail: `${taskGraphId ? "task graph linked" : "task graph pending"} · ${delivery.launchTargetLabel ?? "launch pending"}`,
     },
   ];
   const validationRows = [
@@ -175,34 +172,25 @@ export function DeliverySummary({
           : "warning",
     },
   ];
-  const changedFiles = [
-    delivery.manifestPath,
-    delivery.launchManifestPath,
-    delivery.localOutputPath ? `${delivery.localOutputPath}/preview.html` : null,
-    delivery.localOutputPath ? `${delivery.localOutputPath}/HANDOFF.md` : null,
-    delivery.localOutputPath ? `${delivery.localOutputPath}/delivery-summary.json` : null,
-  ].filter((value): value is string => Boolean(value));
   const artifactRows = [
     {
       label: "Preview",
-      value: isClaudeHabitPresentation ? "habit-runway-hb4mq7.vercel.app" : displayPreviewHref ?? "pending",
+      value: displayPreviewHref ?? "pending",
     },
     {
-      label: "Localhost",
-      value: isClaudeHabitPresentation ? "http://localhost:3002" : delivery.command ?? "n/a",
+      label: "Output",
+      value: delivery.localOutputPath ?? "n/a",
     },
     {
-      label: "Branch",
-      value: isClaudeHabitPresentation ? "feat/habit-tracker-hb4mq7" : delivery.manifestPath ?? "pending",
+      label: "Manifest",
+      value: delivery.manifestPath ?? "pending",
     },
     {
-      label: "Worktree",
-      value: isClaudeHabitPresentation ? "~/worktrees/infinity/hb4mq7" : delivery.localOutputPath ?? "n/a",
+      label: "Launch",
+      value: delivery.launchProofUrl ?? delivery.launchManifestPath ?? "pending",
     },
   ];
-  const displayPreviewLabel = isClaudeHabitPresentation
-    ? "https://habit-runway-hb4mq7.vercel.app"
-    : displayPreviewHref ?? "preview pending";
+  const displayPreviewLabel = displayPreviewHref ?? "preview pending";
 
   return (
     <main className="mx-auto grid max-w-[1520px] gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -243,8 +231,8 @@ export function DeliverySummary({
                   </PlaneButton>
                 </Link>
               ) : null}
-              {launchReady && taskGraphHref ? (
-                <Link href={taskGraphHref}>
+              {launchReady && handoffHref ? (
+                <Link href={handoffHref}>
                   <PlaneButton variant="primary" size="sm">
                     Handoff
                   </PlaneButton>
@@ -412,7 +400,7 @@ export function DeliverySummary({
             </div>
             <p className="mt-3 text-[12px] leading-6 text-[#dfe8ff]/80">
               {launchReady
-                ? "Open a pull request against habit-runway:main and post a delivery summary to the initiative channel."
+                ? "Open the shell handoff packet and localhost preview. The delivery is backed by runnable-result proof."
                 : scaffoldOnly
                   ? "Open the scaffold preview and handoff evidence, but do not treat it as proof that the requested product is truly runnable yet."
                 : "Open the shell-generated preview wrapper and task graph before promoting this delivery any further."}
@@ -421,7 +409,7 @@ export function DeliverySummary({
               {launchReady && handoffHref ? (
                 <Link href={handoffHref}>
                   <PlaneButton variant="primary" size="md" className="w-full justify-center">
-                    Open pull request
+                    Open handoff
                   </PlaneButton>
                 </Link>
               ) : null}
@@ -486,7 +474,7 @@ export function DeliverySummary({
               </Link>
               {launchReady && handoffHref ? (
                 <Link href={handoffHref} className="transition hover:text-white">
-                  Open in editor
+                  Open handoff
                 </Link>
               ) : null}
               {!launchReady && taskGraphHref ? (

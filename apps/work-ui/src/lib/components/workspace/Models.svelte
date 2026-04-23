@@ -12,6 +12,7 @@
 
 	import { WEBUI_NAME, config, models as _models, settings, user } from '$lib/stores';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import {
 		createNewModel,
 		deleteModelById,
@@ -106,6 +107,7 @@
 	let total: number | null = null;
 
 	let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined = undefined;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (loaded && page !== undefined && selectedTag !== undefined && viewOption !== undefined) {
 		getModelList();
@@ -116,7 +118,7 @@
 
 		try {
 			const res: WorkspaceModelListResponse = await getWorkspaceModels(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				query,
 				viewOption,
 				selectedTag,
@@ -133,7 +135,7 @@
 				total = res.total ?? 0;
 
 				// get tags
-				tags = (await getModelTags(localStorage.token).catch((error) => {
+				tags = (await getModelTags(getWorkspaceAuthToken()).catch((error) => {
 					toast.error(`${error}`);
 					return [];
 				})) as string[];
@@ -144,7 +146,7 @@
 	};
 
 	const deleteModelHandler = async (model: WorkspaceModel) => {
-		const res = await deleteModelById(localStorage.token, model.id).catch((e) => {
+		const res = await deleteModelById(getWorkspaceAuthToken(), model.id).catch((e) => {
 			toast.error(`${e}`);
 			return null;
 		});
@@ -157,7 +159,7 @@
 		}
 
 		await _models.set(
-			await getModels(localStorage.token, getDirectConnections())
+			await getModels(getWorkspaceAuthToken(), getDirectConnections())
 		);
 	};
 
@@ -197,7 +199,7 @@
 
 		console.log(model);
 
-		const res = await updateModelById(localStorage.token, model.id, model);
+		const res = await updateModelById(getWorkspaceAuthToken(), model.id, model);
 
 		if (res) {
 			toast.success(
@@ -212,7 +214,7 @@
 		}
 
 		await _models.set(
-			await getModels(localStorage.token, getDirectConnections())
+			await getModels(getWorkspaceAuthToken(), getDirectConnections())
 		);
 	};
 
@@ -252,7 +254,7 @@
 		}
 
 		settings.set({ ...$settings, pinnedModels: pinnedModels });
-		await updateUserSettings(localStorage.token, { ui: $settings });
+		await updateUserSettings(getWorkspaceAuthToken(), { ui: $settings });
 	};
 
 	const enableAllHandler = async () => {
@@ -261,7 +263,9 @@
 		modelsToEnable.forEach((m) => (m.is_active = true));
 		models = models;
 		// Sync with server
-		await Promise.all(modelsToEnable.map((model) => toggleModelById(localStorage.token, model.id)));
+		await Promise.all(
+			modelsToEnable.map((model) => toggleModelById(getWorkspaceAuthToken(), model.id))
+		);
 	};
 
 	const disableAllHandler = async () => {
@@ -271,7 +275,7 @@
 		models = models;
 		// Sync with server
 		await Promise.all(
-			modelsToDisable.map((model) => toggleModelById(localStorage.token, model.id))
+			modelsToDisable.map((model) => toggleModelById(getWorkspaceAuthToken(), model.id))
 		);
 	};
 
@@ -284,7 +288,7 @@
 		models = models;
 		// Sync with server
 		await Promise.all(
-			modelsToShow.map((model) => updateModelById(localStorage.token, model.id, model))
+			modelsToShow.map((model) => updateModelById(getWorkspaceAuthToken(), model.id, model))
 		);
 		toast.success($i18n.t('All models are now visible'));
 	};
@@ -298,7 +302,7 @@
 		models = models;
 		// Sync with server
 		await Promise.all(
-			modelsToHide.map((model) => updateModelById(localStorage.token, model.id, model))
+			modelsToHide.map((model) => updateModelById(getWorkspaceAuthToken(), model.id, model))
 		);
 		toast.success($i18n.t('All models are now hidden'));
 	};
@@ -308,7 +312,7 @@
 			viewOption = localStorage.workspaceViewOption ?? '';
 			page = 1;
 
-			const groups = (await getGroups(localStorage.token)) as Array<{ id: string }>;
+			const groups = (await getGroups(getWorkspaceAuthToken())) as Array<{ id: string }>;
 			groupIds = groups.map((group) => group.id);
 
 			await tick();
@@ -395,20 +399,22 @@
 						if (model?.info) {
 							if ($_models.find((m) => m.id === model.id)) {
 								if (model.id) {
-									await updateModelById(localStorage.token, model.id, model.info).catch((error) => {
-										toast.error(`${error}`);
-										return null;
-									});
+									await updateModelById(getWorkspaceAuthToken(), model.id, model.info).catch(
+										(error) => {
+											toast.error(`${error}`);
+											return null;
+										}
+									);
 								}
 							} else {
-								await createNewModel(localStorage.token, model.info).catch((error) => {
+								await createNewModel(getWorkspaceAuthToken(), model.info).catch((error) => {
 									toast.error(`${error}`);
 									return null;
 								});
 							}
 						} else {
 							if (model?.id && model?.name) {
-								await createNewModel(localStorage.token, model).catch((error) => {
+								await createNewModel(getWorkspaceAuthToken(), model).catch((error) => {
 									toast.error(`${error}`);
 									return null;
 								});
@@ -417,7 +423,7 @@
 					}
 
 					await _models.set(
-						await getModels(localStorage.token, getDirectConnections())
+						await getModels(getWorkspaceAuthToken(), getDirectConnections())
 					);
 
 					page = 1;
@@ -763,8 +769,10 @@
 																	<Switch
 																		bind:state={model.is_active}
 																		on:change={async () => {
-																			toggleModelById(localStorage.token, model.id);
-																			_models.set(await getModels(localStorage.token, getDirectConnections()));
+																			toggleModelById(getWorkspaceAuthToken(), model.id);
+																			_models.set(
+																				await getModels(getWorkspaceAuthToken(), getDirectConnections())
+																			);
 																		}}
 																	/>
 															</Tooltip>

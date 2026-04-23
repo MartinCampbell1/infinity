@@ -48,6 +48,10 @@
 		emitFounderosError as emitFounderosErrorEvent,
 		emitFounderosFileOpened as emitFounderosFileOpenedEvent
 	} from '$lib/founderos/events';
+	import {
+		getFounderosEmbeddedSessionAuthHeaders,
+		resolveFounderosEmbeddedAccessToken
+	} from '$lib/founderos/credentials';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import FilePreview from '$lib/components/chat/FileNav/FilePreview.svelte';
@@ -62,6 +66,8 @@
 	};
 
 	const i18n = getContext<TranslationStore>('i18n');
+
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	// TODO(21st): Replace this local workspace stub pattern with a 21st.dev-derived pattern once MCP auth is fixed.
 
@@ -480,7 +486,8 @@
 			return;
 		}
 
-		if (typeof localStorage === 'undefined' || !localStorage.token) {
+		const token = getWorkspaceAuthToken();
+		if (!token) {
 			toast.error($i18n.t('Failed to switch Hermes workspace.'));
 			return;
 		}
@@ -488,7 +495,7 @@
 		switchingWorkspacePath = workspace.path;
 
 		try {
-			const nextWorkspaces = await switchHermesWorkspace(localStorage.token, workspace.path);
+			const nextWorkspaces = await switchHermesWorkspace(token, workspace.path);
 			onHermesWorkspaceSwitched(nextWorkspaces);
 			toast.success($i18n.t('Switched Hermes workspace.'));
 		} catch (error) {
@@ -509,8 +516,7 @@
 		}
 
 		if (
-			typeof localStorage === 'undefined' ||
-			!localStorage.token ||
+			!getWorkspaceAuthToken() ||
 			!activeHermesWorkspace?.path
 		) {
 			workspaceBrowseLoaded = true;
@@ -521,7 +527,7 @@
 		workspaceBrowseError = '';
 
 		try {
-			const browseResponse = await getHermesWorkspaceBrowse(localStorage.token, path);
+			const browseResponse = await getHermesWorkspaceBrowse(getWorkspaceAuthToken(), path);
 			workspaceBrowseEntries = browseResponse.entries ?? [];
 			workspaceBrowsePath = browseResponse.current_path;
 			workspaceBrowseRootPath = browseResponse.root_path;
@@ -703,19 +709,15 @@
 		const sameOrigin =
 			typeof window !== 'undefined' &&
 			new URL(url, window.location.origin).origin === window.location.origin;
-		const headers =
-			sameOrigin && typeof localStorage !== 'undefined' && localStorage.token
-				? {
-						authorization: `Bearer ${localStorage.token}`
-					}
-				: undefined;
+		const authHeaders = sameOrigin ? getFounderosEmbeddedSessionAuthHeaders() : undefined;
+		const hasAuthHeaders = !!authHeaders && Object.keys(authHeaders).length > 0;
 
 		const response = await fetch(
 			url,
 			sameOrigin
 				? {
 						credentials: 'include',
-						headers
+						headers: hasAuthHeaders ? authHeaders : undefined
 					}
 				: undefined
 		);
@@ -741,11 +743,12 @@
 			}
 
 			if (item.source === 'chat' && item.fileId) {
-				if (typeof localStorage === 'undefined' || !localStorage.token) {
+				const token = getWorkspaceAuthToken();
+				if (!token) {
 					throw new Error('Missing auth token');
 				}
 
-				const file = await getFileById(localStorage.token, item.fileId);
+				const file = await getFileById(token, item.fileId);
 				if (requestId !== loadRequestId) {
 					return;
 				}

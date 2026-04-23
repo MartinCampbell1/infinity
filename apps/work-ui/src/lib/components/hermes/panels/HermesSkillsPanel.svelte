@@ -6,6 +6,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { getSkillItems, toggleSkillById } from '$lib/apis/skills';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import Pagination from '$lib/components/common/Pagination.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -39,11 +40,12 @@
 			: viewOption === 'shared'
 				? $i18n.t('Shared with you')
 				: $i18n.t('All');
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const loadSkills = async () => {
 		loading = true;
 
-		const res = await getSkillItems(localStorage.token, query, viewOption, page).catch((error) => {
+		const res = await getSkillItems(getWorkspaceAuthToken(), query, viewOption, page).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -110,7 +112,7 @@
 		setSkillPending(skill.id, true);
 
 		try {
-			await toggleSkillById(localStorage.token, skill.id);
+			await toggleSkillById(getWorkspaceAuthToken(), skill.id);
 		} catch (error) {
 			updateSkillState(skill.id, previousState);
 			toast.error(`${error}`);

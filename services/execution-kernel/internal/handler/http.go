@@ -39,7 +39,9 @@ func (handler *HTTPHandler) ServeHTTP(response http.ResponseWriter, request *htt
 		handler.launchBatch(response, request)
 		return
 
-	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/resume") && strings.HasPrefix(request.URL.Path, "/api/v1/batches/"):
+	case request.Method == http.MethodPost &&
+		(strings.HasSuffix(request.URL.Path, "/resume") || strings.HasSuffix(request.URL.Path, "/discard")) &&
+		strings.HasPrefix(request.URL.Path, "/api/v1/batches/"):
 		handler.batchAction(response, request)
 		return
 
@@ -124,6 +126,19 @@ func (handler *HTTPHandler) batchAction(response http.ResponseWriter, request *h
 	switch {
 	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/resume"):
 		result, err := handler.service.ResumeBatch(request.Context(), batchID)
+		if err != nil {
+			if errors.Is(err, service.ErrNotFound) {
+				writeError(response, http.StatusNotFound, "batch not found")
+				return
+			}
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, result)
+		return
+
+	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/discard"):
+		result, err := handler.service.DiscardBatch(request.Context(), batchID)
 		if err != nil {
 			if errors.Is(err, service.ErrNotFound) {
 				writeError(response, http.StatusNotFound, "batch not found")

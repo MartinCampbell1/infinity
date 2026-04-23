@@ -6,6 +6,7 @@
 
 	import PyodideWorker from '$lib/workers/pyodide.worker?worker';
 	import { executeCode } from '$lib/apis/utils';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import {
 		copyToClipboard,
 		initMermaid,
@@ -102,6 +103,7 @@
 
 	let copied = false;
 	let saved = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const collapseCodeBlock = () => {
 		collapsed = !collapsed;
@@ -178,7 +180,7 @@
 		const codeEngine = ($config as { code?: { engine?: string } } | undefined)?.code?.engine;
 
 		if (codeEngine === 'jupyter') {
-			const output = (await executeCode(localStorage.token, code).catch((error) => {
+			const output = (await executeCode(getWorkspaceAuthToken(), code).catch((error) => {
 				toast.error(`${error}`);
 				return null;
 			})) as {

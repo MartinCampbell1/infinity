@@ -13,7 +13,6 @@ const ATTEMPT_ARTIFACTS_ROOT = path.join(
   "attempt-artifacts"
 );
 const ATTEMPT_SCAFFOLD_MARKER = "Infinity Attempt Scaffold";
-const REAL_PRODUCT_RESULT_MARKER = "Infinity Runnable Result";
 
 type RunnableAttemptManifest = {
   version: 1;
@@ -37,6 +36,15 @@ function shellQuote(value: string) {
   return `'${value.split("'").join(`'"'"'`)}'`;
 }
 
+function escapeHtml(value: string | null | undefined) {
+  return (value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function attemptArtifactDirectory(initiativeId: string, attemptId: string) {
   return path.join(ATTEMPT_ARTIFACTS_ROOT, initiativeId, attemptId);
 }
@@ -49,31 +57,44 @@ function runnableLaunchManifestPath(initiativeId: string, attemptId: string) {
   );
 }
 
-function readExistingRunnableAttemptManifest(manifestPath: string) {
+function parseRunnableAttemptManifest(raw: Partial<RunnableAttemptManifest> | null | undefined) {
+  if (!raw) {
+    return null;
+  }
+
+  if (
+    (raw.targetKind !== "runnable_result" && raw.targetKind !== "attempt_scaffold") ||
+    !(
+      (raw.targetKind === "attempt_scaffold" &&
+        raw.artifactRole === "attempt_scaffold_result") ||
+      (raw.targetKind === "runnable_result" &&
+        raw.artifactRole === "attempt_real_product_result")
+    ) ||
+    typeof raw.targetLabel !== "string" ||
+    typeof raw.workingDirectory !== "string" ||
+    typeof raw.entryPath !== "string" ||
+    typeof raw.expectedMarker !== "string" ||
+    !Array.isArray(raw.command) ||
+    raw.command.some((part) => typeof part !== "string") ||
+    typeof raw.shellCommand !== "string"
+  ) {
+    return null;
+  }
+
+  return raw as RunnableAttemptManifest;
+}
+
+function readExistingAttemptManifest(manifestPath: string) {
   if (!existsSync(manifestPath)) {
     return null;
   }
 
   try {
     const raw = JSON.parse(readFileSync(manifestPath, "utf8")) as Partial<RunnableAttemptManifest>;
-    if (
-      raw.artifactRole === "attempt_real_product_result" &&
-      raw.targetKind === "runnable_result" &&
-      typeof raw.targetLabel === "string" &&
-      typeof raw.workingDirectory === "string" &&
-      typeof raw.entryPath === "string" &&
-      typeof raw.expectedMarker === "string" &&
-      Array.isArray(raw.command) &&
-      raw.command.every((part) => typeof part === "string") &&
-      typeof raw.shellCommand === "string"
-    ) {
-      return raw as RunnableAttemptManifest;
-    }
+    return parseRunnableAttemptManifest(raw);
   } catch {
     return null;
   }
-
-  return null;
 }
 
 function fileUri(filePath: string) {
@@ -90,10 +111,10 @@ function isRunnableWorkUnit(workUnit: WorkUnitRecord) {
 function runnableTargetSpec(workUnit: WorkUnitRecord) {
   if (workUnit.id.endsWith("final_integration")) {
     return {
-      artifactRole: "attempt_real_product_result" as const,
-      targetKind: "runnable_result" as const,
-      targetLabel: "Integrated product preview",
-      expectedMarker: REAL_PRODUCT_RESULT_MARKER,
+      artifactRole: "attempt_scaffold_result" as const,
+      targetKind: "attempt_scaffold" as const,
+      targetLabel: "Final integration scaffold",
+      expectedMarker: ATTEMPT_SCAFFOLD_MARKER,
     };
   }
   if (workUnit.id.endsWith("workspace_launch")) {
@@ -142,6 +163,64 @@ function buildLaunchScript(outputDir: string) {
   ].join("\n");
 }
 
+function buildAttemptIndexHtml(params: {
+  expectedMarker: string;
+  targetKind: RunnableAttemptManifest["targetKind"];
+  targetLabel: string;
+  workUnit: WorkUnitRecord;
+}) {
+  const modeLabel =
+    params.targetKind === "runnable_result" ? "Runnable Result" : "Attempt Scaffold";
+  const modeCopy =
+    params.targetKind === "runnable_result"
+      ? "This page is backed by a real runnable result derived from assembly output."
+      : "This page is replayable local evidence only. It does not prove the requested product is runnable yet.";
+  const description =
+    params.workUnit.description?.trim() || "No additional work-unit description was recorded.";
+
+  return [
+    "<!doctype html>",
+    '<html lang="en">',
+    "<head>",
+    '  <meta charset="utf-8" />',
+    `  <title>${escapeHtml(params.targetLabel)}</title>`,
+    '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+    "  <style>",
+    "    :root { color-scheme: dark; }",
+    "    * { box-sizing: border-box; }",
+    "    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f12; color: #edf0f3; }",
+    "    main { min-height: 100vh; display: grid; place-items: center; padding: 24px; }",
+    "    .card { width: min(760px, 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; background: rgba(255,255,255,0.03); padding: 28px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }",
+    "    .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: rgba(255,255,255,0.45); }",
+    "    h1 { margin: 12px 0 0; font-size: 30px; line-height: 1.08; letter-spacing: -0.05em; }",
+    "    p { margin: 12px 0 0; font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.7); }",
+    "    .meta { display: grid; gap: 10px; margin-top: 18px; }",
+    "    .row { display: grid; grid-template-columns: 150px 1fr; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); }",
+    "    .k { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: rgba(255,255,255,0.52); text-transform: uppercase; letter-spacing: 0.12em; }",
+    "    .v { font-size: 13px; color: #fff; word-break: break-word; }",
+    "    .marker { position: absolute; opacity: 0; pointer-events: none; }",
+    "    @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }",
+    "  </style>",
+    "</head>",
+    "<body>",
+    "  <main>",
+    '    <section class="card">',
+    `      <div class="eyebrow">${escapeHtml(modeLabel)}</div>`,
+    `      <h1>${escapeHtml(params.targetLabel)}</h1>`,
+    `      <p>${escapeHtml(modeCopy)}</p>`,
+    "      <div class=\"meta\">",
+    `        <div class="row"><div class="k">Work unit</div><div class="v">${escapeHtml(params.workUnit.title)}</div></div>`,
+    `        <div class="row"><div class="k">Description</div><div class="v">${escapeHtml(description)}</div></div>`,
+    `        <div class="row"><div class="k">Target kind</div><div class="v">${escapeHtml(params.targetKind)}</div></div>`,
+    "      </div>",
+    `      <div class="marker">${escapeHtml(params.expectedMarker)}</div>`,
+    "    </section>",
+    "  </main>",
+    "</body>",
+    "</html>",
+  ].join("\n");
+}
+
 export function materializeAttemptArtifacts(params: {
   initiativeId: string;
   taskGraphId: string;
@@ -185,13 +264,19 @@ export function materializeAttemptArtifacts(params: {
     const launchScriptPath = path.join(outputDir, "launch-localhost.py");
     const launchManifestPath = path.join(outputDir, "launch-manifest.json");
     const resultManifestPath = path.join(outputDir, "result-manifest.json");
-    const existingRealManifest = readExistingRunnableAttemptManifest(launchManifestPath);
-    if (existingRealManifest) {
+    const existingManifest = readExistingAttemptManifest(launchManifestPath);
+    if (
+      existingManifest &&
+      existingManifest.artifactRole === target.artifactRole &&
+      existingManifest.targetKind === target.targetKind &&
+      existingManifest.targetLabel === label &&
+      existingManifest.expectedMarker === target.expectedMarker
+    ) {
       artifactUris.push(fileUri(launchManifestPath), fileUri(resultManifestPath));
       if (existsSync(indexPath)) {
         artifactUris.push(fileUri(indexPath));
       }
-      summary = `${existingRealManifest.targetLabel} referenced`;
+      summary = `${existingManifest.targetLabel} referenced`;
       return {
         summary,
         artifactUris,
@@ -202,94 +287,12 @@ export function materializeAttemptArtifacts(params: {
 
     writeFileSync(
       indexPath,
-      [
-        "<!doctype html>",
-        '<html lang="en">',
-        "<head>",
-        '  <meta charset="utf-8" />',
-        `  <title>${label}</title>`,
-        '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
-        "  <style>",
-        "    :root { color-scheme: dark; }",
-        "    * { box-sizing: border-box; }",
-        "    body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #0d0f12; color: #edf0f3; }",
-        "    .page { min-height: 100vh; background: #0d0f12; }",
-        "    .nav { display:flex; align-items:center; justify-content:space-between; padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.06); }",
-        "    .brand { display:flex; align-items:center; gap: 10px; font-size: 14px; font-weight: 600; letter-spacing: -0.02em; }",
-        "    .brand-badge { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,#85a9ff,#38bdf8); color: #08111f; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; }",
-        "    .nav-links { display:flex; gap: 16px; font-size: 12px; color: rgba(255,255,255,0.62); }",
-        "    .nav-links .active { color: #fff; }",
-        "    .wrap { padding: 16px 18px 22px; display:grid; grid-template-columns: 1.18fr 0.82fr; gap: 16px; }",
-        "    .hero { display:flex; align-items:baseline; gap: 10px; }",
-        "    .hero-title { font-size: 22px; font-weight: 700; letter-spacing: -0.04em; }",
-        "    .hero-meta { font-size: 11px; color: rgba(255,255,255,0.48); }",
-        "    .pill { display:inline-flex; align-items:center; padding: 4px 12px; border-radius: 999px; font-size: 11px; border: 1px solid rgba(73,209,141,0.22); background: rgba(73,209,141,0.12); color: #bef0d6; }",
-        "    .stack { display:grid; gap: 12px; }",
-        "    .card { border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.025); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }",
-        "    .today { padding: 16px 16px 10px; }",
-        "    .today-head { display:flex; align-items:baseline; gap: 10px; }",
-        "    .today-title { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; }",
-        "    .today-date { font-size: 11px; color: rgba(255,255,255,0.48); }",
-        "    .today-badge { margin-left:auto; border:1px solid rgba(73,209,141,0.22); background: rgba(73,209,141,0.12); color:#bef0d6; border-radius:999px; padding: 3px 10px; font-size:11px; }",
-        "    .habit-list { margin-top: 12px; display:grid; gap: 8px; }",
-        "    .habit { display:grid; grid-template-columns: auto 1fr auto; align-items:center; gap: 10px; border:1px solid rgba(255,255,255,0.07); border-radius: 10px; background: rgba(255,255,255,0.02); padding: 10px 12px; }",
-        "    .dot { width: 20px; height: 20px; border-radius: 999px; display:flex; align-items:center; justify-content:center; color:#0d0f12; font-size:10px; font-weight:700; }",
-        "    .habit-name { font-size: 13px; color: #fff; }",
-        "    .habit-bars { margin-top: 6px; display:flex; gap: 4px; }",
-        "    .habit-bars span { width: 10px; height: 10px; border-radius: 3px; background: rgba(255,255,255,0.08); }",
-        "    .streak { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: rgba(255,255,255,0.56); min-width: 38px; text-align:right; }",
-        "    .side { display:grid; gap: 12px; }",
-        "    .week { padding: 16px; }",
-        "    .week-title { font-size: 13px; font-weight: 600; color:#fff; }",
-        "    .week-grid { margin-top: 12px; display:grid; grid-template-columns: repeat(7,1fr); gap: 6px; }",
-        "    .week-col { display:grid; gap: 6px; justify-items:center; }",
-        "    .week-col .d { font-size:10px; color: rgba(255,255,255,0.45); }",
-        "    .week-col .sq { width: 100%; aspect-ratio: 1 / 1; border-radius: 6px; }",
-        "    .streak-card { padding: 16px; }",
-        "    .streak-k { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.45); }",
-        "    .streak-v { margin-top: 8px; font-size: 42px; font-weight: 700; letter-spacing: -0.04em; }",
-        "    .streak-v span { font-size: 14px; color: rgba(255,255,255,0.5); font-weight: 500; margin-left: 6px; }",
-        "    .streak-copy { margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.56); }",
-        "    .footer-note { position:absolute; opacity:0; pointer-events:none; }",
-        "    @media (max-width: 640px) { .wrap { grid-template-columns: 1fr; } }",
-        "  </style>",
-        "</head>",
-        "<body>",
-        '  <div class="page">',
-        '    <div class="nav">',
-        '      <div class="brand"><span class="brand-badge">H</span><span>Habit Runway</span></div>',
-        '      <div class="nav-links"><span class="active">Today</span><span>Insights</span><span>Settings</span></div>',
-        "    </div>",
-        '    <div class="wrap">',
-        '      <section class="stack">',
-        '        <div class="card today">',
-        '          <div class="today-head"><div class="today-title">Today</div><div class="today-date">Mon · Apr 21</div><div class="today-badge">3 of 4 done</div></div>',
-        '          <div class="habit-list">',
-        '            <div class="habit"><div class="dot" style="background:#49d18d">✓</div><div><div class="habit-name">Morning run</div><div class="habit-bars"><span style="background:#49d18d"></span><span style="background:#49d18d"></span><span style="background:#49d18d"></span><span></span><span style="background:#49d18d"></span><span style="background:#49d18d"></span><span style="background:#49d18d"></span></div></div><div class="streak">12d</div></div>',
-        '            <div class="habit"><div class="dot" style="border:1.5px solid #85a9ff;background:transparent;color:#85a9ff">○</div><div><div class="habit-name">Read 30 min</div><div class="habit-bars"><span style="background:#85a9ff"></span><span style="background:#85a9ff"></span><span></span><span style="background:#85a9ff"></span><span style="background:#85a9ff"></span><span style="background:#85a9ff"></span><span></span></div></div><div class="streak">5d</div></div>',
-        '            <div class="habit"><div class="dot" style="background:#f59e0b">•</div><div><div class="habit-name">Journal</div><div class="habit-bars"><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span><span style="background:#f59e0b"></span></div></div><div class="streak">23d</div></div>',
-        '            <div class="habit"><div class="dot" style="background:#38bdf8">✓</div><div><div class="habit-name">No phone AM</div><div class="habit-bars"><span></span><span style="background:#38bdf8"></span><span></span><span style="background:#38bdf8"></span><span style="background:#38bdf8"></span><span></span><span style="background:#38bdf8"></span></div></div><div class="streak">2d</div></div>',
-        "          </div>",
-        "        </div>",
-        "      </section>",
-        '      <aside class="side">',
-        '        <div class="card week"><div class="week-title">This week</div><div class="week-grid">',
-        '          <div class="week-col"><div class="d">S</div><div class="sq" style="background:rgba(73,209,141,0.18)"></div></div>',
-        '          <div class="week-col"><div class="d">M</div><div class="sq" style="background:rgba(73,209,141,0.3)"></div></div>',
-        '          <div class="week-col"><div class="d">T</div><div class="sq" style="background:rgba(73,209,141,0.45)"></div></div>',
-        '          <div class="week-col"><div class="d">W</div><div class="sq" style="background:rgba(73,209,141,0.62)"></div></div>',
-        '          <div class="week-col"><div class="d">T</div><div class="sq" style="background:rgba(73,209,141,0.8)"></div></div>',
-        '          <div class="week-col"><div class="d">F</div><div class="sq" style="background:rgba(73,209,141,0.95)"></div></div>',
-        '          <div class="week-col"><div class="d">S</div><div class="sq" style="background:rgba(73,209,141,0.72)"></div></div>',
-        "        </div></div>",
-        '        <div class="card streak-card"><div class="streak-k">Current streak</div><div class="streak-v">23<span>days</span></div><div class="streak-copy">Journal · best streak this month</div></div>',
-        "      </aside>",
-      `      <div class="footer-note">${target.expectedMarker}</div>`,
-        "    </div>",
-        "  </div>",
-        "</body>",
-        "</html>",
-      ].join("\n")
+      buildAttemptIndexHtml({
+        expectedMarker: target.expectedMarker,
+        targetKind: target.targetKind,
+        targetLabel: label,
+        workUnit: params.workUnit,
+      })
     );
     writeFileSync(launchScriptPath, buildLaunchScript(outputDir));
 
@@ -347,33 +350,19 @@ export function readRunnableAttemptTarget(params: {
   }
 
   const raw = JSON.parse(readFileSync(manifestPath, "utf8")) as Partial<RunnableAttemptManifest>;
-  if (
-    (raw.targetKind !== "runnable_result" && raw.targetKind !== "attempt_scaffold") ||
-    !(
-      (raw.targetKind === "attempt_scaffold" &&
-        raw.artifactRole === "attempt_scaffold_result") ||
-      (raw.targetKind === "runnable_result" &&
-        raw.artifactRole === "attempt_real_product_result")
-    ) ||
-    typeof raw.targetLabel !== "string" ||
-    typeof raw.workingDirectory !== "string" ||
-    typeof raw.entryPath !== "string" ||
-    typeof raw.expectedMarker !== "string" ||
-    !Array.isArray(raw.command) ||
-    raw.command.some((part) => typeof part !== "string") ||
-    typeof raw.shellCommand !== "string"
-  ) {
+  const manifest = parseRunnableAttemptManifest(raw);
+  if (!manifest) {
     return null;
   }
 
   return {
     launchManifestPath: manifestPath,
-    launchProofKind: raw.targetKind,
-    launchTargetLabel: raw.targetLabel,
-    workingDirectory: raw.workingDirectory,
-    entryPath: raw.entryPath,
-    expectedMarker: raw.expectedMarker,
-    command: raw.command,
-    shellCommand: raw.shellCommand,
+    launchProofKind: manifest.targetKind,
+    launchTargetLabel: manifest.targetLabel,
+    workingDirectory: manifest.workingDirectory,
+    entryPath: manifest.entryPath,
+    expectedMarker: manifest.expectedMarker,
+    command: manifest.command,
+    shellCommand: manifest.shellCommand,
   };
 }

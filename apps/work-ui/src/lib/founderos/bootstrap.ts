@@ -328,16 +328,20 @@ export const fetchFounderosLaunchBootstrap = async (
 
 export const resolveFounderosLaunchSessionUrl = (
 	context: FounderosLaunchContext,
-	authState?: Pick<
+	authState?: Partial<
+		Pick<
 		FounderosLaunchBootstrapAuthState,
 		'sessionExchangePath' | 'sessionBearerExchangePath'
+		>
 	>
 ) => {
 	if (!context.hostOrigin) {
 		return null;
 	}
 
-	const exchangePath = authState?.sessionExchangePath ?? authState?.sessionBearerExchangePath ?? null;
+	const exchangePath = authState?.sessionExchangePath ?? null;
+	const compatibilityExchangePath =
+		!context.embedded ? authState?.sessionBearerExchangePath ?? null : null;
 
 	if (exchangePath?.startsWith('http://') || exchangePath?.startsWith('https://')) {
 		return exchangePath;
@@ -345,6 +349,14 @@ export const resolveFounderosLaunchSessionUrl = (
 
 	if (exchangePath) {
 		return `${context.hostOrigin}${exchangePath}`;
+	}
+
+	if (compatibilityExchangePath?.startsWith('http://') || compatibilityExchangePath?.startsWith('https://')) {
+		return compatibilityExchangePath;
+	}
+
+	if (compatibilityExchangePath) {
+		return `${context.hostOrigin}${compatibilityExchangePath}`;
 	}
 
 	if (!context.sessionId) {
@@ -358,9 +370,11 @@ export const resolveFounderosLaunchSessionUrl = (
 
 export const exchangeFounderosLaunchSession = async (
 	context: FounderosLaunchContext,
-	authState: Pick<
+	authState: Partial<
+		Pick<
 		FounderosLaunchBootstrapAuthState,
 		'sessionExchangePath' | 'sessionBearerExchangePath'
+		>
 	>,
 	fetchImpl: typeof fetch = fetch
 ): Promise<FounderosLaunchSessionExchangeResult> => {

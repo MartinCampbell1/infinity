@@ -122,4 +122,17 @@ func TestKernelHealthAndBatchLifecycle(t *testing.T) {
 	if resumeRecorder.Code != http.StatusOK {
 		t.Fatalf("expected 200 from batch resume, got %d with body %s", resumeRecorder.Code, resumeRecorder.Body.String())
 	}
+
+	failRecorder = httptest.NewRecorder()
+	handler.ServeHTTP(failRecorder, failRequest)
+	if failRecorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 from second attempt fail, got %d", failRecorder.Code)
+	}
+
+	discardRequest := httptest.NewRequest(http.MethodPost, "/api/v1/batches/batch-001/discard", nil)
+	discardRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(discardRecorder, discardRequest)
+	if discardRecorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 from batch discard, got %d with body %s", discardRecorder.Code, discardRecorder.Body.String())
+	}
 }

@@ -5,6 +5,7 @@
 	import { tick, getContext, onMount } from 'svelte';
 
 	const i18n = getContext('i18n');
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { config, mobile, settings, socket, user } from '$lib/stores';
 	import {
@@ -128,6 +129,7 @@
 
 	let filesInputElement: HTMLInputElement | null = null;
 	let inputFiles: FileList | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let showInputVariablesModal = false;
 	let inputVariablesModalCallback: (variableValues: Record<string, any>) => void = () => {};
@@ -191,7 +193,7 @@
 			text = text.replaceAll('{{USER_LOCATION}}', String(location));
 		}
 
-		const sessionUser = await getSessionUser(localStorage.token);
+		const sessionUser = await getSessionUser(getWorkspaceAuthToken());
 
 		if (text.includes('{{USER_NAME}}')) {
 			const name = sessionUser?.name || 'User';
@@ -550,7 +552,7 @@
 					: {})
 			};
 
-			const uploadedFile = await uploadFile(localStorage.token, file, metadata, process);
+			const uploadedFile = await uploadFile(getWorkspaceAuthToken(), file, metadata, process);
 
 			if (uploadedFile) {
 				console.info('File upload completed:', {

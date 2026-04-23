@@ -46,6 +46,7 @@
 	import { toast } from 'svelte-sonner';
 	import { collectHermesGeneratedWorkspaceFiles } from '$lib/utils/hermesWorkspace';
 	import { createFounderosHostActionRelay } from '$lib/founderos/bridge';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Controls from './Controls/Controls.svelte';
 	import CallOverlay from './MessageInput/CallOverlay.svelte';
@@ -300,16 +301,14 @@
 		workspaceStatus = nextStatus;
 	};
 
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
+
 	const loadWorkspaceContext = async (force = false) => {
 		if (workspaceContextLoading || (workspaceContextLoaded && !force)) {
 			return;
 		}
 
-		if (typeof localStorage === 'undefined') {
-			return;
-		}
-
-		const token = localStorage.token;
+		const token = getWorkspaceAuthToken();
 		if (!token) {
 			workspaceContextLoaded = true;
 			return;
@@ -480,8 +479,12 @@
 		files = [...files, fileItem];
 
 		try {
+			const token = getWorkspaceAuthToken();
+			if (!token) {
+				throw new Error('Missing auth token');
+			}
 			const file = new File([blob], name, { type: contentType || 'application/octet-stream' });
-			const uploaded = await uploadFile(localStorage.token, file);
+			const uploaded = await uploadFile(token, file);
 			if (!uploaded) throw new Error('Upload failed');
 
 			const idx = files.findIndex((f) => f.itemId === tempItemId);

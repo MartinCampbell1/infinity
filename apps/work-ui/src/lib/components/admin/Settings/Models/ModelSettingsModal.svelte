@@ -1,5 +1,6 @@
 <script>
 	import { toast } from 'svelte-sonner';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { createEventDispatcher, getContext, onMount } from 'svelte';
 	const i18n = getContext('i18n');
@@ -62,12 +63,13 @@
 	let defaultParams = {};
 	let builtinTools = {};
 	let promptSuggestions = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (show) {
 		init();
 	}
 	const init = async () => {
-		config = await getModelsConfig(localStorage.token);
+		config = await getModelsConfig(getWorkspaceAuthToken());
 
 		if (config?.DEFAULT_MODELS) {
 			defaultModelIds = (config?.DEFAULT_MODELS).split(',').filter((id) => id);
@@ -120,7 +122,7 @@
 			...(Object.keys(builtinTools).length > 0 ? { builtinTools } : {})
 		};
 
-		const res = await setModelsConfig(localStorage.token, {
+		const res = await setModelsConfig(getWorkspaceAuthToken(), {
 			DEFAULT_MODELS: defaultModelIds.join(','),
 			DEFAULT_PINNED_MODELS: defaultPinnedModelIds.join(','),
 			MODEL_ORDER_LIST: modelIds,
@@ -132,7 +134,7 @@
 
 		if (res) {
 			promptSuggestions = promptSuggestions.filter((p) => p.content !== '');
-			promptSuggestions = await setDefaultPromptSuggestions(localStorage.token, promptSuggestions);
+			promptSuggestions = await setDefaultPromptSuggestions(getWorkspaceAuthToken(), promptSuggestions);
 			await _config.set(await getBackendConfig());
 
 			toast.success($i18n.t('Models configuration saved successfully'));
@@ -155,7 +157,7 @@
 	message={$i18n.t('This will delete all models including custom models and cannot be undone.')}
 	bind:show={showResetModal}
 	onConfirm={async () => {
-		const res = deleteAllModels(localStorage.token);
+		const res = deleteAllModels(getWorkspaceAuthToken());
 		if (res) {
 			toast.success($i18n.t('All models deleted successfully'));
 			initHandler();

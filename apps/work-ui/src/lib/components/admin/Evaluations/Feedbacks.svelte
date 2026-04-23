@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
@@ -49,6 +50,7 @@
 
 	let showFeedbackModal = false;
 	let selectedFeedback: FeedbackItem | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const openFeedbackModal = (feedback: FeedbackItem) => {
 		showFeedbackModal = true;
@@ -68,7 +70,7 @@
 
 	const getFeedbacks = async () => {
 		try {
-			const res = await getFeedbackItems(localStorage.token, orderBy, direction, page).catch(
+			const res = await getFeedbackItems(getWorkspaceAuthToken(), orderBy, direction, page).catch(
 				(error) => {
 					toast.error(`${error}`);
 					return null;
@@ -89,7 +91,7 @@
 	}
 
 	const deleteFeedbackHandler = async (feedbackId: string) => {
-		const response = await deleteFeedbackById(localStorage.token, feedbackId).catch((err) => {
+		const response = await deleteFeedbackById(getWorkspaceAuthToken(), feedbackId).catch((err) => {
 			toast.error(err);
 			return null;
 		});
@@ -129,7 +131,7 @@
 	};
 
 	const exportHandler = async () => {
-		const _feedbacks = await exportAllFeedbacks(localStorage.token).catch((err) => {
+		const _feedbacks = await exportAllFeedbacks(getWorkspaceAuthToken()).catch((err) => {
 			toast.error(err);
 			return null;
 		});

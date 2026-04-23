@@ -90,6 +90,9 @@ export default async function ExecutionIssuesPage({
             meta: [
               "execution-kernel",
               kernelAvailability.baseUrl,
+              kernelAvailability.deploymentScope,
+              kernelAvailability.maturity,
+              kernelAvailability.durabilityTier,
               kernelAvailability.runtimeState ?? "blocked",
               kernelAvailability.recoveryState,
               kernelAvailability.restartRecoverable ? "restart-recoverable" : null,

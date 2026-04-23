@@ -15,6 +15,7 @@
 		user,
 		settings
 	} from '$lib/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import {
 		updateFileDataContentById,
@@ -173,6 +174,7 @@
 	let currentPage = 1;
 	let fileItems: KnowledgeFileRecord[] | null = null;
 	let fileItemsTotal: number | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const reset = () => {
 		currentPage = 1;
@@ -223,7 +225,7 @@
 		}
 
 		const res = (await searchKnowledgeFilesById(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			knowledge.id,
 			query,
 			viewOption,
@@ -288,7 +290,7 @@
 					continue;
 				}
 
-				const res = await processWeb(localStorage.token, '', fileUrl, false).catch((e) => {
+				const res = await processWeb(getWorkspaceAuthToken(), '', fileUrl, false).catch((e) => {
 					console.error('Error processing web URL:', e);
 					return null;
 				});
@@ -304,7 +306,7 @@
 						res.content
 					);
 
-					const uploadedFile = await uploadFile(localStorage.token, file).catch((e) => {
+					const uploadedFile = await uploadFile(getWorkspaceAuthToken(), file).catch((e) => {
 						toast.error(`${e}`);
 						return null;
 					});
@@ -394,7 +396,7 @@
 					: {})
 			};
 
-			const uploadedFile = await uploadFile(localStorage.token, file, metadata).catch((e) => {
+			const uploadedFile = await uploadFile(getWorkspaceAuthToken(), file, metadata).catch((e) => {
 				toast.error(`${e}`);
 				return null;
 			});
@@ -616,7 +618,7 @@
 		}
 
 		if ((fileItems?.length ?? 0) > 0) {
-			const res = await resetKnowledgeById(localStorage.token, id).catch((e) => {
+			const res = await resetKnowledgeById(getWorkspaceAuthToken(), id).catch((e) => {
 				toast.error(`${e}`);
 			});
 
@@ -637,7 +639,7 @@
 			return;
 		}
 
-		const res = await addFileToKnowledgeById(localStorage.token, id, fileId).catch((e) => {
+		const res = await addFileToKnowledgeById(getWorkspaceAuthToken(), id, fileId).catch((e) => {
 			toast.error(`${e}`);
 			return null;
 		});
@@ -660,7 +662,7 @@
 			console.log('Starting file deletion process for:', fileId);
 
 			// Remove from knowledge base only
-			const res = await removeFileFromKnowledgeById(localStorage.token, id, fileId);
+			const res = await removeFileFromKnowledgeById(getWorkspaceAuthToken(), id, fileId);
 			console.log('Knowledge base updated:', res);
 
 			if (res) {
@@ -693,7 +695,7 @@
 
 		try {
 			const res = await updateFileDataContentById(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				selectedFile.id,
 				selectedFileContent
 			).catch((e) => {
@@ -731,7 +733,7 @@
 				return;
 			}
 
-			const res = await updateKnowledgeById(localStorage.token, id, {
+			const res = await updateKnowledgeById(getWorkspaceAuthToken(), id, {
 				...knowledge,
 				name: knowledge.name,
 				description: knowledge.description,
@@ -861,7 +863,7 @@
 		}
 
 		id = pageId;
-		const res = await getKnowledgeById(localStorage.token, pageId).catch((e) => {
+		const res = await getKnowledgeById(getWorkspaceAuthToken(), pageId).catch((e) => {
 			toast.error(`${e}`);
 			return null;
 		}) as KnowledgeRecord | null;
@@ -952,21 +954,25 @@
 
 <div class="flex flex-col w-full h-full min-h-full" id="collection-container">
 	{#if id && knowledge}
-			<AccessControlModal
-				bind:show={showAccessControlModal}
-				bind:accessGrants={knowledge.access_grants}
+		<AccessControlModal
+			bind:show={showAccessControlModal}
+			bind:accessGrants={knowledge.access_grants}
 			share={$user?.permissions?.sharing?.knowledge || $user?.role === 'admin'}
 			sharePublic={$user?.permissions?.sharing?.public_knowledge || $user?.role === 'admin'}
-				shareUsers={($user?.permissions?.access_grants?.allow_users ?? true) ||
-					$user?.role === 'admin'}
-				onChange={async () => {
-					if (!knowledge || !id) {
-						return;
-					}
+			shareUsers={($user?.permissions?.access_grants?.allow_users ?? true) ||
+				$user?.role === 'admin'}
+			onChange={async () => {
+				if (!knowledge || !id) {
+					return;
+				}
 
-					try {
-						await updateKnowledgeAccessGrants(localStorage.token, id, knowledge.access_grants ?? []);
-						toast.success($i18n.t('Saved'));
+				try {
+					await updateKnowledgeAccessGrants(
+						getWorkspaceAuthToken(),
+						id,
+						knowledge.access_grants ?? []
+					);
+					toast.success($i18n.t('Saved'));
 				} catch (error) {
 					toast.error(`${error}`);
 				}

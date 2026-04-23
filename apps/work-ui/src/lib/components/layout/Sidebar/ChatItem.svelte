@@ -4,6 +4,7 @@
 	import { toast } from 'svelte-sonner';
 	import { goto, invalidate, invalidateAll } from '$app/navigation';
 	import { founderosLaunchContext } from '$lib/founderos';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { buildFounderosChatHref, buildFounderosRootHref } from '$lib/founderos/navigation';
 	import { onMount, getContext, createEventDispatcher, tick, onDestroy } from 'svelte';
 	const i18n = getContext('i18n');
@@ -140,7 +141,7 @@
 		chatLoading = true;
 
 		try {
-			const loadedChat = await getChatById(localStorage.token, id);
+			const loadedChat = await getChatById(getWorkspaceAuthToken(), id);
 			if (loadedChat) {
 				chat = loadedChat;
 			}
@@ -160,6 +161,7 @@
 
 	let showShareChatModal = false;
 	let confirmEdit = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let chatTitle = title;
 
@@ -167,7 +169,7 @@
 		if (title === '') {
 			toast.error($i18n.t('Title cannot be an empty string.'));
 		} else {
-			await updateChatById(localStorage.token, id, {
+			await updateChatById(getWorkspaceAuthToken(), id, {
 				title: title
 			});
 
@@ -176,8 +178,8 @@
 			}
 
 			currentChatPage.set(1);
-			await chats.set(await getChatList(localStorage.token, $currentChatPage));
-			await pinnedChats.set(await getPinnedChatList(localStorage.token));
+			await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
+			await pinnedChats.set(await getPinnedChatList(getWorkspaceAuthToken()));
 
 			dispatch('change');
 		}
@@ -185,7 +187,7 @@
 
 	const cloneChatHandler = async (id) => {
 		const res = await cloneChatById(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			id,
 			$i18n.t('Clone of {{TITLE}}', {
 				TITLE: title
@@ -199,19 +201,19 @@
 			goto(buildFounderosChatHref(res.id, $founderosLaunchContext));
 
 			currentChatPage.set(1);
-			await chats.set(await getChatList(localStorage.token, $currentChatPage));
-			await pinnedChats.set(await getPinnedChatList(localStorage.token));
+			await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
+			await pinnedChats.set(await getPinnedChatList(getWorkspaceAuthToken()));
 		}
 	};
 
 	const deleteChatHandler = async (id) => {
-		const res = await deleteChatById(localStorage.token, id).catch((error) => {
+		const res = await deleteChatById(getWorkspaceAuthToken(), id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
 
 		if (res) {
-			tags.set(await getAllTags(localStorage.token));
+			tags.set(await getAllTags(getWorkspaceAuthToken()));
 			if ($chatId === id) {
 				await goto(buildFounderosRootHref($founderosLaunchContext));
 
@@ -225,7 +227,7 @@
 
 	const archiveChatHandler = async (id) => {
 		try {
-			await archiveChatById(localStorage.token, id);
+			await archiveChatById(getWorkspaceAuthToken(), id);
 
 			if ($chatId === id) {
 				await goto(buildFounderosRootHref($founderosLaunchContext));
@@ -242,7 +244,7 @@
 
 	const moveChatHandler = async (chatId, folderId) => {
 		if (chatId && folderId) {
-			const res = await updateChatFolderIdById(localStorage.token, chatId, folderId).catch(
+			const res = await updateChatFolderIdById(getWorkspaceAuthToken(), chatId, folderId).catch(
 				(error) => {
 					toast.error(`${error}`);
 					return null;
@@ -251,8 +253,8 @@
 
 			if (res) {
 				currentChatPage.set(1);
-				await chats.set(await getChatList(localStorage.token, $currentChatPage));
-				await pinnedChats.set(await getPinnedChatList(localStorage.token));
+				await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
+				await pinnedChats.set(await getPinnedChatList(getWorkspaceAuthToken()));
 
 				dispatch('change');
 
@@ -382,7 +384,7 @@
 	const generateTitleHandler = async () => {
 		generating = true;
 		if (!chat) {
-			chat = await getChatById(localStorage.token, id);
+			chat = await getChatById(getWorkspaceAuthToken(), id);
 		}
 
 		const messages = (chat.chat?.messages ?? []).map((message) => {
@@ -396,7 +398,7 @@
 
 		chatTitle = '';
 
-		const generatedTitle = await generateTitle(localStorage.token, model, messages).catch(
+		const generatedTitle = await generateTitle(getWorkspaceAuthToken(), model, messages).catch(
 			(error) => {
 				toast.error(`${error}`);
 				return null;

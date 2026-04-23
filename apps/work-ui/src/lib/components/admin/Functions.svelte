@@ -5,6 +5,7 @@
 
 	import { WEBUI_NAME, config, functions as _functions, models, settings, user } from '$lib/stores';
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { goto } from '$app/navigation';
 	import {
@@ -114,6 +115,7 @@
 	let loaded = false;
 	let functions: FunctionRecord[] = [];
 	let filteredItems: FunctionRecord[] = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (query !== undefined) {
 		clearTimeout(searchDebounceTimer);
@@ -146,7 +148,7 @@
 			.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
 	};
 	const shareHandler = async (func: FunctionRecord) => {
-		const item = await getFunctionById(localStorage.token, func.id).catch((error) => {
+		const item = await getFunctionById(getWorkspaceAuthToken(), func.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -177,7 +179,7 @@
 	};
 
 	const cloneHandler = async (func: FunctionRecord) => {
-		const _function = await getFunctionById(localStorage.token, func.id).catch((error) => {
+		const _function = await getFunctionById(getWorkspaceAuthToken(), func.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -193,7 +195,7 @@
 	};
 
 	const exportHandler = async (func: FunctionRecord) => {
-		const _function = await getFunctionById(localStorage.token, func.id).catch((error) => {
+		const _function = await getFunctionById(getWorkspaceAuthToken(), func.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -207,7 +209,7 @@
 	};
 
 	const deleteHandler = async (func: FunctionRecord) => {
-		const res = await deleteFunctionById(localStorage.token, func.id).catch((error) => {
+		const res = await deleteFunctionById(getWorkspaceAuthToken(), func.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -216,10 +218,10 @@
 			toast.success($i18n.t('Function deleted successfully'));
 			functions = functions.filter((f) => f.id !== func.id);
 
-			_functions.set(await getFunctions(localStorage.token));
+			_functions.set(await getFunctions(getWorkspaceAuthToken()));
 			models.set(
 				await getModels(
-					localStorage.token,
+					getWorkspaceAuthToken(),
 					$config?.features?.enable_direct_connections
 						? $settings?.directConnections ?? null
 						: null,
@@ -231,7 +233,7 @@
 	};
 
 	const toggleGlobalHandler = async (func: FunctionRecord) => {
-		const res = await toggleGlobalById(localStorage.token, func.id).catch((error) => {
+		const res = await toggleGlobalById(getWorkspaceAuthToken(), func.id).catch((error) => {
 			toast.error(`${error}`);
 		});
 
@@ -246,10 +248,10 @@
 					: toast.success($i18n.t('Function is now globally disabled'));
 			}
 
-			_functions.set(await getFunctions(localStorage.token));
+			_functions.set(await getFunctions(getWorkspaceAuthToken()));
 			models.set(
 				await getModels(
-					localStorage.token,
+					getWorkspaceAuthToken(),
 					$config?.features?.enable_direct_connections
 						? $settings?.directConnections ?? null
 						: null,
@@ -263,7 +265,7 @@
 	onMount(() => {
 		void (async () => {
 			viewOption = localStorage?.workspaceViewOption || '';
-			functions = await getFunctionList(localStorage.token).catch((error) => {
+			functions = await getFunctionList(getWorkspaceAuthToken()).catch((error) => {
 				toast.error(`${error}`);
 				return [];
 			});
@@ -313,7 +315,7 @@
 	<ImportModal
 		bind:show={showImportModal}
 		loadUrlHandler={async (url: string) => {
-			return await loadFunctionByUrl(localStorage.token, url);
+			return await loadFunctionByUrl(getWorkspaceAuthToken(), url);
 		}}
 		onImport={(item: ImportItem) => {
 			const func = item as FunctionRecord;
@@ -366,10 +368,10 @@
 							</button>
 
 							{#if functions.length}
-								<button
-									class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition"
-										on:click={async () => {
-											const _functions = await exportFunctions(localStorage.token).catch((error) => {
+							<button
+								class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition"
+									on:click={async () => {
+										const _functions = await exportFunctions(getWorkspaceAuthToken()).catch((error) => {
 												toast.error(`${error}`);
 											return null;
 										});
@@ -623,10 +625,10 @@
 											<Switch
 												bind:state={func.is_active}
 												on:change={async () => {
-													toggleFunctionById(localStorage.token, func.id);
+													toggleFunctionById(getWorkspaceAuthToken(), func.id);
 													models.set(
 														await getModels(
-															localStorage.token,
+															getWorkspaceAuthToken(),
 															$config?.features?.enable_direct_connections
 																? $settings?.directConnections ?? null
 																: null,
@@ -713,7 +715,7 @@
 				await tick();
 				models.set(
 					await getModels(
-						localStorage.token,
+						getWorkspaceAuthToken(),
 						$config?.features?.enable_direct_connections
 							? $settings?.directConnections ?? null
 							: null,
@@ -746,18 +748,18 @@
 						func = func.function;
 					}
 
-					await createNewFunction(localStorage.token, func as FunctionRecord).catch((error) => {
+					await createNewFunction(getWorkspaceAuthToken(), func as FunctionRecord).catch((error) => {
 						toast.error(`${error}`);
 						return null;
 					});
 				}
 
 					toast.success($i18n.t('Functions imported successfully'));
-					functions = await getFunctionList(localStorage.token);
-					_functions.set(await getFunctions(localStorage.token));
+					functions = await getFunctionList(getWorkspaceAuthToken());
+					_functions.set(await getFunctions(getWorkspaceAuthToken()));
 					models.set(
 						await getModels(
-							localStorage.token,
+							getWorkspaceAuthToken(),
 							$config?.features?.enable_direct_connections
 								? $settings?.directConnections ?? null
 								: null,

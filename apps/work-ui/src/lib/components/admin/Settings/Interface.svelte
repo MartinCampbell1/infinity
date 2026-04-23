@@ -2,6 +2,7 @@
 	import { getModels, getTaskConfig, updateTaskConfig } from '$lib/apis';
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { getBaseModels } from '$lib/apis/models';
 
@@ -66,9 +67,10 @@
 		VOICE_MODE_PROMPT_TEMPLATE: ''
 	};
 	let voiceModePromptValue = '';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const updateInterfaceHandler = async (): Promise<void> => {
-		taskConfig = await updateTaskConfig(localStorage.token, taskConfig);
+		taskConfig = await updateTaskConfig(getWorkspaceAuthToken(), taskConfig);
 	};
 
 	let workspaceModels: ModelRecord[] = [];
@@ -98,11 +100,11 @@
 
 	const init = async (): Promise<void> => {
 		try {
-			taskConfig = await getTaskConfig(localStorage.token);
+			taskConfig = await getTaskConfig(getWorkspaceAuthToken());
 			voiceModePromptValue = taskConfig.VOICE_MODE_PROMPT_TEMPLATE ?? '';
 
-			const fetchedWorkspaceModels = (await getBaseModels(localStorage.token)) as ModelRecord[];
-			const fetchedBaseModels = (await getModels(localStorage.token, null, false)) as ModelRecord[];
+			const fetchedWorkspaceModels = (await getBaseModels(getWorkspaceAuthToken())) as ModelRecord[];
+			const fetchedBaseModels = (await getModels(getWorkspaceAuthToken(), null, false)) as ModelRecord[];
 
 			workspaceModels = Array.isArray(fetchedWorkspaceModels) ? fetchedWorkspaceModels : [];
 			baseModels = Array.isArray(fetchedBaseModels) ? fetchedBaseModels : [];

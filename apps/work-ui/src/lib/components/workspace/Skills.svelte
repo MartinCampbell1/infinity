@@ -18,6 +18,7 @@
 		deleteSkillById,
 		toggleSkillById
 	} from '$lib/apis/skills';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { capitalizeFirstLetter, parseFrontmatter, formatSkillName } from '$lib/utils';
 
 	import Tooltip from '../common/Tooltip.svelte';
@@ -82,13 +83,14 @@
 	let tagsContainerElement: HTMLDivElement | null = null;
 	let viewOption = '';
 	let page = 1;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const loadSkillItems = async (): Promise<void> => {
 		if (!loaded) return;
 
 		loading = true;
 		try {
-			const res: SkillItemsResponse = await getSkillItems(localStorage.token, query, viewOption, page).catch(
+			const res: SkillItemsResponse = await getSkillItems(getWorkspaceAuthToken(), query, viewOption, page).catch(
 				(error) => {
 					toast.error(`${error}`);
 					return null;
@@ -125,7 +127,7 @@
 					const items = Array.isArray(parsedSkills) ? parsedSkills : [parsedSkills];
 
 					for (const skill of items) {
-						await createNewSkill(localStorage.token, skill).catch((error) => {
+						await createNewSkill(getWorkspaceAuthToken(), skill).catch((error) => {
 							toast.error(`${error}`);
 						});
 					}
@@ -133,7 +135,7 @@
 					toast.success($i18n.t('Skill imported successfully'));
 					page = 1;
 					await loadSkillItems();
-					_skills.set(await getSkills(localStorage.token));
+					_skills.set(await getSkills(getWorkspaceAuthToken()));
 				} catch (e) {
 					toast.error($i18n.t('Invalid JSON file'));
 				}
@@ -184,7 +186,7 @@
 	}
 
 	const cloneHandler = async (skill: SkillItem) => {
-		const _skill = await getSkillById(localStorage.token, skill.id).catch((error) => {
+		const _skill = await getSkillById(getWorkspaceAuthToken(), skill.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -200,7 +202,7 @@
 	};
 
 	const exportHandler = async (skill: SkillItem) => {
-		const _skill = await getSkillById(localStorage.token, skill.id).catch((error) => {
+		const _skill = await getSkillById(getWorkspaceAuthToken(), skill.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -214,7 +216,7 @@
 	};
 
 	const deleteHandler = async (skill: SkillItem) => {
-		const res = await deleteSkillById(localStorage.token, skill.id).catch((error) => {
+		const res = await deleteSkillById(getWorkspaceAuthToken(), skill.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -225,7 +227,7 @@
 
 		page = 1;
 		loadSkillItems();
-		await _skills.set(await getSkills(localStorage.token));
+		await _skills.set(await getSkills(getWorkspaceAuthToken()));
 	};
 
 	onMount(() => {
@@ -313,7 +315,7 @@
 					<button
 						class="flex text-xs items-center space-x-1 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-gray-200 transition"
 						on:click={async () => {
-							const _skills = await exportSkills(localStorage.token).catch((error) => {
+							const _skills = await exportSkills(getWorkspaceAuthToken()).catch((error) => {
 								toast.error(`${error}`);
 								return null;
 							});
@@ -531,7 +533,7 @@
 											<Switch
 												bind:state={skill.is_active}
 												on:change={async () => {
-													toggleSkillById(localStorage.token, skill.id);
+													toggleSkillById(getWorkspaceAuthToken(), skill.id);
 												}}
 											/>
 										</Tooltip>

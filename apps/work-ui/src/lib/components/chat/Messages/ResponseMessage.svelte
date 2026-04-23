@@ -16,6 +16,7 @@
 	import { createNewFeedback, getFeedbackById, updateFeedbackById } from '$lib/apis/evaluations';
 	import { getChatById } from '$lib/apis/chats';
 	import { generateTags } from '$lib/apis';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import {
 		audioQueue,
@@ -69,6 +70,7 @@
 	import { getHermesVisibleStatusEntries } from '$lib/utils/hermesTranscript';
 
 	type HermesApprovalResolution = 'once' | 'session' | 'always' | 'deny';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 	type HermesApprovalState = {
 		title: string;
 		description?: string;
@@ -379,7 +381,7 @@
 				}
 			} else {
 				for (const [idx, sentence] of messageContentParts.entries()) {
-					const res = await synthesizeOpenAISpeech(localStorage.token, voiceId, sentence).catch(
+					const res = await synthesizeOpenAISpeech(getWorkspaceAuthToken(), voiceId, sentence).catch(
 						(error) => {
 							console.error(error);
 							toast.error(`${error}`);
@@ -486,7 +488,7 @@
 			}
 		};
 
-		const chat = await getChatById(localStorage.token, chatId).catch((error) => {
+		const chat = await getChatById(getWorkspaceAuthToken(), chatId).catch((error) => {
 			toast.error(`${error}`);
 		});
 		if (!chat) {
@@ -537,15 +539,15 @@
 
 		let feedback = null;
 		if (message?.feedbackId) {
-			feedback = await updateFeedbackById(
-				localStorage.token,
-				message.feedbackId,
-				feedbackItem
-			).catch((error) => {
+				feedback = await updateFeedbackById(
+					getWorkspaceAuthToken(),
+					message.feedbackId,
+					feedbackItem
+				).catch((error) => {
 				toast.error(`${error}`);
 			});
 		} else {
-			feedback = await createNewFeedback(localStorage.token, feedbackItem).catch((error) => {
+			feedback = await createNewFeedback(getWorkspaceAuthToken(), feedbackItem).catch((error) => {
 				toast.error(`${error}`);
 			});
 
@@ -564,7 +566,7 @@
 
 			if (!updatedMessage.annotation?.tags && (message?.content ?? '') !== '') {
 				// attempt to generate tags
-				const tags = await generateTags(localStorage.token, message.model, messages, chatId).catch(
+				const tags = await generateTags(getWorkspaceAuthToken(), message.model, messages, chatId).catch(
 					(error) => {
 						console.error(error);
 						return [];
@@ -579,7 +581,7 @@
 					saveMessage(message.id, updatedMessage);
 					if (updatedMessage.feedbackId) {
 						await updateFeedbackById(
-							localStorage.token,
+							getWorkspaceAuthToken(),
 							updatedMessage.feedbackId,
 							feedbackItem
 						).catch((error) => {

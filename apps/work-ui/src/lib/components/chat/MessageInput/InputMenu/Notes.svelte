@@ -3,6 +3,7 @@
 	import relativeTime from 'dayjs/plugin/relativeTime';
 	import { onMount, tick, getContext } from 'svelte';
 
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { decodeString } from '$lib/utils';
 	import { getNoteList } from '$lib/apis/notes';
 
@@ -34,6 +35,7 @@
 	let page = 1;
 	let itemsLoading = false;
 	let allItemsLoaded = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const loadMoreItems = async () => {
 		if (allItemsLoaded) return;
@@ -43,7 +45,7 @@
 
 	const getItemsPage = async () => {
 		itemsLoading = true;
-		let res: NoteListItem[] = await getNoteList(localStorage.token, page).catch(() => {
+		let res: NoteListItem[] = await getNoteList(getWorkspaceAuthToken(), page).catch(() => {
 			return [];
 		});
 

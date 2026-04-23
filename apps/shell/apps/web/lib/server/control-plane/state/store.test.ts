@@ -13,9 +13,15 @@ import {
 import { createIsolatedControlPlaneStateDir } from "./test-helpers";
 
 let restoreStateDir: (() => void) | null = null;
+const ORIGINAL_SYNTHETIC_SEEDS = process.env.FOUNDEROS_ENABLE_SYNTHETIC_STATE_SEEDS;
 
 afterEach(async () => {
   resetControlPlaneStateForTests();
+  if (ORIGINAL_SYNTHETIC_SEEDS === undefined) {
+    delete process.env.FOUNDEROS_ENABLE_SYNTHETIC_STATE_SEEDS;
+  } else {
+    process.env.FOUNDEROS_ENABLE_SYNTHETIC_STATE_SEEDS = ORIGINAL_SYNTHETIC_SEEDS;
+  }
   if (restoreStateDir) {
     restoreStateDir();
     restoreStateDir = null;
@@ -162,5 +168,20 @@ describe("control-plane unified state store", () => {
     expect(state.approvals.requests.length).toBeGreaterThanOrEqual(2);
     expect(notes.some((note) => note.includes("fell back to unified file-backed state"))).toBe(true);
     expect(notes.some((note) => note.includes("State file:"))).toBe(true);
+  });
+
+  test("hydrates an empty live-safe state when synthetic seeds are explicitly disabled", async () => {
+    const { restore } = createIsolatedControlPlaneStateDir();
+    restoreStateDir = restore;
+    process.env.FOUNDEROS_ENABLE_SYNTHETIC_STATE_SEEDS = "0";
+
+    resetControlPlaneStateForTests();
+    const state = await readControlPlaneState();
+
+    expect(state.approvals.requests).toHaveLength(0);
+    expect(state.recoveries.incidents).toHaveLength(0);
+    expect(state.accounts.snapshots).toHaveLength(0);
+    expect(state.accounts.updates).toHaveLength(0);
+    expect(state.sessions.events).toHaveLength(0);
   });
 });

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Modal from '$lib/components/common/Modal.svelte';
 	import { getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	const i18n = getContext('i18n');
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import { getFeedbackById } from '$lib/apis/evaluations';
@@ -15,6 +16,7 @@
 	let loaded = false;
 
 	let feedbackData: FeedbackDetailsResponse | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getFeedbackMessages = (): Record<string, FeedbackSnapshotMessage> =>
 		feedbackData?.snapshot?.chat?.chat?.history?.messages ?? {};
@@ -28,7 +30,7 @@
 		loaded = false;
 		feedbackData = null;
 		if (selectedFeedback) {
-			feedbackData = await getFeedbackById(localStorage.token, selectedFeedback.id).catch(() => {
+			feedbackData = await getFeedbackById(getWorkspaceAuthToken(), selectedFeedback.id).catch(() => {
 				return null;
 			});
 		}

@@ -14,6 +14,7 @@
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import AddMemoryModal from '$lib/components/chat/Settings/Personalization/AddMemoryModal.svelte';
 	import EditMemoryModal from '$lib/components/chat/Settings/Personalization/EditMemoryModal.svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import GarbageBin from '$lib/components/icons/GarbageBin.svelte';
 	import Pencil from '$lib/components/icons/Pencil.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
@@ -44,6 +45,7 @@
 	let showEditMemoryModal = false;
 	let showDeleteConfirm = false;
 	let selectedMemory: MemoryItem | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const normalizeTimestamp = (value: number | null | undefined) =>
 		typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
@@ -117,7 +119,7 @@
 		memoriesLoading = true;
 
 		try {
-			const nextMemories = await getMemories(localStorage.token).catch((error) => {
+			const nextMemories = await getMemories(getWorkspaceAuthToken()).catch((error) => {
 				toast.error(`${error}`);
 				return null;
 			});
@@ -142,7 +144,7 @@
 		profileLoadError = '';
 
 		try {
-			profilesResponse = await getHermesProfiles(localStorage.token).catch((error) => {
+			profilesResponse = await getHermesProfiles(getWorkspaceAuthToken()).catch((error) => {
 				console.error(error);
 				profileLoadError = getErrorMessage(error, $i18n.t('Profile context unavailable.'));
 				return null;
@@ -394,7 +396,7 @@
 				return;
 			}
 
-			const res = await deleteMemoryById(localStorage.token, selectedMemory.id).catch((error) => {
+			const res = await deleteMemoryById(getWorkspaceAuthToken(), selectedMemory.id).catch((error) => {
 				toast.error(`${error}`);
 				return null;
 			});

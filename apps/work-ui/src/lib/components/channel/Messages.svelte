@@ -24,6 +24,7 @@
 		updateMessage
 	} from '$lib/apis/channels';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const i18n = getContext('i18n');
 
@@ -92,7 +93,7 @@
 
 	let messagesLoading = false;
 
-	const getAuthToken = () => String(localStorage.token ?? '');
+	const getAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getCurrentUser = (): ChannelReactionUser | null =>
 		$user?.id ? { id: $user.id, name: $user.name ?? null } : null;

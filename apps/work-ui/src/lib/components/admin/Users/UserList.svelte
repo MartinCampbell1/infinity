@@ -2,6 +2,7 @@
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import { config, user } from '$lib/stores';
 	import { getContext, onDestroy } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import dayjs from 'dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
@@ -72,9 +73,10 @@
 
 	let showUserChatsModal = false;
 	let showEditUserModal = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const deleteUserHandler = async (id: string) => {
-		const res = await deleteUserById(localStorage.token, id).catch((error: unknown) => {
+		const res = await deleteUserById(getWorkspaceAuthToken(), id).catch((error: unknown) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -100,7 +102,7 @@
 
 	const getUserList = async () => {
 		try {
-			const res = (await getUsers(localStorage.token, query, orderBy, direction, page).catch(
+			const res = (await getUsers(getWorkspaceAuthToken(), query, orderBy, direction, page).catch(
 				(error: unknown) => {
 					toast.error(`${error}`);
 					return null;

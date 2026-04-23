@@ -14,6 +14,7 @@
 	import Textarea from '$lib/components/common/Textarea.svelte';
 	import Knowledge from '$lib/components/workspace/Models/Knowledge.svelte';
 	import { getFolderById } from '$lib/apis/folders';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	const i18n = getContext('i18n');
 
 	export let show = false;
@@ -34,6 +35,7 @@
 	};
 
 	let loading = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const submitHandler = async () => {
 		loading = true;
@@ -66,7 +68,7 @@
 
 	const init = async () => {
 		if (folderId) {
-			folder = await getFolderById(localStorage.token, folderId).catch((error) => {
+			folder = await getFolderById(getWorkspaceAuthToken(), folderId).catch((error) => {
 				toast.error(`${error}`);
 				return null;
 			});

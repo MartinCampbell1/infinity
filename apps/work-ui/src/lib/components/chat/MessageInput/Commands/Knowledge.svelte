@@ -6,6 +6,7 @@
 	import { folders } from '$lib/stores';
 	import { getFolders } from '$lib/apis/folders';
 	import { searchKnowledgeBases, searchKnowledgeFiles } from '$lib/apis/knowledge';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { isValidHttpUrl, isYoutubeUrl, decodeString } from '$lib/utils';
 
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -16,6 +17,7 @@
 	import Folder from '$lib/components/icons/Folder.svelte';
 
 	const i18n = getContext('i18n');
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	type KnowledgeItem = {
 		type: 'folder' | 'collection' | 'file' | 'youtube' | 'web';
@@ -136,7 +138,7 @@
 	};
 
 	const getKnowledgeItems = async () => {
-		const res = (await searchKnowledgeBases(localStorage.token, query).catch(() => {
+		const res = (await searchKnowledgeBases(getWorkspaceAuthToken(), query).catch(() => {
 			return null;
 		})) as SearchResult<KnowledgeBaseSearchItem> | null;
 
@@ -152,7 +154,7 @@
 	};
 
 	const getKnowledgeFileItems = async () => {
-		const res = (await searchKnowledgeFiles(localStorage.token, query).catch(() => {
+		const res = (await searchKnowledgeFiles(getWorkspaceAuthToken(), query).catch(() => {
 			return null;
 		})) as SearchResult<KnowledgeFileSearchItem> | null;
 
@@ -170,7 +172,7 @@
 
 	onMount(async () => {
 		if ($folders === null) {
-			await folders.set(await getFolders(localStorage.token));
+			await folders.set(await getFolders(getWorkspaceAuthToken()));
 		}
 
 		await tick();

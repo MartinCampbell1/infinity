@@ -8,6 +8,7 @@
 	const { saveAs } = fileSaver;
 
 	import { copyToClipboard, createMessagesList } from '$lib/utils';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import {
 		showControls,
@@ -49,6 +50,7 @@
 	void shareEnabled;
 
 	let showFullMessages = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getChatAsText = async () => {
 		const history = chat.chat.history;
@@ -233,7 +235,7 @@
 			if ((chat?.id ?? '').startsWith('local') || $temporaryChatEnabled) {
 				chatObj = chat;
 			} else {
-				chatObj = await getChatById(localStorage.token, chat.id);
+				chatObj = await getChatById(getWorkspaceAuthToken(), chat.id);
 			}
 
 			let blob = new Blob([JSON.stringify([chatObj])], {

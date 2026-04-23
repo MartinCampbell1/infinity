@@ -5,6 +5,7 @@
 	import { tick, getContext, onMount, onDestroy } from 'svelte';
 	import { config, settings } from '$lib/stores';
 	import { blobToFile, calculateSHA256, extractCurlyBraceWords } from '$lib/utils';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { transcribeAudio } from '$lib/apis/audio';
 	import XMark from '$lib/components/icons/XMark.svelte';
@@ -35,6 +36,7 @@
 	let durationCounter = null;
 
 	let transcription = '';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const startDurationCounter = () => {
 		durationCounter = setInterval(() => {
@@ -158,7 +160,7 @@
 			}
 
 			const res = await transcribeAudio(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				file,
 				$settings?.audio?.stt?.language
 			).catch((error) => {

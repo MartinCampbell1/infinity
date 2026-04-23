@@ -44,12 +44,9 @@ describe('resolveFounderosShellOrigin', () => {
 		).toBe('http://127.0.0.1:3737');
 	});
 
-	test('treats legacy local work-ui ports as embedded origins that resolve back to the shell', () => {
+	test('treats the canonical local work-ui origin as an embedded origin that resolves back to the shell', () => {
 		expect(
-			resolveFounderosShellOrigin(launchContext(), 'http://127.0.0.1:5050')
-		).toBe('http://127.0.0.1:3737');
-		expect(
-			resolveFounderosShellOrigin(launchContext(), 'http://localhost:5173')
+			resolveFounderosShellOrigin(launchContext(), 'http://localhost:3101')
 		).toBe('http://127.0.0.1:3737');
 	});
 });

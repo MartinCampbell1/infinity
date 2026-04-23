@@ -4,6 +4,7 @@
 		import type { Writable } from 'svelte/store';
 		import type { i18n as i18nType } from 'i18next';
 		const i18n: Writable<i18nType> = getContext('i18n');
+		import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { getChannelPinnedMessages, pinMessage } from '$lib/apis/channels';
 
@@ -38,6 +39,7 @@
 
 	let allItemsLoaded = false;
 	let loading = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getPinnedMessages = async () => {
 		const currentChannel = channel;
@@ -47,7 +49,7 @@
 		loading = true;
 		try {
 			const res = (await getChannelPinnedMessages(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				currentChannel.id,
 				page
 			).catch(
@@ -83,7 +85,7 @@
 		onPin(message.id, !message.is_pinned);
 
 		await pinMessage(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			message.channel_id,
 			message.id,
 			!message.is_pinned

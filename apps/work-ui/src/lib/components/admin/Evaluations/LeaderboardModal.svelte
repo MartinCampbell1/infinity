@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Modal from '$lib/components/common/Modal.svelte';
 	import { getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { getModelHistory } from '$lib/apis/evaluations';
 	import ModelActivityChart from './ModelActivityChart.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
@@ -24,6 +25,7 @@
 	let history: Array<{ date: string; won: number; lost: number }> = [];
 	let loadingHistory = false;
 	let topTags: LeaderboardTag[] = [];
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const close = () => {
 		show = false;
@@ -34,7 +36,7 @@
 		if (!model?.id) return;
 		loadingHistory = true;
 		try {
-			const result = await getModelHistory(localStorage.token, model.id, days);
+			const result = await getModelHistory(getWorkspaceAuthToken(), model.id, days);
 			history = result?.history ?? [];
 		} catch (err) {
 			console.error('Failed to load model history:', err);

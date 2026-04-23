@@ -18,6 +18,7 @@
 	import PyodideWorker from '$lib/workers/pyodide.worker?worker';
 
 	import { formatPythonCode } from '$lib/apis/utils';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { toast } from 'svelte-sonner';
 	import { user } from '$lib/stores';
 
@@ -41,6 +42,7 @@
 	export let onChange: CodeEditorChangeHandler = () => {};
 
 	let _value = '';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (value) {
 		updateValue();
@@ -197,7 +199,7 @@ print("${endTag}")
 		if (codeEditor) {
 			const res = await (
 				$user?.role === 'admin'
-					? formatPythonCode(localStorage.token, _value)
+					? formatPythonCode(getWorkspaceAuthToken(), _value)
 					: formatPythonCodePyodide(_value)
 			).catch((error) => {
 				toast.error(`${error}`);

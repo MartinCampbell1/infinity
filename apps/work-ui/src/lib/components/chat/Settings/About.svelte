@@ -3,6 +3,7 @@
 	import { getOllamaVersion } from '$lib/apis/ollama';
 	import { WEBUI_BUILD_HASH, WEBUI_VERSION } from '$lib/constants';
 	import { WEBUI_NAME, config, showChangelog } from '$lib/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { compareVersion } from '$lib/utils';
 	import { onMount, getContext } from 'svelte';
 
@@ -22,10 +23,11 @@
 		current: '',
 		latest: ''
 	};
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const checkForVersionUpdates = async () => {
 		updateAvailable = null;
-		version = await getVersionUpdates(localStorage.token).catch(() => {
+		version = await getVersionUpdates(getWorkspaceAuthToken()).catch(() => {
 			return {
 				current: WEBUI_VERSION,
 				latest: WEBUI_VERSION
@@ -40,7 +42,7 @@
 
 	onMount(() => {
 		void (async () => {
-			ollamaVersion = await getOllamaVersion(localStorage.token).catch(() => '');
+			ollamaVersion = await getOllamaVersion(getWorkspaceAuthToken()).catch(() => '');
 
 			if ($config?.features?.enable_version_update_check) {
 				void checkForVersionUpdates();

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext, onDestroy } from 'svelte';
 	import { getSkillItems } from '$lib/apis/skills';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Keyframes from '$lib/components/icons/Keyframes.svelte';
 
@@ -12,6 +13,7 @@
 	};
 
 	const i18n = getContext('i18n');
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	export let query = '';
 	export let onSelect: (event: { type: 'skill'; data: SkillItem }) => void = () => {};
@@ -33,7 +35,7 @@
 	});
 
 	const getItems = async () => {
-		const res = (await getSkillItems(localStorage.token, query).catch(() => null)) as
+		const res = (await getSkillItems(getWorkspaceAuthToken(), query).catch(() => null)) as
 			| { items?: SkillItem[] }
 			| null;
 		if (res) {

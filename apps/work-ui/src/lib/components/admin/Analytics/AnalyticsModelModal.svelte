@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Modal from '$lib/components/common/Modal.svelte';
 	import { getContext } from 'svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { getModelChats, getModelOverview } from '$lib/apis/analytics';
 	import ModelActivityChart from '$lib/components/admin/Evaluations/ModelActivityChart.svelte';
 	import ChatList from '$lib/components/common/ChatList.svelte';
@@ -13,6 +14,7 @@
 	export let startDate: number | null = null;
 	export let endDate: number | null = null;
 	export let onClose: () => void = () => {};
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const i18n = getContext('i18n');
 
@@ -58,7 +60,7 @@
 		if (!model?.id) return;
 		loadingOverview = true;
 		try {
-			const result = await getModelOverview(localStorage.token, model.id, days);
+			const result = await getModelOverview(getWorkspaceAuthToken(), model.id, days);
 			history = result?.history ?? [];
 			tags = result?.tags ?? [];
 		} catch (err) {
@@ -84,7 +86,7 @@
 		allChatsLoaded = false;
 		try {
 			const res = await getModelChats(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				model.id,
 				startDate,
 				endDate,
@@ -114,7 +116,7 @@
 		try {
 			const skip = chatList.length;
 			const res = await getModelChats(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				model.id,
 				startDate,
 				endDate,

@@ -5,6 +5,7 @@
 
 	import { exportChatStats, exportSingleChatStats, downloadChatStats } from '$lib/apis/chats';
 	import { getVersion } from '$lib/apis';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -28,7 +29,7 @@
 		const chatId = event.data?.data?.id ?? event.data?.id;
 		if (event.data?.type === 'verify:chat' && chatId) {
 			try {
-				const res = await exportSingleChatStats(localStorage.token, chatId);
+				const res = await exportSingleChatStats(getWorkspaceAuthToken(), chatId);
 				if (res && window.opener) {
 					window.opener.postMessage(
 						{
@@ -83,6 +84,7 @@
 
 	// Download controller for cancellation
 	let downloadController: AbortController | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	// Sync mode: 'incremental' or 'full'
 	let syncMode: 'incremental' | 'full' = 'incremental';
@@ -147,7 +149,7 @@
 
 		try {
 			// Get version info
-			const versionRes = await getVersion(localStorage.token).catch((err) => {
+			const versionRes = await getVersion(getWorkspaceAuthToken()).catch((err) => {
 				console.error('Failed to get version:', err);
 				return null;
 			});
@@ -169,7 +171,7 @@
 					searchParams.updated_at = eventData.lastSyncedChatUpdatedAt;
 				}
 
-				const res = await exportChatStats(localStorage.token, page, searchParams).catch((err) => {
+				const res = await exportChatStats(getWorkspaceAuthToken(), page, searchParams).catch((err) => {
 					throw new Error(err?.detail || err?.message || 'Failed to export chat stats');
 				});
 
@@ -219,7 +221,7 @@
 
 		try {
 			// Get total count first (no filters for download - get all)
-			const initialRes = await exportChatStats(localStorage.token, 1, {}).catch(() => null);
+			const initialRes = await exportChatStats(getWorkspaceAuthToken(), 1, {}).catch(() => null);
 
 			if (initialRes?.total) {
 				total = initialRes.total;
@@ -229,7 +231,7 @@
 			await tick();
 
 			// Get version for filename
-			const versionRes = await getVersion(localStorage.token).catch(() => null);
+			const versionRes = await getVersion(getWorkspaceAuthToken()).catch(() => null);
 			const version = versionRes?.version ?? '0.0.0';
 			const filename = `open-webui-stats-${version}-${Date.now()}.json`;
 
@@ -243,7 +245,7 @@
 							? Number(searchParams.updated_at)
 							: undefined;
 			const [res, controller] = await downloadChatStats(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				updatedAt
 			).catch((err) => {
 				throw new Error(

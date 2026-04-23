@@ -127,4 +127,22 @@ describe("/api/control/orchestration/initiatives", () => {
       })
     );
   });
+
+  test("assigns a workspace session automatically when the caller does not provide one", async () => {
+    const response = await postInitiatives(
+      new Request("http://localhost/api/control/orchestration/initiatives", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: "Autonomous run",
+          userRequest: "Create a real workspace binding for this run.",
+          requestedBy: "martin",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.initiative.workspaceSessionId).toMatch(/^session-/);
+  });
 });

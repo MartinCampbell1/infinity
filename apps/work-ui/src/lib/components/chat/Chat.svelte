@@ -141,6 +141,7 @@ const HERMES_ONLY_CHAT = true;
 		createFounderosHostActionRelay
 	} from '$lib/founderos/bridge';
 	import { founderosLaunchContext } from '$lib/founderos';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { buildFounderosChatHref, buildFounderosRootHref } from '$lib/founderos/navigation';
 	import {
 		emitFounderosApprovalRequested,
@@ -195,6 +196,7 @@ const HERMES_ONLY_CHAT = true;
 	const emittedFounderosApprovalEvents = new Set<string>();
 	const emittedFounderosErrorEvents = new Set<string>();
 	const HERMES_ACTIVE_STREAM_STORAGE_PREFIX = 'hermes-active-stream';
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const getHermesToolLifecycleEventName = (toolEvent: Record<string, any>) => {
 		if (typeof toolEvent?.name === 'string' && toolEvent.name.trim()) {
@@ -491,7 +493,7 @@ const HERMES_ONLY_CHAT = true;
 			return null;
 		}
 
-		const token = localStorage.token;
+		const token = getWorkspaceAuthToken();
 		if (!token) {
 			hermesRuntimeContextLoaded = true;
 			return null;
@@ -587,11 +589,11 @@ const HERMES_ONLY_CHAT = true;
 	};
 
 	const refreshHermesSessionSurfacing = async () => {
-		if (typeof localStorage === 'undefined' || !localStorage.token) {
+		if (!getWorkspaceAuthToken()) {
 			return;
 		}
 
-		const sessionsPayload = await getHermesSessions(localStorage.token).catch((error) => {
+		const sessionsPayload = await getHermesSessions(getWorkspaceAuthToken()).catch((error) => {
 			console.debug('Failed to refresh Hermes sessions after chat update:', error);
 			return null;
 		});
@@ -895,9 +897,9 @@ const HERMES_ONLY_CHAT = true;
 		chatTitle.set(hermesChatPayload.title ?? $chatTitle);
 
 		if ($chatId == targetChatId && !$temporaryChatEnabled) {
-			chat = await updateChatById(localStorage.token, targetChatId, hermesChatPayload);
+			chat = await updateChatById(getWorkspaceAuthToken(), targetChatId, hermesChatPayload);
 			currentChatPage.set(1);
-			await chats.set(await getChatList(localStorage.token, $currentChatPage));
+			await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 		}
 
 		await refreshHermesSessionSurfacing();
@@ -963,7 +965,7 @@ const HERMES_ONLY_CHAT = true;
 				approvalId
 			},
 			async (resolution) => {
-				await respondHermesSessionApproval(localStorage.token, {
+				await respondHermesSessionApproval(getWorkspaceAuthToken(), {
 					stream_id: streamId,
 					choice: resolution,
 					target_id: activeTargetId
@@ -1212,10 +1214,10 @@ const HERMES_ONLY_CHAT = true;
 
 	const setDefaults = async () => {
 		if (!$tools) {
-			tools.set(await getTools(localStorage.token));
+			tools.set(await getTools(getWorkspaceAuthToken()));
 		}
 		if (!$functions) {
-			functions.set(await getFunctions(localStorage.token));
+			functions.set(await getFunctions(getWorkspaceAuthToken()));
 		}
 		if (selectedModels.length !== 1 && !atSelectedModel) {
 			return;
@@ -1399,10 +1401,10 @@ const HERMES_ONLY_CHAT = true;
 				} else if (type === 'chat:title') {
 					chatTitle.set(data);
 					currentChatPage.set(1);
-					await chats.set(await getChatList(localStorage.token, $currentChatPage));
+					await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 				} else if (type === 'chat:tags') {
-					chat = await getChatById(localStorage.token, $chatId);
-					allTags.set(await getAllTags(localStorage.token));
+					chat = await getChatById(getWorkspaceAuthToken(), $chatId);
+					allTags.set(await getAllTags(getWorkspaceAuthToken()));
 				} else if (type === 'source' || type === 'citation') {
 					if (data?.type === 'code_execution') {
 						// Code execution; update existing code execution by ID, or add new one.
@@ -1575,7 +1577,7 @@ const HERMES_ONLY_CHAT = true;
 			selectedModels.filter((modelId) => modelId !== '').length > 0 &&
 			JSON.stringify($selectedFolder?.data?.model_ids) !== JSON.stringify(selectedModels)
 		) {
-			const res = await updateFolderById(localStorage.token, $selectedFolder.id, {
+			const res = await updateFolderById(getWorkspaceAuthToken(), $selectedFolder.id, {
 				data: {
 					model_ids: selectedModels
 				}
@@ -1647,7 +1649,7 @@ const HERMES_ONLY_CHAT = true;
 
 				// Re-fetch banners on navigation to homepage so newly configured banners appear
 				try {
-					banners.set(await getBanners(localStorage.token).catch(() => []));
+					banners.set(await getBanners(getWorkspaceAuthToken()).catch(() => []));
 				} catch (e) {
 					console.error('Failed to refresh banners:', e);
 				}
@@ -1845,7 +1847,7 @@ const HERMES_ONLY_CHAT = true;
 
 			// Upload file to server
 			console.log('Uploading file to server...');
-			const uploadedFile = await uploadFile(localStorage.token, file, metadata);
+			const uploadedFile = await uploadFile(getWorkspaceAuthToken(), file, metadata);
 
 			if (!uploadedFile) {
 				throw new Error('Server returned null response for file upload');
@@ -1901,8 +1903,8 @@ const HERMES_ONLY_CHAT = true;
 		for (const fileItem of fileItems) {
 			try {
 				const res = isYoutubeUrl(fileItem.url)
-					? await processYoutubeVideo(localStorage.token, fileItem.url)
-					: await processWeb(localStorage.token, '', fileItem.url);
+					? await processYoutubeVideo(getWorkspaceAuthToken(), fileItem.url)
+					: await processWeb(getWorkspaceAuthToken(), '', fileItem.url);
 
 				if (res) {
 					fileItem.status = 'uploaded';
@@ -2204,13 +2206,13 @@ const HERMES_ONLY_CHAT = true;
 			temporaryChatEnabled.set(false);
 		}
 
-		chat = await getChatById(localStorage.token, $chatId).catch(async (error) => {
+		chat = await getChatById(getWorkspaceAuthToken(), $chatId).catch(async (error) => {
 			await goto(buildFounderosRootHref($founderosLaunchContext));
 			return null;
 		});
 
 		if (chat) {
-			tags = await getTagsById(localStorage.token, $chatId).catch(async (error) => {
+			tags = await getTagsById(getWorkspaceAuthToken(), $chatId).catch(async (error) => {
 				return [];
 			});
 
@@ -2253,7 +2255,7 @@ const HERMES_ONLY_CHAT = true;
 					}
 				}
 
-				const taskRes = await getTaskIdsByChatId(localStorage.token, $chatId).catch((error) => {
+				const taskRes = await getTaskIdsByChatId(getWorkspaceAuthToken(), $chatId).catch((error) => {
 					return null;
 				});
 
@@ -2310,7 +2312,7 @@ const HERMES_ONLY_CHAT = true;
 	};
 
 	const chatCompletedHandler = async (_chatId, modelId, responseMessageId, messages) => {
-		const res = await chatCompleted(localStorage.token, {
+		const res = await chatCompleted(getWorkspaceAuthToken(), {
 			model: modelId,
 			messages: messages.map((m) => ({
 				id: m.id,
@@ -2361,10 +2363,10 @@ const HERMES_ONLY_CHAT = true;
 					files: chatFiles
 				});
 
-				chat = await updateChatById(localStorage.token, _chatId, persistedChatPayload);
+				chat = await updateChatById(getWorkspaceAuthToken(), _chatId, persistedChatPayload);
 
 				currentChatPage.set(1);
-				await chats.set(await getChatList(localStorage.token, $currentChatPage));
+				await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 			}
 		}
 
@@ -2374,7 +2376,7 @@ const HERMES_ONLY_CHAT = true;
 	const chatActionHandler = async (_chatId, actionId, modelId, responseMessageId, event = null) => {
 		const messages = createMessagesList(history, responseMessageId);
 
-		const res = await chatAction(localStorage.token, actionId, {
+		const res = await chatAction(getWorkspaceAuthToken(), actionId, {
 			model: modelId,
 			messages: messages.map((m) => ({
 				id: m.id,
@@ -2418,10 +2420,10 @@ const HERMES_ONLY_CHAT = true;
 					files: chatFiles
 				});
 
-				chat = await updateChatById(localStorage.token, _chatId, persistedChatPayload);
+				chat = await updateChatById(getWorkspaceAuthToken(), _chatId, persistedChatPayload);
 
 				currentChatPage.set(1);
-				await chats.set(await getChatList(localStorage.token, $currentChatPage));
+				await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 			}
 		}
 	};
@@ -3147,7 +3149,7 @@ const HERMES_ONLY_CHAT = true;
 
 			await tick();
 
-			const stream = await getHermesSessionMessageStream(localStorage.token, streamId);
+			const stream = await getHermesSessionMessageStream(getWorkspaceAuthToken(), streamId);
 
 			for await (const update of stream) {
 				const rawEvent = update?.event ?? 'message';
@@ -3339,8 +3341,7 @@ const HERMES_ONLY_CHAT = true;
 	const resumePersistedHermesStream = async (targetChatId: string | null | undefined) => {
 		if (
 			!targetChatId ||
-			typeof localStorage === 'undefined' ||
-			!localStorage.token ||
+			!getWorkspaceAuthToken() ||
 			hermesActiveStreamId
 		) {
 			return;
@@ -3389,7 +3390,7 @@ const HERMES_ONLY_CHAT = true;
 				return;
 			}
 
-			const recoveredStream = await startHermesSessionMessageStream(localStorage.token, {
+			const recoveredStream = await startHermesSessionMessageStream(getWorkspaceAuthToken(), {
 				session_id: persistedStream.sessionId ?? hermesSessionContext?.session_id ?? null,
 				message: userMessage.content,
 				files: userMessage.files ?? null,
@@ -3423,7 +3424,7 @@ const HERMES_ONLY_CHAT = true;
 		}
 
 		const streamStatus = await getHermesSessionMessageStreamStatus(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			resolvedStreamId
 		).catch((error) => {
 			console.warn('Failed to resume persisted Hermes stream:', error);
@@ -3512,7 +3513,7 @@ const HERMES_ONLY_CHAT = true;
 				pendingApproval: null,
 				updatedAt: Date.now()
 			});
-			const streamStart = await startHermesSessionMessageStream(localStorage.token, {
+			const streamStart = await startHermesSessionMessageStream(getWorkspaceAuthToken(), {
 				session_id: hermesSessionContext.session_id ?? null,
 				message: userMessage.content,
 				files: userMessage.files ?? null,
@@ -3605,7 +3606,7 @@ const HERMES_ONLY_CHAT = true;
 
 		let userLocation;
 		if ($settings?.userLocation) {
-			userLocation = await getAndUpdateUserLocation(localStorage.token).catch((err) => {
+			userLocation = await getAndUpdateUserLocation(getWorkspaceAuthToken()).catch((err) => {
 				console.error(err);
 				return undefined;
 			});
@@ -3720,7 +3721,7 @@ const HERMES_ONLY_CHAT = true;
 		const activeTerminalId = $selectedTerminalId ?? null;
 
 		const res = await generateOpenAIChatCompletion(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			{
 				stream: stream,
 				model: model.id,
@@ -3883,7 +3884,7 @@ const HERMES_ONLY_CHAT = true;
 
 	const stopResponse = async () => {
 		if (hermesActiveStreamId) {
-			await cancelHermesSessionMessageStream(localStorage.token, hermesActiveStreamId).catch(
+			await cancelHermesSessionMessageStream(getWorkspaceAuthToken(), hermesActiveStreamId).catch(
 				(error) => {
 					toast.error(`${error}`);
 					return null;
@@ -3894,7 +3895,7 @@ const HERMES_ONLY_CHAT = true;
 
 		if (taskIds) {
 			for (const taskId of taskIds) {
-				const res = await stopTask(localStorage.token, taskId).catch((error) => {
+				const res = await stopTask(getWorkspaceAuthToken(), taskId).catch((error) => {
 					toast.error(`${error}`);
 					return null;
 				});
@@ -4035,7 +4036,7 @@ const HERMES_ONLY_CHAT = true;
 		try {
 			generating = true;
 			const [res, controller] = await generateMoACompletion(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				message.model ?? '',
 				message.parentId ? history.messages[message.parentId].content : '',
 				responses
@@ -4092,7 +4093,7 @@ const HERMES_ONLY_CHAT = true;
 				timestamp: Date.now()
 			});
 
-			chat = await createNewChat(localStorage.token, persistedChatPayload, $selectedFolder?.id);
+			chat = await createNewChat(getWorkspaceAuthToken(), persistedChatPayload, $selectedFolder?.id);
 
 			_chatId = chat.id;
 			await chatId.set(_chatId);
@@ -4101,7 +4102,7 @@ const HERMES_ONLY_CHAT = true;
 
 			await tick();
 
-			await chats.set(await getChatList(localStorage.token, $currentChatPage));
+			await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 			currentChatPage.set(1);
 
 			selectedFolder.set(null);
@@ -4125,7 +4126,7 @@ const HERMES_ONLY_CHAT = true;
 					files: chatFiles
 				});
 
-				chat = await updateChatById(localStorage.token, _chatId, persistedChatPayload);
+				chat = await updateChatById(getWorkspaceAuthToken(), _chatId, persistedChatPayload);
 			}
 		}
 	};
@@ -4159,7 +4160,7 @@ const HERMES_ONLY_CHAT = true;
 
 	const moveChatHandler = async (chatId, folderId) => {
 		if (chatId && folderId) {
-			const res = await updateChatFolderIdById(localStorage.token, chatId, folderId).catch(
+			const res = await updateChatFolderIdById(getWorkspaceAuthToken(), chatId, folderId).catch(
 				(error) => {
 					toast.error(`${error}`);
 					return null;
@@ -4168,8 +4169,8 @@ const HERMES_ONLY_CHAT = true;
 
 			if (res) {
 				currentChatPage.set(1);
-				await chats.set(await getChatList(localStorage.token, $currentChatPage));
-				await pinnedChats.set(await getPinnedChatList(localStorage.token));
+				await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
+				await pinnedChats.set(await getPinnedChatList(getWorkspaceAuthToken()));
 
 				toast.success($i18n.t('Chat moved successfully'));
 			}
@@ -4180,12 +4181,12 @@ const HERMES_ONLY_CHAT = true;
 
 	const archiveChatHandler = async (id: string) => {
 		try {
-			await archiveChatById(localStorage.token, id);
+			await archiveChatById(getWorkspaceAuthToken(), id);
 			currentChatPage.set(1);
 			initNewChat();
 			await goto(buildFounderosRootHref($founderosLaunchContext));
-			chats.set(await getChatList(localStorage.token, $currentChatPage));
-			pinnedChats.set(await getPinnedChatList(localStorage.token));
+			chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
+			pinnedChats.set(await getPinnedChatList(getWorkspaceAuthToken()));
 			toast.success($i18n.t('Chat archived.'));
 		} catch (error) {
 			console.error('Error archiving chat:', error);
@@ -4302,7 +4303,7 @@ const HERMES_ONLY_CHAT = true;
 								});
 
 								const savedChat = await createNewChat(
-									localStorage.token,
+									getWorkspaceAuthToken(),
 									persistedChatPayload,
 									null
 								);
@@ -4310,7 +4311,7 @@ const HERMES_ONLY_CHAT = true;
 								if (savedChat) {
 									temporaryChatEnabled.set(false);
 									chatId.set(savedChat.id);
-									chats.set(await getChatList(localStorage.token, $currentChatPage));
+									chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 
 									await goto(buildFounderosChatHref(savedChat.id, $founderosLaunchContext));
 									toast.success($i18n.t('Conversation saved successfully'));

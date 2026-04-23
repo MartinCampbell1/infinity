@@ -22,6 +22,7 @@ type Service interface {
 	LaunchBatch(context.Context, events.LaunchBatchRequest) (events.BatchEnvelope, error)
 	BatchDetail(context.Context, string) (events.BatchEnvelope, error)
 	ResumeBatch(context.Context, string) (events.BatchEnvelope, error)
+	DiscardBatch(context.Context, string) (events.BatchEnvelope, error)
 	AttemptDetail(context.Context, string) (events.AttemptEnvelope, error)
 	CompleteAttempt(context.Context, string) (events.AttemptActionEnvelope, error)
 	FailAttempt(context.Context, string, events.AttemptActionRequest) (events.AttemptActionEnvelope, error)
@@ -53,6 +54,17 @@ func defaultPersistedState() persistedState {
 		Batches:  map[string]events.BatchRecord{},
 		Attempts: map[string]events.AttemptRecord{},
 	}
+}
+
+func archiveRecoveredState(value string) string {
+	if value == "resolved" || value == "discarded" {
+		return value
+	}
+	return "archived"
+}
+
+func isLiveRecoveryState(value string) bool {
+	return value != "archived" && value != "discarded"
 }
 
 func NewFileBacked(statePath string) (*InMemory, error) {
@@ -92,6 +104,37 @@ func (svc *InMemory) hydrateFromDisk() error {
 	}
 	if state.Attempts == nil {
 		state.Attempts = map[string]events.AttemptRecord{}
+	}
+
+	for batchID, batch := range state.Batches {
+		if batch.Status == "running" {
+			batch.Status = "blocked"
+			batch.RecoveryState = archiveRecoveredState(batch.RecoveryState)
+			if batch.FinishedAt == nil {
+				finishedAt := nowISO()
+				batch.FinishedAt = &finishedAt
+			}
+		} else if batch.Status == "blocked" || batch.Status == "completed" {
+			batch.RecoveryState = archiveRecoveredState(batch.RecoveryState)
+		}
+		state.Batches[batchID] = batch
+	}
+	for attemptID, attempt := range state.Attempts {
+		if attempt.Status == "started" {
+			attempt.Status = "abandoned"
+			attempt.RecoveryState = archiveRecoveredState(attempt.RecoveryState)
+			if attempt.FinishedAt == nil {
+				finishedAt := nowISO()
+				attempt.FinishedAt = &finishedAt
+			}
+			if attempt.Summary == nil {
+				summary := "abandoned after restart"
+				attempt.Summary = &summary
+			}
+		} else if attempt.Status == "failed" || attempt.Status == "succeeded" {
+			attempt.RecoveryState = archiveRecoveredState(attempt.RecoveryState)
+		}
+		state.Attempts[attemptID] = attempt
 	}
 
 	svc.batches = state.Batches
@@ -157,19 +200,28 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 
 	batchCounts := events.BatchCounts{}
 	blockedBatchIDs := make([]string, 0)
+	archivedBatchIDs := make([]string, 0)
+	hasDiscarded := false
 	for _, batch := range svc.batches {
 		batchCounts.Total += 1
 		switch batch.Status {
 		case "running":
 			batchCounts.Running += 1
 		case "blocked":
-			batchCounts.Blocked += 1
-			blockedBatchIDs = append(blockedBatchIDs, batch.ID)
+			if isLiveRecoveryState(batch.RecoveryState) {
+				batchCounts.Blocked += 1
+				blockedBatchIDs = append(blockedBatchIDs, batch.ID)
+			} else if batch.RecoveryState == "archived" {
+				archivedBatchIDs = append(archivedBatchIDs, batch.ID)
+			} else if batch.RecoveryState == "discarded" {
+				hasDiscarded = true
+			}
 		case "completed":
 			batchCounts.Completed += 1
 		}
 	}
 	slices.Sort(blockedBatchIDs)
+	slices.Sort(archivedBatchIDs)
 
 	attemptCounts := events.AttemptCounts{}
 	failedAttemptIDs := make([]string, 0)
@@ -183,8 +235,12 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 		case "succeeded":
 			attemptCounts.Succeeded += 1
 		case "failed":
-			attemptCounts.Failed += 1
-			failedAttemptIDs = append(failedAttemptIDs, attempt.ID)
+			if isLiveRecoveryState(attempt.RecoveryState) {
+				attemptCounts.Failed += 1
+				failedAttemptIDs = append(failedAttemptIDs, attempt.ID)
+			} else if attempt.RecoveryState == "discarded" {
+				hasDiscarded = true
+			}
 			attemptAt := latestAttemptTimestamp(attempt)
 			parsedAttemptAt, ok := parseAttemptTimestamp(attemptAt)
 			if latestFailure == nil || (ok && (latestFailureAt.IsZero() || parsedAttemptAt.After(latestFailureAt))) {
@@ -206,10 +262,14 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 
 	storageKind := "memory"
 	stateConfigured := false
+	durabilityTier := "ephemeral_memory"
 	if svc.statePath != "" {
 		storageKind = "file"
 		stateConfigured = true
+		durabilityTier = "local_file_snapshot"
 	}
+	deploymentScope := "localhost_only_solo"
+	maturity := "localhost_solo_v1"
 
 	runtimeState := "idle"
 	if batchCounts.Blocked > 0 {
@@ -221,6 +281,13 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 	failureState := "none"
 	if attemptCounts.Failed > 0 {
 		failureState = "failed"
+	} else {
+		for _, batch := range svc.batches {
+			if batch.Status == "blocked" && batch.RecoveryState == "archived" {
+				failureState = "historical"
+				break
+			}
+		}
 	}
 
 	retryable := batchCounts.Blocked > 0 || attemptCounts.Failed > 0
@@ -228,11 +295,17 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 	resumableBatchIDs := make([]string, 0)
 	if restartRecoverable {
 		resumableBatchIDs = append(resumableBatchIDs, blockedBatchIDs...)
+		resumableBatchIDs = append(resumableBatchIDs, archivedBatchIDs...)
 	}
 
 	recoveryState := "none"
 	if retryable {
 		recoveryState = "retryable"
+	}
+	if failureState == "historical" && recoveryState == "none" {
+		recoveryState = "archived"
+	} else if hasDiscarded && recoveryState == "none" {
+		recoveryState = "discarded"
 	}
 
 	status := "ok"
@@ -251,6 +324,13 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 			"Resolve the failing attempt, then retry blocked batches from the shell: %s.",
 			strings.Join(blockedBatchIDs, ", "),
 		)
+	} else if recoveryState == "discarded" {
+		recoveryHint = "Discarded failures remain inspectable but do not block fresh boots."
+	} else if recoveryState == "archived" && len(resumableBatchIDs) > 0 {
+		recoveryHint = fmt.Sprintf(
+			"Archived execution history is inspectable; retry from the shell if you want to resume: %s.",
+			strings.Join(resumableBatchIDs, ", "),
+		)
 	} else if latestFailure != nil && latestFailure.ErrorSummary != nil {
 		recoveryHint = fmt.Sprintf(
 			"Inspect the latest failed attempt %s before retrying.",
@@ -259,8 +339,8 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 	}
 
 	detail := fmt.Sprintf(
-		"execution-kernel is reachable with localhost-only auth, %s-backed state configured=%t, runtime %s, recovery %s, restart-recoverable %t, %d blocked batch(es), %d failed attempt(s), and next action: %s",
-		storageKind,
+		"execution-kernel is reachable as a localhost-only solo-v1 runtime with %s-backed local state configured=%t, runtime %s, recovery %s, restart-recoverable %t, %d blocked batch(es), %d failed attempt(s), and next action: %s",
+		durabilityTier,
 		stateConfigured,
 		runtimeState,
 		recoveryState,
@@ -275,7 +355,10 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 		Service:            "execution-kernel",
 		GeneratedAt:        nowISO(),
 		AuthMode:           "localhost_only",
+		DeploymentScope:    deploymentScope,
+		Maturity:           maturity,
 		StorageKind:        storageKind,
+		DurabilityTier:     durabilityTier,
 		StatePath:          svc.statePath,
 		StateConfigured:    stateConfigured,
 		RuntimeState:       runtimeState,
@@ -319,6 +402,7 @@ func (svc *InMemory) LaunchBatch(_ context.Context, input events.LaunchBatchRequ
 		WorkUnitIDs:      []string{},
 		ConcurrencyLimit: input.ConcurrencyLimit,
 		Status:           "running",
+		RecoveryState:    "retryable",
 		StartedAt:        &startedAt,
 		FinishedAt:       nil,
 	}
@@ -329,17 +413,18 @@ func (svc *InMemory) LaunchBatch(_ context.Context, input events.LaunchBatchRequ
 		attemptID := fmt.Sprintf("attempt-%s-%s", input.BatchID, workUnit.ID)
 		batchID := input.BatchID
 		attempt := events.AttemptRecord{
-			ID:           attemptID,
-			WorkUnitID:   workUnit.ID,
-			BatchID:      &batchID,
-			ExecutorType: workUnit.ExecutorType,
-			Status:       "started",
-			StartedAt:    startedAt,
-			FinishedAt:   nil,
-			Summary:      nil,
-			ArtifactURIs: []string{},
-			ErrorCode:    nil,
-			ErrorSummary: nil,
+			ID:            attemptID,
+			WorkUnitID:    workUnit.ID,
+			BatchID:       &batchID,
+			ExecutorType:  workUnit.ExecutorType,
+			Status:        "started",
+			RecoveryState: "retryable",
+			StartedAt:     startedAt,
+			FinishedAt:    nil,
+			Summary:       nil,
+			ArtifactURIs:  []string{},
+			ErrorCode:     nil,
+			ErrorSummary:  nil,
 		}
 		svc.attempts[attemptID] = attempt
 		attempts = append(attempts, attempt)
@@ -369,7 +454,10 @@ func (svc *InMemory) ResumeBatch(_ context.Context, batchID string) (events.Batc
 	if !ok {
 		return events.BatchEnvelope{}, ErrNotFound
 	}
-	if batch.Status != "blocked" {
+	if batch.RecoveryState == "discarded" {
+		return events.BatchEnvelope{}, fmt.Errorf("batch %s is discarded", batchID)
+	}
+	if batch.Status != "blocked" && batch.RecoveryState != "archived" {
 		return events.BatchEnvelope{}, fmt.Errorf("batch %s is not blocked", batchID)
 	}
 
@@ -379,10 +467,16 @@ func (svc *InMemory) ResumeBatch(_ context.Context, batchID string) (events.Batc
 		if attempt.BatchID == nil || *attempt.BatchID != batchID {
 			continue
 		}
-		if attempt.Status != "failed" && attempt.Status != "abandoned" {
+		if attempt.RecoveryState == "discarded" {
 			continue
 		}
+		if attempt.Status != "failed" && attempt.Status != "abandoned" {
+			if attempt.RecoveryState != "archived" {
+				continue
+			}
+		}
 		attempt.Status = "started"
+		attempt.RecoveryState = "retryable"
 		attempt.StartedAt = resumedAt
 		attempt.FinishedAt = nil
 		attempt.Summary = nil
@@ -397,7 +491,43 @@ func (svc *InMemory) ResumeBatch(_ context.Context, batchID string) (events.Batc
 	}
 
 	batch.Status = "running"
+	batch.RecoveryState = "retryable"
 	batch.FinishedAt = nil
+	svc.batches[batch.ID] = batch
+	if err := svc.persistLocked(); err != nil {
+		return events.BatchEnvelope{}, err
+	}
+
+	return svc.batchEnvelopeLocked(batchID)
+}
+
+func (svc *InMemory) DiscardBatch(_ context.Context, batchID string) (events.BatchEnvelope, error) {
+	svc.mu.Lock()
+	defer svc.mu.Unlock()
+
+	batch, ok := svc.batches[batchID]
+	if !ok {
+		return events.BatchEnvelope{}, ErrNotFound
+	}
+	if batch.Status != "blocked" {
+		return events.BatchEnvelope{}, fmt.Errorf("batch %s is not blocked", batchID)
+	}
+	if batch.RecoveryState == "discarded" {
+		return svc.batchEnvelopeLocked(batchID)
+	}
+
+	for attemptID, attempt := range svc.attempts {
+		if attempt.BatchID == nil || *attempt.BatchID != batchID {
+			continue
+		}
+		if attempt.Status == "succeeded" || attempt.RecoveryState == "resolved" {
+			continue
+		}
+		attempt.RecoveryState = "discarded"
+		svc.attempts[attemptID] = attempt
+	}
+
+	batch.RecoveryState = "discarded"
 	svc.batches[batch.ID] = batch
 	if err := svc.persistLocked(); err != nil {
 		return events.BatchEnvelope{}, err
@@ -460,6 +590,7 @@ func (svc *InMemory) CompleteAttempt(_ context.Context, attemptID string) (event
 	finishedAt := nowISO()
 	summary := "completed"
 	attempt.Status = "succeeded"
+	attempt.RecoveryState = "resolved"
 	attempt.FinishedAt = &finishedAt
 	attempt.Summary = &summary
 	svc.attempts[attemptID] = attempt
@@ -481,6 +612,7 @@ func (svc *InMemory) CompleteAttempt(_ context.Context, attemptID string) (event
 
 	if allSucceeded {
 		batch.Status = "completed"
+		batch.RecoveryState = "resolved"
 		batch.FinishedAt = &finishedAt
 	}
 	svc.batches[batch.ID] = batch
@@ -505,6 +637,7 @@ func (svc *InMemory) FailAttempt(_ context.Context, attemptID string, input even
 
 	finishedAt := nowISO()
 	attempt.Status = "failed"
+	attempt.RecoveryState = "retryable"
 	attempt.FinishedAt = &finishedAt
 	attempt.ErrorCode = input.ErrorCode
 	attempt.ErrorSummary = input.ErrorSummary
@@ -515,6 +648,7 @@ func (svc *InMemory) FailAttempt(_ context.Context, attemptID string, input even
 		return events.AttemptActionEnvelope{}, ErrNotFound
 	}
 	batch.Status = "blocked"
+	batch.RecoveryState = "retryable"
 	svc.batches[batch.ID] = batch
 	if err := svc.persistLocked(); err != nil {
 		return events.AttemptActionEnvelope{}, err

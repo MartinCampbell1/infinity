@@ -11,6 +11,7 @@
 	import { onDestroy, onMount, tick, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import Spinner from '../common/Spinner.svelte';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const i18n = getContext('i18n');
 
@@ -109,6 +110,7 @@
 
 	let typingUsers: TypingUser[] = [];
 	let typingUsersTimeout: Record<string, ReturnType<typeof setTimeout>> = {};
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (threadId) {
 		initHandler();
@@ -131,7 +133,7 @@
 			const currentThreadId = threadId;
 
 			messages = (await getChannelThreadMessages(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				channel.id,
 				currentThreadId
 			)) as ChannelMessage[];
@@ -240,7 +242,7 @@
 			messageForm.reply_to_id = replyToMessage.id;
 		}
 
-		await sendMessage(localStorage.token, channel.id, messageForm).catch((error) => {
+		await sendMessage(getWorkspaceAuthToken(), channel.id, messageForm).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -330,7 +332,7 @@
 							}
 
 							const newMessages = (await getChannelThreadMessages(
-								localStorage.token,
+								getWorkspaceAuthToken(),
 								channel.id,
 								currentThreadId,
 								currentMessages.length

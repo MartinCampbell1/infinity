@@ -24,6 +24,7 @@
 	import { onMount, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { founderosLaunchContext } from '$lib/founderos';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import { buildFounderosRootHref } from '$lib/founderos/navigation';
 	import { toast } from 'svelte-sonner';
 	import ArchivedChatsModal from '$lib/components/layout/ArchivedChatsModal.svelte';
@@ -54,6 +55,7 @@
 	let showFilesModal = false;
 
 	let chatImportInputElement: HTMLInputElement | null = null;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: if (importFiles) {
 		const importFile = importFiles[0];
@@ -83,7 +85,7 @@
 
 	const importChatsHandler = async (_chats: ImportedChatRecord[]) => {
 		const res = await importChats(
-			localStorage.token,
+			getWorkspaceAuthToken(),
 			_chats.map((chat: ImportedChatRecord) => {
 				if (chat.chat) {
 					return {
@@ -112,13 +114,13 @@
 		}
 
 		currentChatPage.set(1);
-		await chats.set(await getChatList(localStorage.token, $currentChatPage));
-		pinnedChats.set(await getPinnedChatList(localStorage.token));
+		await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
+		pinnedChats.set(await getPinnedChatList(getWorkspaceAuthToken()));
 		scrollPaginationEnabled.set(true);
 	};
 
 	const exportChats = async () => {
-		let blob = new Blob([JSON.stringify(await getAllChats(localStorage.token))], {
+		let blob = new Blob([JSON.stringify(await getAllChats(getWorkspaceAuthToken()))], {
 			type: 'application/json'
 		});
 		saveAs(blob, `chat-export-${Date.now()}.json`);
@@ -126,30 +128,30 @@
 
 	const archiveAllChatsHandler = async () => {
 		await goto(buildFounderosRootHref($founderosLaunchContext));
-		await archiveAllChats(localStorage.token).catch((error) => {
+		await archiveAllChats(getWorkspaceAuthToken()).catch((error) => {
 			toast.error(`${error}`);
 		});
 
 		currentChatPage.set(1);
-		await chats.set(await getChatList(localStorage.token, $currentChatPage));
+		await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 		pinnedChats.set([]);
 		scrollPaginationEnabled.set(true);
 	};
 
 	const deleteAllChatsHandler = async () => {
 		await goto(buildFounderosRootHref($founderosLaunchContext));
-		await deleteAllChats(localStorage.token).catch((error) => {
+		await deleteAllChats(getWorkspaceAuthToken()).catch((error) => {
 			toast.error(`${error}`);
 		});
 
 		currentChatPage.set(1);
-		await chats.set(await getChatList(localStorage.token, $currentChatPage));
+		await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 		scrollPaginationEnabled.set(true);
 	};
 
 	const handleArchivedChatsChange = async () => {
 		currentChatPage.set(1);
-		await chats.set(await getChatList(localStorage.token, $currentChatPage));
+		await chats.set(await getChatList(getWorkspaceAuthToken(), $currentChatPage));
 
 		scrollPaginationEnabled.set(true);
 	};

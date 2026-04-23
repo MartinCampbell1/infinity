@@ -15,30 +15,6 @@ export type ClaudeDisplayTask = {
   total: number;
 };
 
-type DisplayRun = {
-  actualRunId?: string | null;
-  actualInitiativeId?: string | null;
-  displayId: string;
-  title: string;
-  stage: string;
-  preview: string;
-  tasks: string;
-  agent: string;
-  updated: string;
-  group: "running" | "attention" | "completed";
-  attempts: string;
-  repo: string;
-  assignment: string;
-  backend: string;
-  sessions: number;
-  startedAt: string;
-  workspacePath: string;
-  featured?: boolean;
-  requestedBy?: string;
-  workspace?: string | null;
-  taskItems?: ClaudeDisplayTask[];
-};
-
 export type FrontdoorRecentRunCard = {
   id: string;
   title: string;
@@ -48,81 +24,6 @@ export type FrontdoorRecentRunCard = {
 };
 
 type DisplayRunGroup = "running" | "attention" | "completed";
-
-export const CLAUDE_HABIT_RUN_TASKS: ClaudeDisplayTask[] = [
-  {
-    id: "task-habit-api",
-    code: "t05",
-    tag: "habit_api",
-    title: "Habit CRUD routes + zod validators",
-    agent: "implementer",
-    status: "completed",
-    pct: 100,
-    attempts: "1/1",
-    value: 1,
-    total: 1,
-  },
-  {
-    id: "task-auth",
-    code: "t04",
-    tag: "auth",
-    title: "Supabase auth + row-level security policies",
-    agent: "implementer",
-    status: "completed",
-    pct: 100,
-    attempts: "1/1",
-    value: 1,
-    total: 1,
-  },
-  {
-    id: "task-schema",
-    code: "t03",
-    tag: "schema",
-    title: "Postgres schema — habits, entries, streaks",
-    agent: "droid",
-    status: "completed",
-    pct: 100,
-    attempts: "1/1",
-    value: 1,
-    total: 1,
-  },
-  {
-    id: "task-streaks",
-    code: "t06",
-    tag: "streaks",
-    title: "Streak computation — rolling windows + weekly insights",
-    agent: "implementer",
-    status: "running",
-    pct: 72,
-    attempts: "1/2",
-    value: 1,
-    total: 2,
-  },
-  {
-    id: "task-preview",
-    code: "t12",
-    tag: "preview",
-    title: "Vercel preview deployment + smoke test",
-    agent: "task-runner",
-    status: "running",
-    pct: 34,
-    attempts: "0/0",
-    value: 0,
-    total: 1,
-  },
-  {
-    id: "task-notifications",
-    code: "t08",
-    tag: "notifications",
-    title: "Notification scheduler — per-habit cron with quiet hrs",
-    agent: "task-runner",
-    status: "completed",
-    pct: 100,
-    attempts: "1/1",
-    value: 1,
-    total: 1,
-  },
-];
 
 function fallbackRunHref(
   routeScope: ShellRouteScope | undefined,
@@ -334,7 +235,7 @@ export function buildClaudeDesignRunsBoardItems(
       updated: relativeAge(run.updatedAt, false),
       tasks: `${completedUnits} / ${workUnits.length}`,
       agent: leadWorkUnit?.executorType ?? "worker",
-      requestedBy: initiative?.requestedBy ?? "martin",
+      requestedBy: initiative?.requestedBy?.trim() || "operator",
       workspace: initiative?.workspaceSessionId ?? null,
       sessions: agentSessions.length,
       startedAt: run.createdAt,

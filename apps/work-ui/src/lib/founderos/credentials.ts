@@ -9,12 +9,12 @@ export interface FounderosEmbeddedAccessTokenOptions {
 	allowLegacyToken?: boolean;
 }
 
+const isLaunchEnabled = (value: string | null) => value === '1' || value === 'true';
+
 const SESSION_TOKEN_STORAGE_KEY = 'founderos.workspace.sessionToken';
 const SESSION_GRANT_STORAGE_KEY = 'founderos.workspace.sessionGrant';
-const PREVIOUS_TOKEN_STORAGE_KEY = 'founderos.workspace.previousToken';
 let embeddedSessionTokenMemory: string | null = null;
 let embeddedSessionGrantMemory: FounderosEmbeddedSessionGrant | null = null;
-let previousLegacyTokenMemory: string | null = null;
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
@@ -23,6 +23,22 @@ const getSessionStorageBucket = (): StorageLike | null =>
 
 const getLegacyStorageBucket = (): StorageLike | null =>
 	typeof localStorage === 'undefined' ? null : localStorage;
+
+const getLegacyCompatibilityStorageBucket = (): StorageLike | null =>
+	isFounderosEmbeddedRuntime() ? null : getLegacyStorageBucket();
+
+const isFounderosEmbeddedRuntime = () => {
+	if (typeof window === 'undefined') {
+		return false;
+	}
+
+	try {
+		const params = new URL(window.location.href).searchParams;
+		return isLaunchEnabled(params.get('embedded')) || isLaunchEnabled(params.get('founderos_launch'));
+	} catch {
+		return false;
+	}
+};
 
 const readStoredString = (storage: StorageLike | null, key: string): string | null => {
 	if (!storage) {
@@ -54,7 +70,7 @@ export const readFounderosEmbeddedSessionGrant = (): FounderosEmbeddedSessionGra
 		return embeddedSessionGrantMemory;
 	}
 
-	for (const storage of [getSessionStorageBucket(), getLegacyStorageBucket()]) {
+	for (const storage of [getSessionStorageBucket(), getLegacyCompatibilityStorageBucket()]) {
 		try {
 			const raw = readStoredString(storage, SESSION_GRANT_STORAGE_KEY);
 			if (!raw) {
@@ -63,6 +79,7 @@ export const readFounderosEmbeddedSessionGrant = (): FounderosEmbeddedSessionGra
 
 			const parsed = JSON.parse(raw);
 			if (isSessionGrant(parsed)) {
+				embeddedSessionGrantMemory = parsed;
 				return parsed;
 			}
 		} catch {
@@ -80,25 +97,28 @@ export const readFounderosEmbeddedSessionToken = (): string | null => {
 
 	return (
 		readStoredString(getSessionStorageBucket(), SESSION_TOKEN_STORAGE_KEY) ??
-		readStoredString(getLegacyStorageBucket(), SESSION_TOKEN_STORAGE_KEY)
+		readStoredString(getLegacyCompatibilityStorageBucket(), SESSION_TOKEN_STORAGE_KEY)
 	);
 };
 
 export const resolveFounderosEmbeddedAccessToken = (
 	options: string | FounderosEmbeddedAccessTokenOptions | null = null
 ): string => {
+	const shellIssuedSessionGrant = readFounderosEmbeddedSessionGrant();
 	const fallbackToken =
 		typeof options === 'string'
 			? options
 			: options && typeof options === 'object'
 				? (options.fallbackToken ?? null)
 				: null;
-	const allowLegacyToken =
+	const allowLegacyByOption =
 		typeof options === 'string'
 			? true
 			: options && typeof options === 'object'
 				? options.allowLegacyToken !== false
 				: true;
+	const allowLegacyToken =
+		allowLegacyByOption && !shellIssuedSessionGrant && !isFounderosEmbeddedRuntime();
 	const embeddedToken = readFounderosEmbeddedSessionToken();
 	if (embeddedToken) {
 		return embeddedToken;
@@ -137,19 +157,6 @@ export const persistFounderosEmbeddedCredentials = (params: {
 	if (params.token) {
 		const nextToken = String(params.token);
 		sessionBucket?.setItem(SESSION_TOKEN_STORAGE_KEY, nextToken);
-		const currentToken =
-			legacyBucket && typeof localStorage.token === 'string' ? String(localStorage.token) : '';
-
-		if (currentToken && currentToken !== nextToken) {
-			previousLegacyTokenMemory = currentToken;
-			sessionBucket?.setItem(PREVIOUS_TOKEN_STORAGE_KEY, currentToken);
-		} else if (!currentToken && !previousLegacyTokenMemory) {
-			sessionBucket?.removeItem(PREVIOUS_TOKEN_STORAGE_KEY);
-		}
-
-		if (legacyBucket) {
-			localStorage.token = nextToken;
-		}
 	} else if (params.token === null) {
 		embeddedSessionTokenMemory = null;
 		sessionBucket?.removeItem(SESSION_TOKEN_STORAGE_KEY);
@@ -168,12 +175,6 @@ export const clearFounderosEmbeddedCredentials = () => {
 	embeddedSessionGrantMemory = null;
 	const sessionBucket = getSessionStorageBucket();
 	const legacyBucket = getLegacyStorageBucket();
-	const previousToken =
-		previousLegacyTokenMemory ??
-		readStoredString(sessionBucket, PREVIOUS_TOKEN_STORAGE_KEY) ??
-		readStoredString(getLegacyStorageBucket(), PREVIOUS_TOKEN_STORAGE_KEY);
-	previousLegacyTokenMemory = null;
-	sessionBucket?.removeItem(PREVIOUS_TOKEN_STORAGE_KEY);
 	sessionBucket?.removeItem(SESSION_TOKEN_STORAGE_KEY);
 	sessionBucket?.removeItem(SESSION_GRANT_STORAGE_KEY);
 
@@ -181,13 +182,6 @@ export const clearFounderosEmbeddedCredentials = () => {
 		return;
 	}
 
-	if (previousToken) {
-		localStorage.token = previousToken;
-	} else {
-		localStorage.removeItem('token');
-		localStorage.token = '';
-	}
-	localStorage.removeItem(PREVIOUS_TOKEN_STORAGE_KEY);
 	localStorage.removeItem(SESSION_TOKEN_STORAGE_KEY);
 	localStorage.removeItem(SESSION_GRANT_STORAGE_KEY);
 };

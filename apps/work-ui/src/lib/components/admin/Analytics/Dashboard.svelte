@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, getContext } from 'svelte';
 	import { models } from '$lib/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import {
 		getSummary,
 		getModelAnalytics,
@@ -124,6 +125,7 @@
 	let totalTokens = { input: 0, output: 0, total: 0 };
 
 	let loading = true;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	// Selected model for drill-down
 	let selectedModel: { id: string; name: string } | null = null;
@@ -162,11 +164,11 @@
 			const { start, end } = getDateRange(selectedPeriod);
 			const granularity = selectedPeriod === '24h' ? 'hourly' : 'daily';
 			const [summaryRes, modelsRes, usersRes, dailyRes, tokensRes] = (await Promise.all([
-				getSummary(localStorage.token, start, end, selectedGroupId),
-				getModelAnalytics(localStorage.token, start, end, selectedGroupId),
-				getUserAnalytics(localStorage.token, start, end, 50, selectedGroupId),
-				getDailyStats(localStorage.token, start, end, granularity, selectedGroupId),
-				getTokenUsage(localStorage.token, start, end, selectedGroupId)
+				getSummary(getWorkspaceAuthToken(), start, end, selectedGroupId),
+				getModelAnalytics(getWorkspaceAuthToken(), start, end, selectedGroupId),
+				getUserAnalytics(getWorkspaceAuthToken(), start, end, 50, selectedGroupId),
+				getDailyStats(getWorkspaceAuthToken(), start, end, granularity, selectedGroupId),
+				getTokenUsage(getWorkspaceAuthToken(), start, end, selectedGroupId)
 			])) as [
 				Partial<AnalyticsSummary> | null,
 				{ models?: RawModelAnalyticsEntry[] } | null,
@@ -215,7 +217,7 @@
 	onMount(async () => {
 		// Load groups for filter
 		try {
-			const res = await getGroups(localStorage.token);
+			const res = await getGroups(getWorkspaceAuthToken());
 			groups = res ?? [];
 		} catch (e) {
 			console.error('Failed to load groups:', e);

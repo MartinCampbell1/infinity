@@ -4,6 +4,7 @@
 	import { onMount, onDestroy, getContext, createEventDispatcher } from 'svelte';
 	import { searchNotes } from '$lib/apis/notes';
 	import { searchKnowledgeBases, searchKnowledgeFiles } from '$lib/apis/knowledge';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import { decodeString } from '$lib/utils';
 
@@ -89,6 +90,7 @@
 
 	let items: KnowledgeSelectorItem[] = [];
 	let searchRequestId = 0;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	$: items = [...noteItems, ...knowledgeItems, ...fileItems];
 
@@ -117,7 +119,7 @@
 	};
 
 	const getNoteItems = async (requestId: number) => {
-		const res = (await searchNotes(localStorage.token, query).catch(() => {
+		const res = (await searchNotes(getWorkspaceAuthToken(), query).catch(() => {
 			return null;
 		})) as SearchResponse<SearchNotesItem>;
 
@@ -134,7 +136,7 @@
 	};
 
 	const getKnowledgeItems = async (requestId: number) => {
-		const res = (await searchKnowledgeBases(localStorage.token, query).catch(() => {
+		const res = (await searchKnowledgeBases(getWorkspaceAuthToken(), query).catch(() => {
 			return null;
 		})) as SearchResponse<SearchKnowledgeItem>;
 
@@ -151,7 +153,7 @@
 	};
 
 	const getKnowledgeFileItems = async (requestId: number) => {
-		const res = (await searchKnowledgeFiles(localStorage.token, query).catch(() => {
+		const res = (await searchKnowledgeFiles(getWorkspaceAuthToken(), query).catch(() => {
 			return null;
 		})) as SearchResponse<SearchKnowledgeFileItem>;
 

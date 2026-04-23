@@ -2,6 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { onMount, getContext } from 'svelte';
 	import { page } from '$app/stores';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	const i18n = getContext('i18n');
 
@@ -43,13 +44,14 @@
 	export let setGroups: () => Promise<unknown> | unknown = async () => {};
 
 	let showEdit = false;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	const updateHandler = async (_group: GroupSubmitPayload) => {
 		if (!group.id) {
 			return;
 		}
 
-		const res = await updateGroupById(localStorage.token, group.id, _group).catch((error) => {
+		const res = await updateGroupById(getWorkspaceAuthToken(), group.id, _group).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
@@ -65,7 +67,7 @@
 			return;
 		}
 
-		const res = await deleteGroupById(localStorage.token, group.id).catch((error) => {
+		const res = await deleteGroupById(getWorkspaceAuthToken(), group.id).catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});

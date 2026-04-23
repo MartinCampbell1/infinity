@@ -13,6 +13,7 @@
 
 	import { toast } from 'svelte-sonner';
 	import { getChannelMembersById } from '$lib/apis/channels';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 
 	import Pagination from '$lib/components/common/Pagination.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -70,6 +71,7 @@
 
 	let query = '';
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+	const getWorkspaceAuthToken = () => resolveFounderosEmbeddedAccessToken();
 
 	let orderBy = 'name'; // default sort key
 	let direction = 'asc'; // default sort order
@@ -101,7 +103,7 @@
 
 		try {
 			const res = (await getChannelMembersById(
-				localStorage.token,
+				getWorkspaceAuthToken(),
 				currentChannel.id,
 				query,
 				orderBy,

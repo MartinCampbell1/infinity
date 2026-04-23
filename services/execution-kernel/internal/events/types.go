@@ -25,22 +25,24 @@ type BatchRecord struct {
 	WorkUnitIDs      []string `json:"workUnitIds"`
 	ConcurrencyLimit int      `json:"concurrencyLimit"`
 	Status           string   `json:"status"`
+	RecoveryState    string   `json:"recoveryState,omitempty"`
 	StartedAt        *string  `json:"startedAt"`
 	FinishedAt       *string  `json:"finishedAt"`
 }
 
 type AttemptRecord struct {
-	ID           string   `json:"id"`
-	WorkUnitID   string   `json:"workUnitId"`
-	BatchID      *string  `json:"batchId"`
-	ExecutorType string   `json:"executorType"`
-	Status       string   `json:"status"`
-	StartedAt    string   `json:"startedAt"`
-	FinishedAt   *string  `json:"finishedAt"`
-	Summary      *string  `json:"summary"`
-	ArtifactURIs []string `json:"artifactUris"`
-	ErrorCode    *string  `json:"errorCode"`
-	ErrorSummary *string  `json:"errorSummary"`
+	ID            string   `json:"id"`
+	WorkUnitID    string   `json:"workUnitId"`
+	BatchID       *string  `json:"batchId"`
+	ExecutorType  string   `json:"executorType"`
+	Status        string   `json:"status"`
+	RecoveryState string   `json:"recoveryState,omitempty"`
+	StartedAt     string   `json:"startedAt"`
+	FinishedAt    *string  `json:"finishedAt"`
+	Summary       *string  `json:"summary"`
+	ArtifactURIs  []string `json:"artifactUris"`
+	ErrorCode     *string  `json:"errorCode"`
+	ErrorSummary  *string  `json:"errorSummary"`
 }
 
 type BatchEnvelope struct {
@@ -86,23 +88,26 @@ type FailureSummary struct {
 }
 
 type HealthResponse struct {
-	Status             string        `json:"status"`
-	Service            string        `json:"service"`
-	GeneratedAt        string        `json:"generatedAt"`
-	AuthMode           string        `json:"authMode"`
-	StorageKind        string        `json:"storageKind"`
-	StatePath          string        `json:"statePath,omitempty"`
-	StateConfigured    bool          `json:"stateConfigured"`
-	RuntimeState       string        `json:"runtimeState"`
-	RecoveryState      string        `json:"recoveryState"`
-	RestartRecoverable bool          `json:"restartRecoverable"`
-	FailureState       string        `json:"failureState"`
-	BatchCounts        BatchCounts   `json:"batchCounts"`
-	AttemptCounts      AttemptCounts `json:"attemptCounts"`
+	Status             string          `json:"status"`
+	Service            string          `json:"service"`
+	GeneratedAt        string          `json:"generatedAt"`
+	AuthMode           string          `json:"authMode"`
+	DeploymentScope    string          `json:"deploymentScope"`
+	Maturity           string          `json:"maturity"`
+	StorageKind        string          `json:"storageKind"`
+	DurabilityTier     string          `json:"durabilityTier"`
+	StatePath          string          `json:"statePath,omitempty"`
+	StateConfigured    bool            `json:"stateConfigured"`
+	RuntimeState       string          `json:"runtimeState"`
+	RecoveryState      string          `json:"recoveryState"`
+	RestartRecoverable bool            `json:"restartRecoverable"`
+	FailureState       string          `json:"failureState"`
+	BatchCounts        BatchCounts     `json:"batchCounts"`
+	AttemptCounts      AttemptCounts   `json:"attemptCounts"`
 	BlockedBatchIDs    []string        `json:"blockedBatchIds"`
 	FailedAttemptIDs   []string        `json:"failedAttemptIds"`
 	ResumableBatchIDs  []string        `json:"resumableBatchIds"`
 	LatestFailure      *FailureSummary `json:"latestFailure"`
-	RecoveryHint       string        `json:"recoveryHint,omitempty"`
-	Detail             string        `json:"detail"`
+	RecoveryHint       string          `json:"recoveryHint,omitempty"`
+	Detail             string          `json:"detail"`
 }
