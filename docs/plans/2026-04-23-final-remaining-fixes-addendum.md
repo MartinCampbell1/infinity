@@ -5,6 +5,10 @@ Workspace: `/Users/martin/infinity`
 Original implementation branch checked: `codex/infinity-step10-go`
 Canonical merged branch: `master`
 
+> Historical note:
+> This addendum captured the remaining blockers at the time of the original branch audit.
+> Those blockers were later resolved, validated, and merged into `master`.
+
 ## Verdict
 
 The branch is now close enough to call a strong localhost-first solo-v1 candidate, but not fully closed in the strict sense.
