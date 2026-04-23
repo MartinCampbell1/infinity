@@ -24,7 +24,7 @@ These were rerun during the current closeout pass:
 
 Most recent successful full validation observed during this closeout:
 
-- run dir: `handoff-packets/validation/2026-04-23T05-16-32Z`
+- run dir: `handoff-packets/validation/2026-04-23T05-30-19Z`
 - status: `passed`
 - shell origin: `http://127.0.0.1:3737`
 - work-ui origin: `http://127.0.0.1:3101`
@@ -32,10 +32,12 @@ Most recent successful full validation observed during this closeout:
 
 Validated clean code checkpoint before this docs refresh:
 
-- commit: `db631f2`
+- commit: `8631b71`
 
 Also confirmed on the immediately previous successful reruns:
 
+- run dir: `handoff-packets/validation/2026-04-23T05-16-32Z`
+- status: `passed`
 - run dir: `handoff-packets/validation/2026-04-23T05-11-06Z`
 - status: `passed`
 - run dir: `handoff-packets/validation/2026-04-23T04-43-19Z`
@@ -49,7 +51,7 @@ Also confirmed on the immediately previous successful reruns:
 
 ## Autonomous proof
 
-From `handoff-packets/validation/2026-04-23T05-16-32Z/autonomous-proof.json`:
+From `handoff-packets/validation/2026-04-23T05-30-19Z/autonomous-proof.json`:
 
 - root frontdoor stayed on `/`
 - autonomous one-prompt: `true`
@@ -93,4 +95,4 @@ import "./.next/types/routes.d.ts";
 
 - The stale acceptance note for `78cba44` should no longer be treated as the freshest evidence.
 - Existing non-blocking Turbopack NFT tracing warning still appears during `npm run shell:build`, but it did not block the successful validation reruns above.
-- This note was refreshed in a docs-only follow-up after the validated clean code checkpoint `db631f2`; the runtime evidence above still refers to that latest successful gate on `master`.
+- This note was refreshed in a docs-only follow-up after the validated clean code checkpoint `8631b71`; the runtime evidence above still refers to that latest successful gate on `master`.
