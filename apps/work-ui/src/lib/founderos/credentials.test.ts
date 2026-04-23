@@ -150,6 +150,25 @@ describe('founderos embedded credentials', () => {
 		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({});
 	});
 
+	test('fails closed in embedded mode when only legacy localStorage session keys exist', () => {
+		(globalThis.window as { location: { href: string } }).location.href =
+			'http://localhost/workspace?embedded=1&project_id=project-1&session_id=session-1';
+		localStorage.setItem('founderos.workspace.sessionToken', 'legacy.session.token');
+		localStorage.setItem(
+			'founderos.workspace.sessionGrant',
+			JSON.stringify({
+				token: 'legacy.grant.token',
+				issuedAt: '2026-04-12T00:00:00.000Z',
+				expiresAt: '2026-04-12T00:30:00.000Z'
+			})
+		);
+
+		expect(readFounderosEmbeddedSessionToken()).toBeNull();
+		expect(readFounderosEmbeddedSessionGrant()).toBeNull();
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('');
+		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({});
+	});
+
 	test('fails closed in shell-issued session mode when embedded token is missing', () => {
 		localStorage.token = 'legacy.browser.token';
 

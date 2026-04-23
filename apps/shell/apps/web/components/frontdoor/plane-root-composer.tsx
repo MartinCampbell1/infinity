@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUp, GitBranch, Bot } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 
 import {
   buildExecutionRunScopeHref,
@@ -107,19 +107,7 @@ export function PlaneRootComposer({
             }}
           />
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/6 pt-3">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-3 py-1.5 text-[11px] text-[var(--muted-foreground)]">
-              <GitBranch className="h-3 w-3" />
-              scope: web
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-3 py-1.5 text-[11px] text-[var(--muted-foreground)]">
-              <Bot className="h-3 w-3" />
-              planner · implementer
-            </span>
-            <span className="inline-flex items-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-3 py-1.5 text-[11px] text-[var(--muted-foreground)]">
-              attempts: 3
-            </span>
             <div className="flex-1" />
-            <span className="text-[12px] text-white/42">Attach spec</span>
             <PlaneButton
               variant="primary"
               size="sm"

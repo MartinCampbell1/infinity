@@ -651,8 +651,9 @@ export function buildAutonomousValidationProof(
     latestBrief?.authoredBy?.trim() === AUTONOMOUS_PROOF_BRIEF_AUTHOR;
   const manualStageProgression = run.manualStageProgression || !autonomousOnePrompt;
   const launchReady =
+    delivery.status === "ready" &&
     delivery.launchProofKind === "runnable_result" &&
-    Boolean(delivery.launchProofAt && delivery.launchManifestPath);
+    Boolean(delivery.launchProofAt && delivery.launchManifestPath && delivery.launchProofUrl);
 
   return {
     autonomousOnePrompt,

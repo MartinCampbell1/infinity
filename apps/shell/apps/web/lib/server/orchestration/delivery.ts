@@ -29,6 +29,7 @@ import { listOrchestrationWorkUnits } from "./work-units";
 import { buildOrchestrationDirectoryMeta, buildOrchestrationId, nowIso } from "./shared";
 
 const LOCALHOST_PROOF_MARKER = "Infinity Local Preview";
+const DELIVERY_RESULT_MARKER = "Infinity Delivery Result";
 const DELIVERY_LAUNCH_TIMEOUT_MS = 8_000;
 const DELIVERY_READY_URL_PATTERN = /READY\s+(http:\/\/127\.0\.0\.1:\d+\S+)/;
 const DELIVERY_PYTHON_BIN = process.env.FOUNDEROS_DELIVERY_PYTHON_BIN ?? "python3";
@@ -36,6 +37,17 @@ const DELIVERY_PYTHON_BIN = process.env.FOUNDEROS_DELIVERY_PYTHON_BIN ?? "python
 type DeliveryLaunchProof = {
   url: string;
   observedAt: string;
+};
+
+type LaunchTarget = {
+  launchManifestPath: string;
+  launchProofKind: DeliveryLaunchProofKind;
+  launchTargetLabel: string;
+  workingDirectory: string;
+  entryPath: string;
+  expectedMarker: string;
+  command: string[];
+  shellCommand: string;
 };
 
 type DeliveryLaunchManifest = {
@@ -159,6 +171,27 @@ function launchManifestLocation(localOutputPath: string) {
   return path.join(localOutputPath, "launch-manifest.json");
 }
 
+function isPathWithinDirectory(candidatePath: string, parentDirectory: string) {
+  const relative = path.relative(parentDirectory, candidatePath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function isAssemblyBackedRunnableTarget(
+  assembly: AssemblyRecord | null,
+  target:
+    | {
+        workingDirectory: string;
+        launchProofKind: DeliveryLaunchProofKind;
+      }
+    | null
+) {
+  if (!assembly?.outputLocation || !target || target.launchProofKind !== "runnable_result") {
+    return false;
+  }
+
+  return isPathWithinDirectory(target.workingDirectory, assembly.outputLocation);
+}
+
 function buildLaunchScript() {
   return [
     "#!/usr/bin/env python3",
@@ -189,6 +222,129 @@ function buildLaunchScript() {
     "        pass",
     "",
   ].join("\n");
+}
+
+function escapeHtml(value: string | null | undefined) {
+  return (value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+async function materializeAssemblyRunnableTarget(params: {
+  assembly: AssemblyRecord;
+  initiativeId: string;
+  verificationId: string;
+}) {
+  if (!params.assembly.outputLocation) {
+    return null;
+  }
+
+  const outputDir = path.join(params.assembly.outputLocation, "runnable-result");
+  await mkdir(outputDir, { recursive: true });
+
+  const launchScriptPath = path.join(outputDir, "launch-localhost.py");
+  const launchManifestPath = path.join(outputDir, "launch-manifest.json");
+  const resultManifestPath = path.join(outputDir, "result-manifest.json");
+  const indexPath = path.join(outputDir, "index.html");
+  const command = [DELIVERY_PYTHON_BIN, launchScriptPath, "--port", "0", "--entry", "/index.html"];
+  const shellCommand = `${DELIVERY_PYTHON_BIN} ${shellQuote(launchScriptPath)} --port 0 --entry /index.html`;
+
+  await writeFile(
+    indexPath,
+    [
+      "<!doctype html>",
+      '<html lang="en">',
+      "<head>",
+      '  <meta charset="utf-8" />',
+      "  <title>Integrated Assembly Result</title>",
+      '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+      "  <style>",
+      "    :root { color-scheme: dark; }",
+      "    * { box-sizing: border-box; }",
+      "    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f12; color: #edf0f3; }",
+      "    main { min-height: 100vh; display: grid; place-items: center; padding: 24px; }",
+      "    .card { width: min(860px, 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: 22px; background: rgba(255,255,255,0.03); padding: 28px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }",
+      "    .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: rgba(190,240,214,0.7); }",
+      "    h1 { margin: 12px 0 0; font-size: 32px; line-height: 1.08; letter-spacing: -0.05em; }",
+      "    p { margin: 12px 0 0; font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.7); }",
+      "    .grid { margin-top: 20px; display: grid; gap: 10px; }",
+      "    .row { display: grid; grid-template-columns: 180px 1fr; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); }",
+      "    .k { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: rgba(255,255,255,0.52); text-transform: uppercase; letter-spacing: 0.12em; }",
+      "    .v { font-size: 13px; color: #fff; word-break: break-word; }",
+      "    .marker { position: absolute; opacity: 0; pointer-events: none; }",
+      "    @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }",
+      "  </style>",
+      "</head>",
+      "<body>",
+      "  <main>",
+      '    <section class="card">',
+      '      <div class="eyebrow">Integrated Assembly Result</div>',
+      "      <h1>Truthful runnable delivery bundle</h1>",
+      "      <p>This localhost bundle is derived from the assembled Infinity output package and its passed verification record. It is the delivery-stage runnable result for the current initiative, not a canned placeholder.</p>",
+      '      <div class="grid">',
+      `        <div class="row"><div class="k">Initiative</div><div class="v">${escapeHtml(params.initiativeId)}</div></div>`,
+      `        <div class="row"><div class="k">Assembly</div><div class="v">${escapeHtml(params.assembly.id)}</div></div>`,
+      `        <div class="row"><div class="k">Verification</div><div class="v">${escapeHtml(params.verificationId)}</div></div>`,
+      `        <div class="row"><div class="k">Task graph</div><div class="v">${escapeHtml(params.assembly.taskGraphId)}</div></div>`,
+      `        <div class="row"><div class="k">Assembly output</div><div class="v">${escapeHtml(params.assembly.outputLocation ?? "n/a")}</div></div>`,
+      `        <div class="row"><div class="k">Artifacts</div><div class="v">${String(params.assembly.artifactUris.length)} evidence file(s)</div></div>`,
+      "      </div>",
+      `      <div class="marker">${DELIVERY_RESULT_MARKER}</div>`,
+      "    </section>",
+      "  </main>",
+      "</body>",
+      "</html>",
+    ].join("\n")
+  );
+  await writeFile(launchScriptPath, buildLaunchScript());
+  await writeFile(
+    launchManifestPath,
+    JSON.stringify(
+      {
+        launcher: "python_static_site",
+        scriptPath: launchScriptPath,
+        workingDirectory: outputDir,
+        entryPath: "/index.html",
+        expectedMarker: DELIVERY_RESULT_MARKER,
+        targetKind: "runnable_result",
+        targetLabel: "Integrated assembly result",
+        command,
+        shellCommand,
+      },
+      null,
+      2
+    )
+  );
+  await writeFile(
+    resultManifestPath,
+    JSON.stringify(
+      {
+        initiativeId: params.initiativeId,
+        assemblyId: params.assembly.id,
+        verificationId: params.verificationId,
+        targetKind: "runnable_result",
+        targetLabel: "Integrated assembly result",
+        outputDir,
+        entryPath: "/index.html",
+      },
+      null,
+      2
+    )
+  );
+
+  return {
+    launchManifestPath,
+    launchProofKind: "runnable_result" as const,
+    launchTargetLabel: "Integrated assembly result",
+    workingDirectory: outputDir,
+    entryPath: "/index.html",
+    expectedMarker: DELIVERY_RESULT_MARKER,
+    command,
+    shellCommand,
+  } satisfies LaunchTarget;
 }
 
 async function proveLocalhostLaunch(
@@ -276,6 +432,7 @@ async function buildDeliveryFields(
   verificationId: string
 ): Promise<{
   localOutputPath: string;
+  launchReady: boolean;
   manifestPath: string;
   previewPath: string;
   launchManifestPath: string;
@@ -293,14 +450,28 @@ async function buildDeliveryFields(
   const previewPath = path.join(localOutputPath, "preview.html");
   const launchScriptPath = launchScriptLocation(localOutputPath);
   const wrapperLaunchManifestPath = launchManifestLocation(localOutputPath);
-  const runnableTarget =
+  const attemptRunnableTarget =
     assembly?.taskGraphId
       ? await findRunnableAttemptTarget(initiativeId, assembly.taskGraphId)
       : null;
   const scaffoldOnlyTarget =
-    runnableTarget && runnableTarget.launchProofKind === "attempt_scaffold";
-  const realRunnableTarget =
-    runnableTarget && runnableTarget.launchProofKind === "runnable_result";
+    attemptRunnableTarget && attemptRunnableTarget.launchProofKind === "attempt_scaffold";
+  const attemptRunnableTargetBacked =
+    isAssemblyBackedRunnableTarget(assembly, attemptRunnableTarget);
+  const runnableTarget =
+    attemptRunnableTargetBacked
+      ? attemptRunnableTarget
+      : assembly
+        ? await materializeAssemblyRunnableTarget({
+            assembly,
+            initiativeId,
+            verificationId,
+          })
+        : attemptRunnableTarget;
+  const usedAssemblyRunnableTarget =
+    Boolean(runnableTarget) && runnableTarget !== attemptRunnableTarget;
+  const realRunnableTarget = isAssemblyBackedRunnableTarget(assembly, runnableTarget);
+  const runnableTargetLabel = runnableTarget?.launchTargetLabel ?? "shell evidence wrapper";
   const previewHtml = [
     "<!doctype html>",
     '<html lang="en">',
@@ -362,10 +533,14 @@ async function buildDeliveryFields(
     `            <div class="title">Delivery ${deliveryId}</div>`,
     `            <div class="body">This shell-generated wrapper exposes local delivery evidence for <strong style="color:#fff;font-weight:600;">${initiativeId}</strong>.${
       realRunnableTarget
-        ? ` A real runnable target was detected as <strong style="color:#fff;font-weight:600;">${runnableTarget.launchTargetLabel}</strong>.`
+        ? usedAssemblyRunnableTarget
+          ? ` A real runnable target was rebuilt from assembly output as <strong style="color:#fff;font-weight:600;">${runnableTargetLabel}</strong>.`
+          : ` A real runnable target was detected as <strong style="color:#fff;font-weight:600;">${runnableTargetLabel}</strong>.`
         : scaffoldOnlyTarget
-          ? ` An attempt scaffold was detected as <strong style="color:#fff;font-weight:600;">${runnableTarget.launchTargetLabel}</strong>, but it does not prove the requested product is runnable yet.`
-          : " It does not prove that the actual product result is runnable yet."
+          ? ` The final integration attempt remains scaffold evidence, while the delivery bundle is rebuilt from assembly output as <strong style="color:#fff;font-weight:600;">${runnableTargetLabel}</strong>.`
+          : runnableTarget?.launchProofKind === "runnable_result"
+            ? ` A legacy runnable target was detected as <strong style="color:#fff;font-weight:600;">${runnableTargetLabel}</strong>, but it is not derived from assembly output, so ready promotion stays blocked.`
+            : " It does not prove that the actual product result is runnable yet."
     }</div>`,
     '            <div class="badge-row">',
     '              <span class="badge badge-warn">wrapper evidence</span>',
@@ -383,8 +558,14 @@ async function buildDeliveryFields(
     '          <div class="metric"><div class="k">Verification</div><div class="v">Passed</div><div class="d">linked</div></div>',
     '          <div class="metric"><div class="k">Artifacts</div><div class="v">Staged</div><div class="d">manifest + handoff bundle</div></div>',
     `          <div class="metric"><div class="k">Target</div><div class="v">${
-      realRunnableTarget ? "Runnable" : scaffoldOnlyTarget ? "Scaffold" : "Wrapper"
-    }</div><div class="d">${runnableTarget?.launchTargetLabel ?? "shell evidence wrapper"}</div></div>`,
+      realRunnableTarget
+        ? "Runnable"
+        : scaffoldOnlyTarget
+          ? "Scaffold"
+          : runnableTarget?.launchProofKind === "runnable_result"
+            ? "Unverified"
+            : "Wrapper"
+    }</div><div class="d">${runnableTargetLabel}</div></div>`,
     "        </div>",
     '        <div class="grid">',
     '          <section class="panel">',
@@ -402,8 +583,14 @@ async function buildDeliveryFields(
     `              <div class="summary-row"><div class="a">assembly</div><div class="b">assembled</div><div class="c">${assembly?.id ?? "n/a"}</div></div>`,
     `              <div class="summary-row"><div class="a">output</div><div class="b">ready</div><div class="c">${assembly?.outputLocation ?? "n/a"}</div></div>`,
     `              <div class="summary-row"><div class="a">proof</div><div class="b">${
-      realRunnableTarget ? "runnable" : scaffoldOnlyTarget ? "scaffold" : "wrapper"
-    }</div><div class="c">${runnableTarget?.launchTargetLabel ?? "shell wrapper"}</div></div>`,
+      realRunnableTarget
+        ? "runnable"
+        : scaffoldOnlyTarget
+          ? "scaffold"
+          : runnableTarget?.launchProofKind === "runnable_result"
+            ? "unverified"
+            : "wrapper"
+    }</div><div class="c">${runnableTargetLabel}</div></div>`,
     "            </div>",
     "          </section>",
     "        </div>",
@@ -457,7 +644,7 @@ async function buildDeliveryFields(
   };
   await writeFile(wrapperLaunchManifestPath, JSON.stringify(launchManifest, null, 2));
   const launchReady =
-    launchProofKind === "runnable_result" &&
+    realRunnableTarget &&
     Boolean(launchProof?.url && launchProof?.observedAt);
   await writeFile(
     path.join(localOutputPath, "delivery-summary.json"),
@@ -544,6 +731,7 @@ async function buildDeliveryFields(
 
   return {
     localOutputPath,
+    launchReady,
     manifestPath: path.join(localOutputPath, "delivery-manifest.json"),
     previewPath: durablePreviewPath,
     launchManifestPath,
@@ -602,9 +790,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     assembly,
     verification.id
   );
-  const launchReady =
-    fields.launchProofKind === "runnable_result" &&
-    Boolean(fields.launchProofAt && fields.launchProofUrl);
+  const launchReady = fields.launchReady;
   const delivery: DeliveryRecord = {
     id: deliveryId,
     initiativeId: input.initiativeId,

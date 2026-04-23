@@ -269,7 +269,7 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 		durabilityTier = "local_file_snapshot"
 	}
 	deploymentScope := "localhost_only_solo"
-	maturity := "phase3_scaffold"
+	maturity := "localhost_solo_v1"
 
 	runtimeState := "idle"
 	if batchCounts.Blocked > 0 {
@@ -339,7 +339,7 @@ func (svc *InMemory) Health(_ context.Context) events.HealthResponse {
 	}
 
 	detail := fmt.Sprintf(
-		"execution-kernel is reachable as a localhost-only phase-3 scaffold with %s-backed local state configured=%t, runtime %s, recovery %s, restart-recoverable %t, %d blocked batch(es), %d failed attempt(s), and next action: %s",
+		"execution-kernel is reachable as a localhost-only solo-v1 runtime with %s-backed local state configured=%t, runtime %s, recovery %s, restart-recoverable %t, %d blocked batch(es), %d failed attempt(s), and next action: %s",
 		durabilityTier,
 		stateConfigured,
 		runtimeState,

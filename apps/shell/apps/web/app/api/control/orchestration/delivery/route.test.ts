@@ -211,12 +211,67 @@ async function corruptFinalIntegrationProof(
   const launchManifest = JSON.parse(readFileSync(launchManifestPath, "utf8")) as {
     expectedMarker: string;
   };
+  const indexPath = path.join(path.dirname(launchManifestPath), "index.html");
+  const indexHtml = readFileSync(indexPath, "utf8");
+  expect(indexHtml).toContain(launchManifest.expectedMarker);
+  writeFileSync(
+    indexPath,
+    indexHtml.replace(launchManifest.expectedMarker, expectedMarker)
+  );
+
+  return {
+    indexPath,
+    originalExpectedMarker: launchManifest.expectedMarker,
+  };
+}
+
+async function rewriteFinalIntegrationAsLegacyRunnableResult(
+  initiativeId: string,
+  taskGraphId: string
+) {
+  const workUnitsResponse = await getWorkUnits(
+    new Request(
+      `http://localhost/api/control/orchestration/work-units?task_graph_id=${taskGraphId}`
+    )
+  );
+  const workUnitsBody = await workUnitsResponse.json();
+  const finalIntegrationUnit = workUnitsBody.workUnits.find(
+    (workUnit: { id: string; latestAttemptId: string | null }) =>
+      workUnit.id.endsWith("final_integration")
+  );
+
+  expect(finalIntegrationUnit).toBeTruthy();
+  expect(finalIntegrationUnit.latestAttemptId).toBeTruthy();
+
+  const attemptArtifacts = materializeAttemptArtifacts({
+    initiativeId,
+    taskGraphId,
+    batchId: null,
+    workUnit: finalIntegrationUnit,
+    attemptId: finalIntegrationUnit.latestAttemptId,
+  });
+  const launchManifestUri = attemptArtifacts.artifactUris.find((artifactUri) =>
+    artifactUri.endsWith("/launch-manifest.json")
+  );
+
+  expect(launchManifestUri).toBeTruthy();
+  if (!launchManifestUri) {
+    throw new Error("Final integration attempt did not materialize a launch manifest.");
+  }
+
+  const launchManifestPath = launchManifestUri.replace(/^file:\/\//, "");
+  const launchManifest = JSON.parse(readFileSync(launchManifestPath, "utf8")) as Record<
+    string,
+    unknown
+  >;
   writeFileSync(
     launchManifestPath,
     JSON.stringify(
       {
         ...launchManifest,
-        expectedMarker,
+        artifactRole: "attempt_real_product_result",
+        targetKind: "runnable_result",
+        targetLabel: "Legacy integrated preview",
       },
       null,
       2
@@ -225,12 +280,11 @@ async function corruptFinalIntegrationProof(
 
   return {
     launchManifestPath,
-    originalExpectedMarker: launchManifest.expectedMarker,
   };
 }
 
 describe("/api/control/orchestration/delivery", () => {
-  test("passed verification creates a concrete delivery record and marks the initiative ready", async () => {
+  test("passed verification creates an assembly-backed runnable delivery and marks the initiative ready", async () => {
     const { initiativeId, taskGraphId } = await createPlannedInitiative();
     await completeAllWorkUnits(taskGraphId);
 
@@ -268,14 +322,16 @@ describe("/api/control/orchestration/delivery", () => {
         taskGraphId,
         status: "ready",
         launchProofKind: "runnable_result",
-        launchTargetLabel: "Integrated product preview",
+        launchTargetLabel: "Integrated assembly result",
       })
     );
     expect(deliveryBody.delivery.localOutputPath).toMatch(
       /\.local-state\/orchestration\/deliveries/
     );
     expect(deliveryBody.delivery.localOutputPath.startsWith(tempStateDir)).toBe(true);
-    expect(deliveryBody.delivery.command).toMatch(/launch-localhost\.py' --port 0$/);
+    expect(deliveryBody.delivery.launchManifestPath).toContain("/runnable-result/");
+    expect(deliveryBody.delivery.launchManifestPath).not.toContain("/attempt-artifacts/");
+    expect(deliveryBody.delivery.command).toMatch(/launch-localhost\.py' --port 0 --entry \/index\.html$/);
     expect(deliveryBody.delivery.launchManifestPath).toMatch(/launch-manifest\.json$/);
     expect(deliveryBody.delivery.launchProofUrl).toMatch(
       /^http:\/\/127\.0\.0\.1:\d+\/index\.html$/
@@ -329,7 +385,7 @@ describe("/api/control/orchestration/delivery", () => {
     expect(deliveryBody.detail).toMatch(/requires a passed verification/i);
   });
 
-  test("delivery keeps handoff pending when the runnable target exists but localhost proof fails", async () => {
+  test("delivery stays ready when a scaffold attempt proof is corrupted because the runnable proof is assembly-backed", async () => {
     const { initiativeId, taskGraphId } = await createPlannedInitiative();
     await completeAllWorkUnits(taskGraphId);
     await corruptFinalIntegrationProof(initiativeId, taskGraphId);
@@ -365,12 +421,13 @@ describe("/api/control/orchestration/delivery", () => {
     expect(deliveryBody.delivery).toEqual(
       expect.objectContaining({
         initiativeId,
-        status: "pending",
+        status: "ready",
         launchProofKind: "runnable_result",
+        launchTargetLabel: "Integrated assembly result",
       })
     );
-    expect(deliveryBody.delivery.launchProofUrl).toBeNull();
-    expect(deliveryBody.delivery.launchProofAt).toBeNull();
+    expect(deliveryBody.delivery.launchProofUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/index\.html$/);
+    expect(deliveryBody.delivery.launchProofAt).toBeTruthy();
 
     const state = await readControlPlaneState();
     const initiative = state.orchestration.initiatives.find((candidate) => candidate.id === initiativeId);
@@ -383,31 +440,31 @@ describe("/api/control/orchestration/delivery", () => {
     );
     const proof = state.orchestration.validationProofs.find((candidate) => candidate.runId === run?.id);
 
-    expect(initiative?.status).toBe("verifying");
-    expect(run?.currentStage).toBe("preview_ready");
+    expect(initiative?.status).toBe("ready");
+    expect(run?.currentStage).toBe("handed_off");
     expect(run?.previewStatus).toBe("ready");
-    expect(run?.handoffStatus).toBe("building");
+    expect(run?.handoffStatus).toBe("ready");
     expect(preview?.healthStatus).toBe("ready");
-    expect(handoff?.status).toBe("building");
+    expect(handoff?.status).toBe("ready");
     expect(proof?.previewReady).toBe(true);
-    expect(proof?.launchReady).toBe(false);
-    expect(proof?.handoffReady).toBe(false);
+    expect(proof?.launchReady).toBe(true);
+    expect(proof?.handoffReady).toBe(true);
     expect(
       state.orchestration.runEvents.some(
         (event) => event.initiativeId === initiativeId && event.kind === "handoff.ready"
       )
-    ).toBe(false);
+    ).toBe(true);
     expect(
       state.orchestration.runEvents.some(
         (event) => event.initiativeId === initiativeId && event.kind === "run.completed"
       )
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  test("delivery retries the same verification until localhost proof passes", async () => {
+  test("repeated delivery creation keeps the same assembly-backed runnable delivery", async () => {
     const { initiativeId, taskGraphId } = await createPlannedInitiative();
     await completeAllWorkUnits(taskGraphId);
-    const { launchManifestPath, originalExpectedMarker } = await corruptFinalIntegrationProof(
+    const { indexPath, originalExpectedMarker } = await corruptFinalIntegrationProof(
       initiativeId,
       taskGraphId
     );
@@ -440,22 +497,10 @@ describe("/api/control/orchestration/delivery", () => {
     const firstDeliveryBody = await firstDeliveryResponse.json();
 
     expect(firstDeliveryResponse.status).toBe(201);
-    expect(firstDeliveryBody.delivery.status).toBe("pending");
+    expect(firstDeliveryBody.delivery.status).toBe("ready");
 
-    const launchManifest = JSON.parse(readFileSync(launchManifestPath, "utf8")) as {
-      expectedMarker: string;
-    };
-    writeFileSync(
-      launchManifestPath,
-      JSON.stringify(
-        {
-          ...launchManifest,
-          expectedMarker: originalExpectedMarker,
-        },
-        null,
-        2
-      )
-    );
+    const indexHtml = readFileSync(indexPath, "utf8");
+    writeFileSync(indexPath, indexHtml.replace("Infinity Missing Runnable Proof", originalExpectedMarker));
 
     const secondDeliveryResponse = await postDelivery(
       new Request("http://localhost/api/control/orchestration/delivery", {
@@ -497,6 +542,62 @@ describe("/api/control/orchestration/delivery", () => {
         (event) => event.initiativeId === initiativeId && event.kind === "run.completed"
       )
     ).toBe(true);
+  });
+
+  test("delivery ignores a legacy attempt manifest and still emits an assembly-backed runnable delivery", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+    await rewriteFinalIntegrationAsLegacyRunnableResult(initiativeId, taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const deliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      })
+    );
+    const deliveryBody = await deliveryResponse.json();
+
+    expect(deliveryResponse.status).toBe(201);
+    expect(deliveryBody.delivery.status).toBe("ready");
+    expect(deliveryBody.delivery.launchProofKind).toBe("runnable_result");
+    expect(deliveryBody.delivery.launchTargetLabel).toBe("Integrated assembly result");
+    expect(deliveryBody.delivery.launchProofUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/index\.html$/);
+    expect(deliveryBody.delivery.launchProofAt).toBeTruthy();
+
+    const state = await readControlPlaneState();
+    const initiative = state.orchestration.initiatives.find(
+      (candidate) => candidate.id === initiativeId
+    );
+    const run = state.orchestration.runs.find((candidate) => candidate.initiativeId === initiativeId);
+    const handoff = state.orchestration.handoffPackets.find(
+      (candidate) => candidate.deliveryId === deliveryBody.delivery.id
+    );
+    const proof = state.orchestration.validationProofs.find((candidate) => candidate.runId === run?.id);
+
+    expect(initiative?.status).toBe("ready");
+    expect(run?.currentStage).toBe("handed_off");
+    expect(handoff?.status).toBe("ready");
+    expect(proof?.launchReady).toBe(true);
+    expect(proof?.handoffReady).toBe(true);
   });
 
   test("delivery binds to the verification-linked assembly even if a newer assembly exists", async () => {
@@ -578,6 +679,7 @@ describe("/api/control/orchestration/delivery", () => {
 
     expect(deliveryResponse.status).toBe(201);
     expect(deliveryBody.delivery.resultSummary).toMatch(/runnable localhost delivery bundle backed by verified assembly evidence/i);
+    expect(deliveryBody.delivery.launchManifestPath).toContain(firstAssemblyBody.assembly.outputLocation);
     expect(deliveryBody.delivery.localOutputPath).toMatch(
       /\.local-state\/orchestration\/deliveries/
     );

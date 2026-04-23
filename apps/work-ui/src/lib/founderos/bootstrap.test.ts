@@ -187,6 +187,17 @@ describe('founderos bootstrap', () => {
 		expect(resolveFounderosLaunchSessionUrl(launchContext({ hostOrigin: null }))).toBe(null);
 	});
 
+	test('does not fall back to compatibility session-bearer path during embedded launch', () => {
+		expect(
+			resolveFounderosLaunchSessionUrl(launchContext(), {
+				sessionBearerExchangePath:
+					'/api/control/execution/workspace/session-2026-04-11-001/session-bearer'
+			})
+		).toBe(
+			'http://127.0.0.1:3737/api/control/execution/workspace/session-2026-04-11-001/session'
+		);
+	});
+
 	test('fails closed when session exchange is missing launch token or host route context', async () => {
 		const result = await exchangeFounderosLaunchSession(
 			launchContext({ launchToken: null }),

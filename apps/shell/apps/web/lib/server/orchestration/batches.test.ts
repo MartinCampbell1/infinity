@@ -108,7 +108,7 @@ describe("getExecutionKernelAvailability", () => {
             generatedAt: "2026-04-20T12:00:00.000Z",
             authMode: "localhost_only",
             deploymentScope: "localhost_only_solo",
-            maturity: "phase3_scaffold",
+            maturity: "localhost_solo_v1",
             storageKind: "file",
             durabilityTier: "local_file_snapshot",
             statePath: "/tmp/execution-kernel/state.json",
@@ -131,7 +131,7 @@ describe("getExecutionKernelAvailability", () => {
             recoveryHint:
               "Restart the kernel if needed, then retry blocked batches from the shell: batch-health-001.",
             detail:
-              "execution-kernel is reachable as a localhost-only phase-3 scaffold with local_file_snapshot-backed local state configured=true, runtime blocked, recovery retryable, restart-recoverable true, 1 blocked batch(es), and 1 failed attempt(s), and next action: Restart the kernel if needed, then retry blocked batches from the shell: batch-health-001.",
+              "execution-kernel is reachable as a localhost-only solo-v1 runtime with local_file_snapshot-backed local state configured=true, runtime blocked, recovery retryable, restart-recoverable true, 1 blocked batch(es), and 1 failed attempt(s), and next action: Restart the kernel if needed, then retry blocked batches from the shell: batch-health-001.",
           })
         );
       }
@@ -153,14 +153,14 @@ describe("getExecutionKernelAvailability", () => {
       expect(availability.restartRecoverable).toBe(true);
       expect(availability.failureState).toBe("failed");
       expect(availability.deploymentScope).toBe("localhost_only_solo");
-      expect(availability.maturity).toBe("phase3_scaffold");
+      expect(availability.maturity).toBe("localhost_solo_v1");
       expect(availability.durabilityTier).toBe("local_file_snapshot");
       expect(availability.blockedBatchIds).toEqual(["batch-health-001"]);
       expect(availability.failedAttemptIds).toEqual(["attempt-health-001"]);
       expect(availability.resumableBatchIds).toEqual(["batch-health-001"]);
       expect(availability.latestFailure?.errorCode).toBe("HEALTH_CHECK");
       expect(availability.recoveryHint).toContain("retry blocked batches");
-      expect(availability.detail).toContain("phase-3 scaffold");
+      expect(availability.detail).toContain("solo-v1 runtime");
       expect(availability.detail).toContain("runtime blocked");
       expect(availability.detail).toContain("recovery retryable");
       expect(availability.detail).toContain("restart-recoverable true");

@@ -139,7 +139,7 @@ describe("execution issues route", () => {
       available: true,
       baseUrl: "http://127.0.0.1:8787",
       detail:
-        "execution-kernel is reachable as a localhost-only phase-3 scaffold with local_file_snapshot-backed local state configured=true, runtime blocked, recovery retryable, restart-recoverable true, 1 blocked batch(es), and 1 failed attempt(s), and next action: Restart the kernel if needed, then retry blocked batches from the shell: batch-health-001.",
+        "execution-kernel is reachable as a localhost-only solo-v1 runtime with local_file_snapshot-backed local state configured=true, runtime blocked, recovery retryable, restart-recoverable true, 1 blocked batch(es), and 1 failed attempt(s), and next action: Restart the kernel if needed, then retry blocked batches from the shell: batch-health-001.",
       generatedAt: "2026-04-21T00:00:00.000Z",
       runtimeState: "blocked",
       recoveryState: "retryable",
@@ -147,7 +147,7 @@ describe("execution issues route", () => {
       failureState: "failed",
       authMode: "localhost_only",
       deploymentScope: "localhost_only_solo",
-      maturity: "phase3_scaffold",
+      maturity: "localhost_solo_v1",
       storageKind: "file",
       durabilityTier: "local_file_snapshot",
       statePath: "/tmp/execution-kernel/state.json",
@@ -156,7 +156,7 @@ describe("execution issues route", () => {
     const markup = renderToStaticMarkup(await Page({}));
 
     expect(markup).toContain("Execution kernel retryable");
-    expect(markup).toContain("phase-3 scaffold");
+    expect(markup).toContain("solo-v1 runtime");
     expect(markup).toContain("local_file_snapshot-backed");
     expect(markup).toContain("runtime blocked");
     expect(markup).toContain("restart-recoverable");
@@ -167,7 +167,7 @@ describe("execution issues route", () => {
       available: true,
       baseUrl: "http://127.0.0.1:8787",
       detail:
-        "execution-kernel is reachable as a localhost-only phase-3 scaffold with local_file_snapshot-backed local state configured=true, runtime blocked, recovery retryable, restart-recoverable true, 1 blocked batch(es), and 1 failed attempt(s), and next action: Restart the kernel if needed, then retry blocked batches from the shell: batch-health-001.",
+        "execution-kernel is reachable as a localhost-only solo-v1 runtime with local_file_snapshot-backed local state configured=true, runtime blocked, recovery retryable, restart-recoverable true, 1 blocked batch(es), and 1 failed attempt(s), and next action: Restart the kernel if needed, then retry blocked batches from the shell: batch-health-001.",
       generatedAt: "2026-04-21T00:00:00.000Z",
       runtimeState: "blocked",
       recoveryState: "retryable",
@@ -175,7 +175,7 @@ describe("execution issues route", () => {
       failureState: "failed",
       authMode: "localhost_only",
       deploymentScope: "localhost_only_solo",
-      maturity: "phase3_scaffold",
+      maturity: "localhost_solo_v1",
       storageKind: "file",
       durabilityTier: "local_file_snapshot",
       statePath: "/tmp/execution-kernel/state.json",

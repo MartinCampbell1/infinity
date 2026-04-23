@@ -55,7 +55,7 @@ export type ExecutionKernelHealthResponse = {
   generatedAt: string;
   authMode?: "localhost_only" | string;
   deploymentScope?: "localhost_only_solo" | string;
-  maturity?: "phase3_scaffold" | string;
+  maturity?: "localhost_solo_v1" | string;
   storageKind?: "memory" | "file" | string;
   durabilityTier?: "ephemeral_memory" | "local_file_snapshot" | string;
   statePath?: string | null;

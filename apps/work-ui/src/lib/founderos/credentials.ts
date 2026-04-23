@@ -24,6 +24,9 @@ const getSessionStorageBucket = (): StorageLike | null =>
 const getLegacyStorageBucket = (): StorageLike | null =>
 	typeof localStorage === 'undefined' ? null : localStorage;
 
+const getLegacyCompatibilityStorageBucket = (): StorageLike | null =>
+	isFounderosEmbeddedRuntime() ? null : getLegacyStorageBucket();
+
 const isFounderosEmbeddedRuntime = () => {
 	if (typeof window === 'undefined') {
 		return false;
@@ -67,7 +70,7 @@ export const readFounderosEmbeddedSessionGrant = (): FounderosEmbeddedSessionGra
 		return embeddedSessionGrantMemory;
 	}
 
-	for (const storage of [getSessionStorageBucket(), getLegacyStorageBucket()]) {
+	for (const storage of [getSessionStorageBucket(), getLegacyCompatibilityStorageBucket()]) {
 		try {
 			const raw = readStoredString(storage, SESSION_GRANT_STORAGE_KEY);
 			if (!raw) {
@@ -94,7 +97,7 @@ export const readFounderosEmbeddedSessionToken = (): string | null => {
 
 	return (
 		readStoredString(getSessionStorageBucket(), SESSION_TOKEN_STORAGE_KEY) ??
-		readStoredString(getLegacyStorageBucket(), SESSION_TOKEN_STORAGE_KEY)
+		readStoredString(getLegacyCompatibilityStorageBucket(), SESSION_TOKEN_STORAGE_KEY)
 	);
 };
 

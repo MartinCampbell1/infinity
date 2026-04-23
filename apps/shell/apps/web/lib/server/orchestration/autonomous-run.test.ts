@@ -256,4 +256,118 @@ describe("buildAutonomousValidationProof", () => {
     expect(proof?.launchReady).toBe(false);
     expect(proof?.handoffReady).toBe(false);
   });
+
+  test("does not mark launch ready when a pending delivery only claims runnable proof metadata", async () => {
+    const state = await readControlPlaneState();
+    const initiativeId = "initiative-proof-3";
+    const runId = "run-proof-3";
+
+    state.orchestration.initiatives = [
+      {
+        id: initiativeId,
+        title: "Legacy runnable proof validation",
+        userRequest: "Validate a pending delivery with manual runnable proof metadata.",
+        requestedBy: "martin",
+        workspaceSessionId: null,
+        priority: "normal",
+        status: "verifying",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:00.000Z",
+      },
+    ];
+    state.orchestration.briefs = [
+      {
+        id: "brief-proof-3",
+        initiativeId,
+        summary: "Autonomous brief.",
+        goals: [],
+        nonGoals: [],
+        constraints: [],
+        assumptions: [],
+        acceptanceCriteria: [],
+        repoScope: [],
+        deliverables: [],
+        clarificationLog: [],
+        status: "approved",
+        authoredBy: "hermes-intake",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:01.000Z",
+      },
+    ];
+    state.orchestration.runs = [
+      {
+        id: runId,
+        initiativeId,
+        title: "Legacy runnable proof validation",
+        originalPrompt: "Validate a pending delivery with manual runnable proof metadata.",
+        entryMode: "shell_chat",
+        currentStage: "preview_ready",
+        health: "degraded",
+        automationMode: "autonomous",
+        manualStageProgression: false,
+        operatorOverrideActive: false,
+        previewStatus: "ready",
+        handoffStatus: "building",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+        completedAt: null,
+      },
+    ];
+    state.orchestration.previewTargets = [
+      {
+        id: "preview-proof-3",
+        runId,
+        deliveryId: "delivery-proof-3",
+        mode: "local",
+        url: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-3",
+        healthStatus: "ready",
+        launchCommand: null,
+        sourcePath: "/tmp/preview.html",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.handoffPackets = [
+      {
+        id: "handoff-proof-3",
+        runId,
+        deliveryId: "delivery-proof-3",
+        status: "building",
+        rootPath: "/tmp/delivery",
+        finalSummaryPath: "/tmp/delivery/final-summary.md",
+        manifestPath: "/tmp/delivery/manifest.json",
+        createdAt: "2026-04-22T00:00:00.000Z",
+        updatedAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+    state.orchestration.deliveries = [
+      {
+        id: "delivery-proof-3",
+        initiativeId,
+        verificationRunId: "verification-proof-3",
+        taskGraphId: "task-graph-proof-3",
+        resultSummary:
+          "Legacy runnable proof metadata exists, but the delivery is still pending.",
+        localOutputPath: "/tmp/delivery",
+        manifestPath: "/tmp/delivery/delivery-manifest.json",
+        previewUrl: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-3",
+        launchManifestPath: "/tmp/delivery/launch-manifest.json",
+        launchProofKind: "runnable_result",
+        launchTargetLabel: "Legacy integrated preview",
+        launchProofUrl: "http://127.0.0.1:4100/index.html",
+        launchProofAt: "2026-04-22T00:00:02.000Z",
+        handoffNotes: "pending",
+        command: "python3 launch.py --port 0",
+        status: "pending",
+        deliveredAt: "2026-04-22T00:00:02.000Z",
+      },
+    ];
+
+    const proof = buildAutonomousValidationProof(state, initiativeId);
+
+    expect(proof).toBeTruthy();
+    expect(proof?.previewReady).toBe(true);
+    expect(proof?.launchReady).toBe(false);
+    expect(proof?.handoffReady).toBe(false);
+  });
 });
