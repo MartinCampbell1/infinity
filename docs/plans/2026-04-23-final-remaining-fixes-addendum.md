@@ -2,7 +2,8 @@
 
 Date: 2026-04-23
 Workspace: `/Users/martin/infinity`
-Branch checked: `codex/infinity-step10-go`
+Original implementation branch checked: `codex/infinity-step10-go`
+Canonical merged branch: `master`
 
 ## Verdict
 
