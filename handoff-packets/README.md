@@ -60,3 +60,19 @@ Mandatory check before edits:
 - `packet-06-quota-accounts.md`
 - `packet-07-approvals-recoveries.md`
 - `packet-08-qa-contracts.md`
+
+## Historical Status
+
+This directory also contains dated handoffs, release notes, and audit snapshots from earlier phases.
+
+Use this rule:
+
+- treat files explicitly linked from the current acceptance note, the current release tag, or the latest merged PR as active evidence
+- treat dated packets and reports not linked from those current artifacts as historical reference only
+- do not rewrite or delete historical files during normal release work unless there is a separate archival task
+
+Current canonical release truth lives in:
+
+- `docs/validation/2026-04-23-current-tip-acceptance.md`
+- the latest canonical branch `master`
+- the published validated-state release `solo-v1-validated-2026-04-23`
