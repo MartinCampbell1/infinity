@@ -3,11 +3,11 @@
 Date: 2026-04-23
 Workspace: `/Users/martin/infinity`
 Branch: `codex/infinity-step10-go`
-Tip at time of check: current clean HEAD on `codex/infinity-step10-go`
+Tip at time of check: latest clean code checkpoint on `codex/infinity-step10-go`
 
 ## Scope
 
-This note records the freshest validation evidence for the current clean HEAD on this branch.
+This note records the freshest validation evidence for the latest clean code checkpoint on this branch.
 
 It supersedes the older `78cba44` acceptance snapshot that was referenced in the closeout addendum.
 
@@ -24,14 +24,20 @@ These were rerun during the current closeout pass:
 
 Most recent successful full validation observed during this closeout:
 
-- run dir: `handoff-packets/validation/2026-04-23T04-19-25Z`
+- run dir: `handoff-packets/validation/2026-04-23T04-34-45Z`
 - status: `passed`
 - shell origin: `http://127.0.0.1:3737`
 - work-ui origin: `http://127.0.0.1:3101`
 - kernel origin: `http://127.0.0.1:8798`
 
+Validated clean code checkpoint before this docs refresh:
+
+- commit: `b927324`
+
 Also confirmed on the immediately previous successful reruns:
 
+- run dir: `handoff-packets/validation/2026-04-23T04-19-25Z`
+- status: `passed`
 - run dir: `handoff-packets/validation/2026-04-23T04-02-36Z`
 - status: `passed`
 - run dir: `handoff-packets/validation/2026-04-23T03-56-57Z`
@@ -39,7 +45,7 @@ Also confirmed on the immediately previous successful reruns:
 
 ## Autonomous proof
 
-From `handoff-packets/validation/2026-04-23T04-19-25Z/autonomous-proof.json`:
+From `handoff-packets/validation/2026-04-23T04-34-45Z/autonomous-proof.json`:
 
 - root frontdoor stayed on `/`
 - autonomous one-prompt: `true`
@@ -83,4 +89,4 @@ import "./.next/types/routes.d.ts";
 
 - The stale acceptance note for `78cba44` should no longer be treated as the freshest evidence.
 - Existing non-blocking Turbopack NFT tracing warning still appears during `npm run shell:build`, but it did not block the successful validation reruns above.
-- Because this acceptance note is itself a tracked file, the exact clean HEAD should be resolved from the validated checkout when needed rather than treated as a permanently hard-coded hash.
+- This note was refreshed in a docs-only follow-up after the validated clean code checkpoint `b927324`; the runtime evidence above still refers to that latest successful gate.
