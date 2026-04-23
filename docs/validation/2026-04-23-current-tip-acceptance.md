@@ -3,7 +3,7 @@
 Date: 2026-04-23
 Workspace: `/Users/martin/infinity`
 Branch: `codex/infinity-step10-go`
-Tip at time of check: latest clean code checkpoint on `codex/infinity-step10-go`
+Tip at time of check: latest validated clean code checkpoint on `codex/infinity-step10-go`
 
 ## Scope
 
@@ -32,10 +32,12 @@ Most recent successful full validation observed during this closeout:
 
 Validated clean code checkpoint before this docs refresh:
 
-- commit: `b927324`
+- commit: `a45e50f`
 
 Also confirmed on the immediately previous successful reruns:
 
+- run dir: `handoff-packets/validation/2026-04-23T04-43-19Z`
+- status: `passed`
 - run dir: `handoff-packets/validation/2026-04-23T04-19-25Z`
 - status: `passed`
 - run dir: `handoff-packets/validation/2026-04-23T04-02-36Z`
@@ -45,7 +47,7 @@ Also confirmed on the immediately previous successful reruns:
 
 ## Autonomous proof
 
-From `handoff-packets/validation/2026-04-23T04-34-45Z/autonomous-proof.json`:
+From `handoff-packets/validation/2026-04-23T04-48-53Z/autonomous-proof.json`:
 
 - root frontdoor stayed on `/`
 - autonomous one-prompt: `true`
@@ -89,4 +91,4 @@ import "./.next/types/routes.d.ts";
 
 - The stale acceptance note for `78cba44` should no longer be treated as the freshest evidence.
 - Existing non-blocking Turbopack NFT tracing warning still appears during `npm run shell:build`, but it did not block the successful validation reruns above.
-- This note was refreshed in a docs-only follow-up after the validated clean code checkpoint `b927324`; the runtime evidence above still refers to that latest successful gate.
+- This note was refreshed in a docs-only follow-up after the validated clean code checkpoint `a45e50f`; the runtime evidence above still refers to that latest successful gate.
