@@ -1,6 +1,7 @@
 import { createExecutionKernelClient } from "@founderos/api-clients";
 
 import type {
+  ExecutionBatchRecord,
   SupervisorActionMutationResponse,
   SupervisorActionRequest,
   SupervisorActionsDirectoryResponse,
