@@ -32,7 +32,7 @@ describe("plane root composer helpers", () => {
     expect(buildInitiativeCreateRequest("   ", "   ")).toEqual({
       title: "Untitled autonomous run",
       userRequest: "",
-      requestedBy: "martin",
+      requestedBy: "operator",
       workspaceSessionId: null,
     });
     expect(deriveTitleFromPrompt("   ")).toBe("Untitled autonomous run");

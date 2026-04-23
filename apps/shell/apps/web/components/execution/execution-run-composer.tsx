@@ -25,7 +25,7 @@ export function ExecutionRunComposer({
   compact?: boolean;
 }) {
   const [prompt, setPrompt] = useState("");
-  const [requestedBy, setRequestedBy] = useState("martin");
+  const [requestedBy, setRequestedBy] = useState("operator");
   const [pending, setPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export function ExecutionRunComposer({
         body: JSON.stringify({
           title: deriveTitleFromPrompt(normalizedPrompt),
           userRequest: normalizedPrompt,
-          requestedBy: requestedBy.trim() || "martin",
+          requestedBy: requestedBy.trim() || "operator",
           workspaceSessionId: routeScope?.sessionId ?? null,
         }),
       });
