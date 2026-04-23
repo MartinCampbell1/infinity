@@ -3,11 +3,11 @@
 Date: 2026-04-23
 Workspace: `/Users/martin/infinity`
 Branch: `codex/infinity-step10-go`
-Tip at time of check: `a153e5d`
+Tip at time of check: current clean HEAD on `codex/infinity-step10-go`
 
 ## Scope
 
-This note records the freshest validation evidence for the current branch tip and the in-progress local worktree on top of that tip.
+This note records the freshest validation evidence for the current clean HEAD on this branch.
 
 It supersedes the older `78cba44` acceptance snapshot that was referenced in the closeout addendum.
 
@@ -22,7 +22,7 @@ These were rerun during the current closeout pass:
 - `npm run validate:full`
 - `curl -sf http://127.0.0.1:8798/healthz`
 
-Latest successful full validation for this worktree:
+Most recent successful full validation observed during this closeout:
 
 - run dir: `handoff-packets/validation/2026-04-23T04-19-25Z`
 - status: `passed`
@@ -71,7 +71,7 @@ Validator-induced tree drift was rechecked directly.
 - `git status --short` was captured again after the validator finished
 - the two snapshots matched exactly
 
-This means the validator did not introduce any new tree dirt on top of the already-present implementation diff.
+This means the validator did not introduce any new tracked-file drift.
 
 For `apps/shell/apps/web/next-env.d.ts`, the current canonical post-validation state is:
 
@@ -81,6 +81,6 @@ import "./.next/types/routes.d.ts";
 
 ## Notes
 
-- The worktree is still intentionally dirty because the current closeout fixes are not committed yet.
 - The stale acceptance note for `78cba44` should no longer be treated as the freshest evidence.
 - Existing non-blocking Turbopack NFT tracing warning still appears during `npm run shell:build`, but it did not block the successful validation reruns above.
+- Because this acceptance note is itself a tracked file, the exact clean HEAD should be resolved from the validated checkout when needed rather than treated as a permanently hard-coded hash.
