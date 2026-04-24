@@ -4,6 +4,7 @@ Date: 2026-04-24
 Workspace: `/Users/martin/infinity`
 Branch: `master`
 Validated implementation commit: `66c4628`
+Post-GO hardening commit: `d0592d2`
 Validation packet: `handoff-packets/validation/2026-04-24T00-58-39Z`
 
 ## Scope
@@ -90,11 +91,22 @@ For `apps/shell/apps/web/next-env.d.ts`, the current canonical post-validation s
 import "./.next/types/routes.d.ts";
 ```
 
-## Non-blocking critic backlog
+## Post-GO hardening
 
 The final independent critic returned `pass: true` with no unresolved `must_fix`. It left two `should_fix` items:
 
 - derive the run detail headline status chip from the same final delivery/projection state as the delivery CTA
 - add copy/open or expanded disclosure affordances for long delivery proof paths and launch URLs
 
-These are not blockers for one-person localhost production-readiness.
+These were closed in the bounded post-GO hardening commit `d0592d2`:
+
+- delivered runs now use a `delivered` headline status and current-stage metric when delivery evidence is ready
+- delivery proof rows now keep the compact scan view and add expandable `Full value` blocks with selectable full paths/URLs/commands
+
+Focused hardening verification:
+
+- `npm --workspace @founderos/web exec vitest run components/execution/primary-run-surface.test.tsx`
+- `npm --workspace @founderos/web exec vitest run components/orchestration/delivery-summary.test.tsx`
+- `npm run shell:typecheck`
+- `git diff --check`
+- independent critic gate: `GO`
