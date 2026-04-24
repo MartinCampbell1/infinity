@@ -80,9 +80,13 @@ vi.mock("@/components/execution/plane-run-primitives", () => ({
     size?: string;
   }) => <button type="button">{children}</button>,
   PlaneProgressBar: () => <div data-progress-bar="true" />,
-  PlaneStatusPill: ({ children }: { children: React.ReactNode }) => (
-    <span>{children}</span>
-  ),
+  PlaneStatusPill: ({
+    children,
+    status,
+  }: {
+    children: React.ReactNode;
+    status?: string | null;
+  }) => <span data-status={status ?? ""}>{children}</span>,
 }));
 
 vi.mock("@/components/execution/operator-action-controls", () => ({
@@ -282,6 +286,9 @@ describe("PrimaryRunSurface", () => {
     expect(markup).toContain("/execution/batches/batch-1");
     expect(markup).toContain("Open delivery");
     expect(markup).toContain("/execution/delivery/delivery-1");
+    expect(markup).toContain('data-status="delivered"');
+    expect(markup).toContain("Current stage");
+    expect(markup).toContain("Delivered");
 
     expect(markup).toContain('data-task-board-layout="scan-list"');
     expect(markup).toContain("Task t01");

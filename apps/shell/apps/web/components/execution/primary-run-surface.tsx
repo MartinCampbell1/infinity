@@ -304,7 +304,8 @@ export function PrimaryRunSurface({
     currentDelivery?.status === "ready" ||
     currentRun?.currentStage === "handed_off" ||
     initiative.status === "ready";
-  const stages = stageOrder(displayStage, delivered);
+  const headlineStage = delivered ? "delivered" : displayStage;
+  const stages = stageOrder(headlineStage, delivered);
   const activeAgentCount = agentSessions.filter((session) =>
     ["starting", "running"].includes(session.status)
   ).length;
@@ -355,11 +356,11 @@ export function PrimaryRunSurface({
           <span>›</span>
           <span className="font-mono">{runIdLabel}</span>
           <PlaneStatusPill
-            status={displayStage}
+            status={headlineStage}
             mono
             size="sm"
           >
-            {displayStage}
+            {headlineStage}
           </PlaneStatusPill>
         </div>
 
@@ -462,7 +463,7 @@ export function PrimaryRunSurface({
             {[
               {
                 label: "Current stage",
-                value: titleCase(displayStage),
+                value: titleCase(headlineStage),
                 detail: currentTaskGraph ? "task graph ready" : "task graph pending",
               },
               {

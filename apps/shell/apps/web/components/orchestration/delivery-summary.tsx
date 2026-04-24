@@ -77,6 +77,36 @@ function compactEvidenceValue(value: string) {
   return `${value.slice(0, 28)}...${value.slice(-18)}`;
 }
 
+function DeliveryProofValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <div
+        className="truncate font-mono text-white/82"
+        title={value}
+      >
+        {compactEvidenceValue(value)}
+      </div>
+      <details
+        className="mt-1 rounded-[8px] border border-white/6 bg-black/20 px-2 py-1"
+        data-proof-value-label={label}
+      >
+        <summary className="cursor-pointer text-[10px] uppercase tracking-[0.12em] text-white/44">
+          Full value
+        </summary>
+        <code className="mt-2 block select-all break-all font-mono text-[10.5px] leading-5 text-white/76">
+          {value}
+        </code>
+      </details>
+    </div>
+  );
+}
+
 type DeliverySourceWorkUnit = Pick<
   WorkUnitRecord,
   | "id"
@@ -435,12 +465,7 @@ export function DeliverySummary({
                           <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
                             {row.label}
                           </div>
-                          <div
-                            className="truncate font-mono text-white/82"
-                            title={row.value}
-                          >
-                            {compactEvidenceValue(row.value)}
-                          </div>
+                          <DeliveryProofValue label={row.label} value={row.value} />
                         </React.Fragment>
                       ))}
                     </div>
@@ -563,9 +588,7 @@ export function DeliverySummary({
                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
                     {row.label}
                   </div>
-                  <div className="truncate font-mono text-white/82" title={row.value}>
-                    {compactEvidenceValue(row.value)}
-                  </div>
+                  <DeliveryProofValue label={row.label} value={row.value} />
                 </React.Fragment>
               ))}
             </div>

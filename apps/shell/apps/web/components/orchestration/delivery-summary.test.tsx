@@ -95,13 +95,16 @@ describe("DeliverySummary", () => {
     expect(markup).toContain("Result summary");
     expect(markup).toContain("Generated invoice app is ready.");
     expect(markup).toContain("Preview URL");
+    expect(markup).toContain('data-proof-value-label="Preview URL"');
     expect(markup).toContain("http://127.0.0.1:3737/api/control/orchestration/previews/preview-proof-001");
     expect(markup).toContain("Manifest path");
+    expect(markup).toContain('data-proof-value-label="Manifest path"');
     expect(markup).toContain("/tmp/infinity-delivery/invoice-app/delivery-manifest.json");
     expect(markup).toContain("/tmp/infinity-delivery/.../delivery-manifest.json");
     expect(markup).toContain("Local output path");
     expect(markup).toContain("/tmp/infinity-delivery/invoice-app");
     expect(markup).toContain("Launch command");
+    expect(markup).toContain('data-proof-value-label="Launch command"');
     expect(markup).toContain("python3 launch-localhost.py --port 4100");
     expect(markup).toContain("Proof kind");
     expect(markup).toContain("runnable_result");

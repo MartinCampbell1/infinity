@@ -17,6 +17,11 @@ const PLANE_STATUS_STYLES = {
     border: "var(--status-running-border)",
     color: "var(--status-running-fg)",
   },
+  delivered: {
+    background: "var(--status-running-bg)",
+    border: "var(--status-running-border)",
+    color: "var(--status-running-fg)",
+  },
   planning: {
     background: "var(--status-planning-bg)",
     border: "var(--status-planning-border)",
