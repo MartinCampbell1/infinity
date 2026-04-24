@@ -1,9 +1,14 @@
+import React from "react";
+
 import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-board";
 import {
   buildExecutionContinuityScopeHref,
   readShellRouteScopeFromQueryRecord,
 } from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
+import { isStrictRolloutEnv } from "@/lib/server/control-plane/workspace/rollout-config";
+import { isDeliveryHandoffReady } from "../../../../lib/delivery-readiness";
+import { listDeliveries } from "@/lib/server/orchestration/delivery";
 
 type ExecutionValidationSearchParams = Promise<
   Record<string, string | string[] | undefined>
@@ -17,6 +22,11 @@ export default async function ExecutionValidationPage({
   const params = searchParams ? await searchParams : undefined;
   const routeScope = readShellRouteScopeFromQueryRecord(params);
   const state = await readControlPlaneState();
+  const strictRolloutEnv = isStrictRolloutEnv();
+  const deliveries = await listDeliveries();
+  const deliveryByVerificationId = new Map(
+    deliveries.map((delivery) => [delivery.verificationRunId, delivery] as const)
+  );
   const proofByRunId = new Map(
     state.orchestration.validationProofs.map((proof) => [proof.runId, proof] as const)
   );
@@ -32,6 +42,16 @@ export default async function ExecutionValidationPage({
         (candidate) => candidate.initiativeId === verification.initiativeId
       );
       const proof = run ? proofByRunId.get(run.id) : null;
+      const delivery = deliveryByVerificationId.get(verification.id) ?? null;
+      const deliveryHandoffReady = delivery
+        ? isDeliveryHandoffReady(delivery, { strictRolloutEnv })
+        : false;
+      const deliveryTierLabel =
+        delivery?.readinessTier === "production"
+          ? "Production"
+          : delivery?.readinessTier === "staging"
+            ? "Staging"
+            : "Local solo";
       return {
         id: verification.id,
         headline: `Verification ${verification.overallStatus}`,
@@ -39,8 +59,10 @@ export default async function ExecutionValidationPage({
         meta: [
           `checks ${verification.checks.length}`,
           proof?.previewReady ? "preview ready · Local solo" : null,
-          proof?.launchReady ? "launch ready · Local solo" : null,
-          proof?.handoffReady ? "handoff packet ready · Local solo" : null,
+          proof?.launchReady && deliveryHandoffReady ? `launch ready · ${deliveryTierLabel}` : null,
+          proof?.handoffReady && deliveryHandoffReady
+            ? `handoff packet ready · ${deliveryTierLabel}`
+            : null,
         ],
         href: run
           ? buildExecutionContinuityScopeHref(

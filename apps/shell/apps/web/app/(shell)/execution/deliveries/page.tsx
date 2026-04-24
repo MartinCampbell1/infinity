@@ -1,3 +1,5 @@
+import React from "react";
+
 import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-board";
 import {
   buildExecutionDeliveryScopeHref,

@@ -12,6 +12,9 @@ __pycache__/
 *.py[cod]
 coverage/
 *.log
+.env
+.env.*
+!.env.example
 .DS_Store
 .omc/
 output/

@@ -16,7 +16,8 @@ export type DeliveryReadinessCopy = {
 
 export function hasHostedProofManifest(delivery: DeliveryRecord) {
   return Boolean(
-    delivery.externalPreviewUrl?.trim() &&
+    delivery.externalPullRequestUrl?.trim() &&
+      delivery.externalPreviewUrl?.trim() &&
       delivery.externalProofManifestPath?.trim() &&
       delivery.ciProofUri?.trim() &&
       delivery.artifactStorageUri?.trim() &&
@@ -146,7 +147,7 @@ export function resolveDeliveryReadinessCopy(
       resultHeadline: "Production handoff-ready result",
       sidebarTitle: "Production handoff ready",
       sidebarDescription:
-        "Preview, external proof manifest, and the handoff lane are all production-tier evidence.",
+        "Pull request, hosted preview, CI proof, external proof manifest, and the handoff lane are all production-tier evidence.",
       actionLabel: "Open preview",
       launchReady,
     };

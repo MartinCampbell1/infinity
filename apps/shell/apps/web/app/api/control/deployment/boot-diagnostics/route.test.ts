@@ -20,11 +20,23 @@ import {
   CONTROL_PLANE_DATABASE_URL_ENV_KEY,
   CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY,
   CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY,
+  ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY,
+  ARTIFACT_SIGNED_URL_BASE_ENV_KEY,
+  ARTIFACT_SIGNING_SECRET_ENV_KEY,
+  ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY,
+  ARTIFACT_STORE_MODE_ENV_KEY,
   DEPLOYMENT_ENV_KEY,
   EXECUTION_KERNEL_BASE_URL_ENV_KEY,
   EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY,
+  EXTERNAL_DELIVERY_MODE_ENV_KEY,
+  GITHUB_BASE_BRANCH_ENV_KEY,
+  GITHUB_REPOSITORY_ENV_KEY,
+  GITHUB_TOKEN_ENV_KEY,
   PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY,
   STRICT_ROLLOUT_ENV_KEY,
+  VERCEL_GIT_REPO_ID_ENV_KEY,
+  VERCEL_PROJECT_ID_ENV_KEY,
+  VERCEL_TOKEN_ENV_KEY,
   WORKSPACE_LAUNCH_SECRET_ENV_KEY,
   WORKSPACE_SESSION_GRANT_SECRET_ENV_KEY,
   WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY,
@@ -71,6 +83,20 @@ describe("/api/control/deployment/boot-diagnostics", () => {
       "session-secret-value";
     process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY] = "operator-secret-value";
     process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY] = "service-secret-value";
+    process.env[ARTIFACT_STORE_MODE_ENV_KEY] = "r2";
+    process.env[ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY] =
+      "r2://infinity-artifacts/prod";
+    process.env[ARTIFACT_SIGNED_URL_BASE_ENV_KEY] =
+      "https://artifacts.infinity.example/download";
+    process.env[ARTIFACT_SIGNING_SECRET_ENV_KEY] = "artifact-secret-value";
+    process.env[ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY] = "/mnt/infinity-artifacts";
+    process.env[EXTERNAL_DELIVERY_MODE_ENV_KEY] = "github_vercel";
+    process.env[GITHUB_TOKEN_ENV_KEY] = "github-secret-value";
+    process.env[GITHUB_REPOSITORY_ENV_KEY] = "founderos/infinity";
+    process.env[GITHUB_BASE_BRANCH_ENV_KEY] = "main";
+    process.env[VERCEL_TOKEN_ENV_KEY] = "vercel-secret-value";
+    process.env[VERCEL_PROJECT_ID_ENV_KEY] = "prj_founderos_infinity";
+    process.env[VERCEL_GIT_REPO_ID_ENV_KEY] = "123456789";
 
     try {
       const response = await GET();
@@ -105,6 +131,9 @@ describe("/api/control/deployment/boot-diagnostics", () => {
         WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY,
         CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY,
         CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY,
+        ARTIFACT_SIGNING_SECRET_ENV_KEY,
+        GITHUB_TOKEN_ENV_KEY,
+        VERCEL_TOKEN_ENV_KEY,
         EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY,
       ]);
       expect(JSON.stringify(payload)).not.toContain("secret-value");
@@ -129,6 +158,13 @@ describe("/api/control/deployment/boot-diagnostics", () => {
     delete process.env[WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY];
     delete process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY];
     delete process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY];
+    delete process.env[EXTERNAL_DELIVERY_MODE_ENV_KEY];
+    delete process.env[GITHUB_TOKEN_ENV_KEY];
+    delete process.env[GITHUB_REPOSITORY_ENV_KEY];
+    delete process.env[GITHUB_BASE_BRANCH_ENV_KEY];
+    delete process.env[VERCEL_TOKEN_ENV_KEY];
+    delete process.env[VERCEL_PROJECT_ID_ENV_KEY];
+    delete process.env[VERCEL_GIT_REPO_ID_ENV_KEY];
 
     try {
       const response = await GET();
@@ -159,6 +195,12 @@ describe("/api/control/deployment/boot-diagnostics", () => {
           STRICT_ROLLOUT_ENV_KEY,
           CONTROL_PLANE_DATABASE_URL_ENV_KEY,
           WORKSPACE_LAUNCH_SECRET_ENV_KEY,
+          ARTIFACT_STORE_MODE_ENV_KEY,
+          ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY,
+          ARTIFACT_SIGNED_URL_BASE_ENV_KEY,
+          ARTIFACT_SIGNING_SECRET_ENV_KEY,
+          ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY,
+          EXTERNAL_DELIVERY_MODE_ENV_KEY,
         ]),
       );
     } finally {
@@ -188,6 +230,20 @@ describe("/api/control/deployment/boot-diagnostics", () => {
       "session-secret-value";
     process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY] = "operator-secret-value";
     process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY] = "service-secret-value";
+    process.env[ARTIFACT_STORE_MODE_ENV_KEY] = "r2";
+    process.env[ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY] =
+      "r2://infinity-artifacts/prod";
+    process.env[ARTIFACT_SIGNED_URL_BASE_ENV_KEY] =
+      "https://artifacts.infinity.example/download";
+    process.env[ARTIFACT_SIGNING_SECRET_ENV_KEY] = "artifact-secret-value";
+    process.env[ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY] = "/mnt/infinity-artifacts";
+    process.env[EXTERNAL_DELIVERY_MODE_ENV_KEY] = "github_vercel";
+    process.env[GITHUB_TOKEN_ENV_KEY] = "github-secret-value";
+    process.env[GITHUB_REPOSITORY_ENV_KEY] = "founderos/infinity";
+    process.env[GITHUB_BASE_BRANCH_ENV_KEY] = "main";
+    process.env[VERCEL_TOKEN_ENV_KEY] = "vercel-secret-value";
+    process.env[VERCEL_PROJECT_ID_ENV_KEY] = "prj_founderos_infinity";
+    process.env[VERCEL_GIT_REPO_ID_ENV_KEY] = "123456789";
     readControlPlaneSchemaStatusFromPostgres.mockResolvedValue({
       expectedVersion: CONTROL_PLANE_SCHEMA_VERSION,
       observedVersion: 1,

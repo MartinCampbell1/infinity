@@ -6,6 +6,25 @@ import {
   buildClaudeDesignRunsBoardItems,
 } from "./claude-design-presentation";
 
+function withStrictRolloutEnv<T>(value: string | undefined, callback: () => T) {
+  const previous = process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
+  if (value === undefined) {
+    delete process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
+  } else {
+    process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV = value;
+  }
+
+  try {
+    return callback();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
+    } else {
+      process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV = previous;
+    }
+  }
+}
+
 function buildState(): ControlPlaneState {
   return {
     version: 1,
@@ -222,6 +241,28 @@ describe("claude design presentation", () => {
       })
     );
     expect(items[0]?.taskItems).toHaveLength(2);
+  });
+
+  test("strict rollout demotes stale local ready runs in board and frontdoor projections", () => {
+    withStrictRolloutEnv("1", () => {
+      const state = buildState();
+      const boardItems = buildClaudeDesignRunsBoardItems(state);
+      const frontdoorItems = buildClaudeDesignFrontdoorRecentRuns(state);
+
+      expect(boardItems[0]).toEqual(
+        expect.objectContaining({
+          stage: "verifying",
+          preview: "preview",
+          handoff: "building",
+          group: "running",
+        })
+      );
+      expect(frontdoorItems[0]).toEqual(
+        expect.objectContaining({
+          status: "verifying",
+        })
+      );
+    });
   });
 
   test("groups cancelled runs separately from active pre-run stages", () => {

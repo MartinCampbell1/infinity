@@ -9,7 +9,7 @@ import type {
   WorkUnitRecord,
 } from "../control-plane/contracts/orchestration";
 
-import { resolveInfinityRoot } from "./artifacts";
+import { resolveInfinityRoot, storeFileArtifact } from "./artifacts";
 import { materializeAttemptArtifacts } from "./attempt-artifacts";
 import { nowIso } from "./shared";
 
@@ -33,10 +33,6 @@ export type ExecutorAttemptInput = {
 export interface ExecutorAdapter {
   kind: ExecutorAdapterKind;
   run(input: ExecutorAttemptInput): Promise<ExecutorProofBundle>;
-}
-
-function fileUri(filePath: string) {
-  return `file://${filePath}`;
 }
 
 function deploymentEnv() {
@@ -64,11 +60,22 @@ function proofPath(input: ExecutorAttemptInput) {
 function persistProofBundle(input: ExecutorAttemptInput, proof: ExecutorProofBundle) {
   const outputPath = proofPath(input);
   mkdirSync(path.dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, JSON.stringify(proof, null, 2));
+  const storedProof = storeFileArtifact({
+    key: `executor-proofs/${input.initiativeId}/${input.attempt.id}.json`,
+    filePath: outputPath,
+    contentType: "application/json",
+  });
   const persisted = {
     ...proof,
-    artifactUris: [...proof.artifactUris, fileUri(outputPath)],
+    artifactUris: [...proof.artifactUris, storedProof.uri],
   };
   writeFileSync(outputPath, JSON.stringify(persisted, null, 2));
+  storeFileArtifact({
+    key: `executor-proofs/${input.initiativeId}/${input.attempt.id}.json`,
+    filePath: outputPath,
+    contentType: "application/json",
+  });
   return persisted;
 }
 

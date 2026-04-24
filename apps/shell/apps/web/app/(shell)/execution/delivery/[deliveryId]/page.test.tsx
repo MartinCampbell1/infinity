@@ -2,7 +2,9 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 
-const listDeliveriesMock = vi.hoisted(() => vi.fn(async () => []));
+const listDeliveriesMock = vi.hoisted(() =>
+  vi.fn(async (): Promise<Array<Record<string, unknown>>> => []),
+);
 
 vi.mock("@/lib/route-scope", () => ({
   readShellRouteScopeFromQueryRecord: vi.fn(() => ({

@@ -17,6 +17,14 @@ import {
   syncAutonomousRunTimeline,
   updateAutonomousRunStage,
 } from "./autonomous-run";
+import {
+  resolveArtifactStore,
+  resolveInfinityRoot,
+  storeJsonArtifact,
+  storeTextArtifact,
+  writeSignedArtifactManifest,
+  type StoredArtifact,
+} from "./artifacts";
 
 import { listOrchestrationTaskGraphs } from "./task-graphs";
 import { listOrchestrationWorkUnits } from "./work-units";
@@ -43,10 +51,17 @@ function sortedWorkUnitIds(workUnits: readonly WorkUnitRecord[]) {
 
 function assemblyOutputLocation(initiativeId: string, taskGraphId: string) {
   return path.join(
-    "/Users/martin/infinity/.local-state/orchestration/assemblies",
+    resolveInfinityRoot(),
+    ".local-state",
+    "orchestration",
+    "assemblies",
     initiativeId,
     taskGraphId
   );
+}
+
+function assemblyArtifactPrefix(initiativeId: string, taskGraphId: string) {
+  return `assemblies/${initiativeId}/${taskGraphId}`;
 }
 
 async function writeAssemblyPackage(
@@ -54,9 +69,14 @@ async function writeAssemblyPackage(
   taskGraph: TaskGraphRecord,
   workUnits: readonly WorkUnitRecord[]
 ) {
-  const outputLocation = assemblyOutputLocation(initiativeId, taskGraph.id);
-  const workUnitsDirectory = path.join(outputLocation, "work-units");
+  const store = resolveArtifactStore();
+  const localOutputLocation = assemblyOutputLocation(initiativeId, taskGraph.id);
+  const artifactPrefix = assemblyArtifactPrefix(initiativeId, taskGraph.id);
+  const outputLocation =
+    store.mode === "local" ? localOutputLocation : store.uriForKey(artifactPrefix);
+  const workUnitsDirectory = path.join(localOutputLocation, "work-units");
   await mkdir(workUnitsDirectory, { recursive: true });
+  const storedArtifacts: StoredArtifact[] = [];
 
   const artifacts = await Promise.all(
     workUnits.map(async (workUnit) => {
@@ -83,66 +103,98 @@ async function writeAssemblyPackage(
           2
         )
       );
+      const stored = storeJsonArtifact({
+        key: `${artifactPrefix}/work-units/${attemptId}.json`,
+        payload: {
+          initiativeId,
+          taskGraphId: taskGraph.id,
+          workUnitId: workUnit.id,
+          attemptId,
+          title: workUnit.title,
+          description: workUnit.description,
+          latestAttemptId: workUnit.latestAttemptId ?? null,
+          scopePaths: workUnit.scopePaths,
+          acceptanceCriteria: workUnit.acceptanceCriteria,
+        },
+      });
+      storedArtifacts.push(stored);
       return {
         attemptId,
-        artifactPath,
-        artifactUri: `file://${artifactPath}`,
+        artifactPath: store.mode === "local" ? artifactPath : stored.uri,
+        artifactUri: stored.uri,
       };
     })
   );
 
-  const manifestPath = path.join(outputLocation, "assembly-manifest.json");
+  const manifestPath = path.join(localOutputLocation, "assembly-manifest.json");
+  const manifest = {
+    initiativeId,
+    taskGraphId: taskGraph.id,
+    generatedAt: nowIso(),
+    workUnitIds: sortedWorkUnitIds(workUnits),
+    attemptIds: artifacts.map((artifact) => artifact.attemptId),
+    artifactUris: artifacts.map((artifact) => artifact.artifactUri),
+    artifacts: artifacts.map((artifact) => ({
+      attemptId: artifact.attemptId,
+      artifactPath: artifact.artifactPath,
+      artifactUri: artifact.artifactUri,
+    })),
+    sourceSummaries: workUnits.map((workUnit) => ({
+      workUnitId: workUnit.id,
+      title: workUnit.title,
+      scopePaths: workUnit.scopePaths,
+    })),
+    verificationPrerequisites: [
+      "assembly_present",
+      "work_units_completed",
+      "assembly_matches_task_graph",
+      "artifact_manifest_complete",
+      "static_checks_passed",
+      "targeted_tests_passed",
+    ],
+  };
   await writeFile(
     manifestPath,
-    JSON.stringify(
-      {
-        initiativeId,
-        taskGraphId: taskGraph.id,
-        generatedAt: nowIso(),
-        workUnitIds: sortedWorkUnitIds(workUnits),
-        attemptIds: artifacts.map((artifact) => artifact.attemptId),
-        artifactUris: artifacts.map((artifact) => artifact.artifactUri),
-        artifacts: artifacts.map((artifact) => ({
-          attemptId: artifact.attemptId,
-          artifactPath: artifact.artifactPath,
-          artifactUri: artifact.artifactUri,
-        })),
-        sourceSummaries: workUnits.map((workUnit) => ({
-          workUnitId: workUnit.id,
-          title: workUnit.title,
-          scopePaths: workUnit.scopePaths,
-        })),
-        verificationPrerequisites: [
-          "assembly_present",
-          "work_units_completed",
-          "assembly_matches_task_graph",
-          "artifact_manifest_complete",
-          "static_checks_passed",
-          "targeted_tests_passed",
-        ],
-      },
-      null,
-      2
-    )
+    JSON.stringify(manifest, null, 2)
   );
-  await writeFile(
-    path.join(outputLocation, "README.md"),
-    [
-      `# Assembly ${taskGraph.id}`,
-      "",
-      "This directory is a local handoff package generated by the shell orchestration slice.",
-      "It captures completed work-unit evidence and should be reviewed before any manual publish or release step.",
-      "",
-      `Work units: ${workUnits.length}`,
-      `Artifacts: ${artifacts.length}`,
-    ].join("\n")
-  );
+  const storedManifest = storeJsonArtifact({
+    key: `${artifactPrefix}/assembly-manifest.json`,
+    payload: manifest,
+  });
+  storedArtifacts.push(storedManifest);
+
+  const readme = [
+    `# Assembly ${taskGraph.id}`,
+    "",
+    "This directory is a local handoff package generated by the shell orchestration slice.",
+    "It captures completed work-unit evidence and should be reviewed before any manual publish or release step.",
+    "",
+    `Work units: ${workUnits.length}`,
+    `Artifacts: ${artifacts.length}`,
+  ].join("\n");
+  await writeFile(path.join(localOutputLocation, "README.md"), readme);
+  const storedReadme = storeTextArtifact({
+    key: `${artifactPrefix}/README.md`,
+    content: readme,
+    contentType: "text/markdown; charset=utf-8",
+  });
+  storedArtifacts.push(storedReadme);
+
+  const signedManifest = writeSignedArtifactManifest({
+    key: `${artifactPrefix}/signed-artifact-manifest.json`,
+    subject: {
+      kind: "assembly",
+      initiativeId,
+      taskGraphId: taskGraph.id,
+    },
+    artifacts: storedArtifacts,
+  });
 
   return {
     artifactUris: artifacts
       .map((artifact) => artifact.artifactUri)
       .sort((left, right) => left.localeCompare(right)),
-    manifestPath,
+    manifestPath: store.mode === "local" ? manifestPath : signedManifest.stored.uri,
     outputLocation,
   };
 }

@@ -17,6 +17,7 @@ export type DeliveryPromotionInput = {
   launchProofKind?: DeliveryLaunchProofKind | null;
   launchProofUrl?: string | null;
   launchProofAt?: string | null;
+  externalPullRequestUrl?: string | null;
   strictRolloutEnv?: boolean;
   externalPreviewUrl?: string | null;
   externalProofManifestPath?: string | null;
@@ -39,6 +40,7 @@ export function hasRunnableLaunchProof(input: DeliveryPromotionInput) {
 
 export function hasExternalDeliveryProof(input: DeliveryPromotionInput) {
   return (
+    present(input.externalPullRequestUrl) &&
     present(input.externalPreviewUrl) &&
     present(input.externalProofManifestPath) &&
     present(input.ciProofUri) &&

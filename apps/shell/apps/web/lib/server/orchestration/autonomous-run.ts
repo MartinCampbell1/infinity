@@ -23,7 +23,11 @@ import type {
   AutonomousValidationProofRecord,
   ControlPlaneState,
 } from "../control-plane/state/types";
-import { resolveShellPublicOriginForLaunch } from "../control-plane/workspace/rollout-config";
+import {
+  isStrictRolloutEnv,
+  resolveShellPublicOriginForLaunch,
+} from "../control-plane/workspace/rollout-config";
+import { isDeliveryHandoffReady } from "../../delivery-readiness";
 
 import { resolveInfinityRoot } from "./artifacts";
 import { buildOrchestrationId, nowIso } from "./shared";
@@ -58,6 +62,13 @@ export function resolveAutonomousRunRoot(runId: string) {
 
 function relativeToRunRoot(runId: string, filePath: string) {
   return path.relative(resolveAutonomousRunRoot(runId), filePath);
+}
+
+function displayEvidencePath(runId: string, filePath: string) {
+  if (filePath.includes("://") || !path.isAbsolute(filePath)) {
+    return filePath;
+  }
+  return relativeToRunRoot(runId, filePath);
 }
 
 export function findAutonomousRunByInitiativeId(
@@ -651,9 +662,8 @@ export function buildAutonomousValidationProof(
     latestBrief?.authoredBy?.trim() === AUTONOMOUS_PROOF_BRIEF_AUTHOR;
   const manualStageProgression = run.manualStageProgression || !autonomousOnePrompt;
   const launchReady =
-    delivery.status === "ready" &&
-    delivery.launchProofKind === "runnable_result" &&
-    Boolean(delivery.launchProofAt && delivery.launchManifestPath && delivery.launchProofUrl);
+    isDeliveryHandoffReady(delivery, { strictRolloutEnv: isStrictRolloutEnv() }) &&
+    Boolean(delivery.launchManifestPath);
 
   return {
     autonomousOnePrompt,
@@ -679,8 +689,8 @@ export function buildAutonomousDeliveryLinks(
 ) {
   return {
     deliveryPath: relativeToRunRoot(preview.runId, path.join(resolveAutonomousRunRoot(preview.runId), "delivering", "delivery.json")),
-    previewPath: relativeToRunRoot(preview.runId, preview.sourcePath),
-    handoffManifestPath: relativeToRunRoot(preview.runId, handoff.manifestPath),
+    previewPath: displayEvidencePath(preview.runId, preview.sourcePath),
+    handoffManifestPath: displayEvidencePath(preview.runId, handoff.manifestPath),
     localOutputPath: delivery.localOutputPath ?? null,
   };
 }

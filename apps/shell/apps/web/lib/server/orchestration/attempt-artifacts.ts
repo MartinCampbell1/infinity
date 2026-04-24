@@ -3,7 +3,7 @@ import path from "node:path";
 
 import type { WorkUnitRecord } from "../control-plane/contracts/orchestration";
 
-import { resolveInfinityRoot } from "./artifacts";
+import { resolveInfinityRoot, storeFileArtifact } from "./artifacts";
 import { nowIso } from "./shared";
 
 const ATTEMPT_ARTIFACTS_ROOT = path.join(
@@ -97,8 +97,22 @@ function readExistingAttemptManifest(manifestPath: string) {
   }
 }
 
-function fileUri(filePath: string) {
-  return `file://${filePath}`;
+function attemptArtifactKey(initiativeId: string, attemptId: string, relativePath: string) {
+  return `attempt-artifacts/${initiativeId}/${attemptId}/${relativePath}`;
+}
+
+function storedArtifactUri(params: {
+  initiativeId: string;
+  attemptId: string;
+  relativePath: string;
+  filePath: string;
+  contentType?: string;
+}) {
+  return storeFileArtifact({
+    key: attemptArtifactKey(params.initiativeId, params.attemptId, params.relativePath),
+    filePath: params.filePath,
+    contentType: params.contentType,
+  }).uri;
 }
 
 function isRunnableWorkUnit(workUnit: WorkUnitRecord) {
@@ -251,7 +265,15 @@ export function materializeAttemptArtifacts(params: {
     )
   );
 
-  const artifactUris = [fileUri(summaryPath)];
+  const artifactUris = [
+    storedArtifactUri({
+      initiativeId: params.initiativeId,
+      attemptId: params.attemptId,
+      relativePath: "attempt-summary.json",
+      filePath: summaryPath,
+      contentType: "application/json",
+    }),
+  ];
   let summary = "completed";
 
   if (isRunnableWorkUnit(params.workUnit)) {
@@ -272,9 +294,32 @@ export function materializeAttemptArtifacts(params: {
       existingManifest.targetLabel === label &&
       existingManifest.expectedMarker === target.expectedMarker
     ) {
-      artifactUris.push(fileUri(launchManifestPath), fileUri(resultManifestPath));
+      artifactUris.push(
+        storedArtifactUri({
+          initiativeId: params.initiativeId,
+          attemptId: params.attemptId,
+          relativePath: "runnable-result/launch-manifest.json",
+          filePath: launchManifestPath,
+          contentType: "application/json",
+        }),
+        storedArtifactUri({
+          initiativeId: params.initiativeId,
+          attemptId: params.attemptId,
+          relativePath: "runnable-result/result-manifest.json",
+          filePath: resultManifestPath,
+          contentType: "application/json",
+        })
+      );
       if (existsSync(indexPath)) {
-        artifactUris.push(fileUri(indexPath));
+        artifactUris.push(
+          storedArtifactUri({
+            initiativeId: params.initiativeId,
+            attemptId: params.attemptId,
+            relativePath: "runnable-result/index.html",
+            filePath: indexPath,
+            contentType: "text/html; charset=utf-8",
+          })
+        );
       }
       summary = `${existingManifest.targetLabel} referenced`;
       return {
@@ -330,7 +375,29 @@ export function materializeAttemptArtifacts(params: {
       )
     );
 
-    artifactUris.push(fileUri(launchManifestPath), fileUri(resultManifestPath), fileUri(indexPath));
+    artifactUris.push(
+      storedArtifactUri({
+        initiativeId: params.initiativeId,
+        attemptId: params.attemptId,
+        relativePath: "runnable-result/launch-manifest.json",
+        filePath: launchManifestPath,
+        contentType: "application/json",
+      }),
+      storedArtifactUri({
+        initiativeId: params.initiativeId,
+        attemptId: params.attemptId,
+        relativePath: "runnable-result/result-manifest.json",
+        filePath: resultManifestPath,
+        contentType: "application/json",
+      }),
+      storedArtifactUri({
+        initiativeId: params.initiativeId,
+        attemptId: params.attemptId,
+        relativePath: "runnable-result/index.html",
+        filePath: indexPath,
+        contentType: "text/html; charset=utf-8",
+      })
+    );
     summary = `${label} materialized`;
   }
 

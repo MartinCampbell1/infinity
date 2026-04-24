@@ -1,4 +1,3 @@
-import { access } from "node:fs/promises";
 import path from "node:path";
 
 import type {
@@ -22,6 +21,7 @@ import {
   syncAutonomousRunTimeline,
   updateAutonomousRunStage,
 } from "./autonomous-run";
+import { artifactEvidenceExists } from "./artifacts";
 
 import { listAssemblies } from "./assembly";
 import { listOrchestrationTaskGraphs } from "./task-graphs";
@@ -83,15 +83,6 @@ function arraysEqual(left: readonly string[], right: readonly string[]) {
   return left.every((value, index) => value === right[index]);
 }
 
-async function fileExists(filePath: string) {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function buildChecks(
   assembly: AssemblyRecord | null,
   workUnits: readonly WorkUnitRecord[],
@@ -102,17 +93,11 @@ async function buildChecks(
     (assembly?.outputLocation
       ? path.join(assembly.outputLocation, "assembly-manifest.json")
       : null);
-  const manifestPresent = manifestPath ? await fileExists(manifestPath) : false;
+  const manifestPresent = manifestPath ? artifactEvidenceExists(manifestPath) : false;
   const artifactEvidencePresent =
     !!assembly &&
     assembly.artifactUris.length === workUnits.length &&
-    (await Promise.all(
-      assembly.artifactUris.map((artifactUri) =>
-        artifactUri.startsWith("file://")
-          ? fileExists(artifactUri.replace(/^file:\/\//, ""))
-          : fileExists(artifactUri)
-      )
-    )).every(Boolean);
+    assembly.artifactUris.every((artifactUri) => artifactEvidenceExists(artifactUri));
 
   const checks: VerificationCheck[] = [
     {

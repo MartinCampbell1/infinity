@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { readControlPlaneState } from "../../../../../../lib/server/control-plane/state/store";
 import { withControlPlaneStorageGuard } from "../../../../../../lib/server/http/control-plane-storage-response";
+import { artifactLocalPath } from "../../../../../../lib/server/orchestration/artifacts";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,8 @@ export async function GET(
     }
 
     try {
-      const html = await readFile(preview.sourcePath, "utf8");
+      const sourcePath = artifactLocalPath(preview.sourcePath) ?? preview.sourcePath;
+      const html = await readFile(sourcePath, "utf8");
       return new NextResponse(html, {
         headers: {
           "content-type": "text/html; charset=utf-8",

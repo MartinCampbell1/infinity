@@ -84,6 +84,7 @@ describe("delivery promotion state machine", () => {
 
     const productionProofInput = {
       ...strictRunnableInput,
+      externalPullRequestUrl: "https://github.com/founderos/infinity/pull/123",
       externalPreviewUrl: "https://preview.infinity.example/index.html",
       externalProofManifestPath: "s3://infinity/proofs/delivery-state.json",
       ciProofUri: "github://checks/delivery-state",

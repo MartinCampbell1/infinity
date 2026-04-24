@@ -7,8 +7,11 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import {
   readControlPlaneState,
   resetControlPlaneStateForTests,
+  updateControlPlaneState,
 } from "../../../../../lib/server/control-plane/state/store";
+import { hashControlPlaneMutationRequest } from "../../../../../lib/server/control-plane/state/mutations";
 import { materializeAttemptArtifacts } from "../../../../../lib/server/orchestration/attempt-artifacts";
+import { artifactLocalPath } from "../../../../../lib/server/orchestration/artifacts";
 
 import { POST as postInitiatives } from "../initiatives/route";
 import { POST as postBriefs } from "../briefs/route";
@@ -18,6 +21,7 @@ import { PATCH as patchWorkUnit } from "../work-units/[workUnitId]/route";
 import { POST as postAssembly } from "../assembly/route";
 import { POST as postVerification } from "../verification/route";
 import { GET as getPreview } from "../previews/[previewId]/route";
+import { GET as downloadArtifact } from "../artifacts/download/route";
 import { GET as getDelivery, POST as postDelivery } from "./route";
 
 const ORIGINAL_CONTROL_PLANE_STATE_DIR =
@@ -35,6 +39,17 @@ const ORIGINAL_STRICT_ROLLOUT =
   process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
 const ORIGINAL_SHELL_PUBLIC_ORIGIN =
   process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN;
+const ORIGINAL_ARTIFACT_STORE_MODE = process.env.FOUNDEROS_ARTIFACT_STORE_MODE;
+const ORIGINAL_ARTIFACT_STORAGE_URI_PREFIX =
+  process.env.FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX;
+const ORIGINAL_ARTIFACT_SIGNED_URL_BASE =
+  process.env.FOUNDEROS_ARTIFACT_SIGNED_URL_BASE;
+const ORIGINAL_ARTIFACT_SIGNING_SECRET =
+  process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET;
+const ORIGINAL_ARTIFACT_OBJECT_MIRROR_ROOT =
+  process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT;
+const ORIGINAL_EXTERNAL_DELIVERY_MODE =
+  process.env.FOUNDEROS_EXTERNAL_DELIVERY_MODE;
 
 let tempStateDir = "";
 
@@ -43,6 +58,12 @@ beforeEach(async () => {
   process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR = tempStateDir;
   process.env.FOUNDEROS_INTEGRATION_ROOT = tempStateDir;
   delete process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
+  delete process.env.FOUNDEROS_ARTIFACT_STORE_MODE;
+  delete process.env.FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX;
+  delete process.env.FOUNDEROS_ARTIFACT_SIGNED_URL_BASE;
+  delete process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET;
+  delete process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT;
+  delete process.env.FOUNDEROS_EXTERNAL_DELIVERY_MODE;
   delete process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
   delete process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
   process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON = "1";
@@ -112,6 +133,41 @@ afterEach(async () => {
     delete process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN;
   } else {
     process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN = ORIGINAL_SHELL_PUBLIC_ORIGIN;
+  }
+  if (ORIGINAL_ARTIFACT_STORE_MODE === undefined) {
+    delete process.env.FOUNDEROS_ARTIFACT_STORE_MODE;
+  } else {
+    process.env.FOUNDEROS_ARTIFACT_STORE_MODE = ORIGINAL_ARTIFACT_STORE_MODE;
+  }
+  if (ORIGINAL_ARTIFACT_STORAGE_URI_PREFIX === undefined) {
+    delete process.env.FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX;
+  } else {
+    process.env.FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX =
+      ORIGINAL_ARTIFACT_STORAGE_URI_PREFIX;
+  }
+  if (ORIGINAL_ARTIFACT_SIGNED_URL_BASE === undefined) {
+    delete process.env.FOUNDEROS_ARTIFACT_SIGNED_URL_BASE;
+  } else {
+    process.env.FOUNDEROS_ARTIFACT_SIGNED_URL_BASE =
+      ORIGINAL_ARTIFACT_SIGNED_URL_BASE;
+  }
+  if (ORIGINAL_ARTIFACT_SIGNING_SECRET === undefined) {
+    delete process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET;
+  } else {
+    process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET =
+      ORIGINAL_ARTIFACT_SIGNING_SECRET;
+  }
+  if (ORIGINAL_ARTIFACT_OBJECT_MIRROR_ROOT === undefined) {
+    delete process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT;
+  } else {
+    process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT =
+      ORIGINAL_ARTIFACT_OBJECT_MIRROR_ROOT;
+  }
+  if (ORIGINAL_EXTERNAL_DELIVERY_MODE === undefined) {
+    delete process.env.FOUNDEROS_EXTERNAL_DELIVERY_MODE;
+  } else {
+    process.env.FOUNDEROS_EXTERNAL_DELIVERY_MODE =
+      ORIGINAL_EXTERNAL_DELIVERY_MODE;
   }
   if (tempStateDir) {
     rmSync(tempStateDir, { recursive: true, force: true });
@@ -483,6 +539,280 @@ describe("/api/control/orchestration/delivery", () => {
     ).toBe("verifying");
   });
 
+  test("strict rollout persists delivery artifacts as object-store URIs when object storage is configured", async () => {
+    process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV = "1";
+    process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN = "https://shell.infinity.example";
+    process.env.FOUNDEROS_ARTIFACT_STORE_MODE = "r2";
+    process.env.FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX =
+      "r2://infinity-artifacts/prod";
+    process.env.FOUNDEROS_ARTIFACT_SIGNED_URL_BASE =
+      "https://artifacts.infinity.example/download";
+    process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET =
+      "test-artifact-signing-secret";
+    const objectMirrorRoot = path.join(tempStateDir, "object-mirror");
+    process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT = objectMirrorRoot;
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const deliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const deliveryBody = await deliveryResponse.json();
+    const deliveryJson = JSON.stringify(deliveryBody.delivery);
+
+    expect(deliveryResponse.status).toBe(201);
+    expect(deliveryBody.delivery).toEqual(
+      expect.objectContaining({
+        status: "pending",
+        readinessTier: "staging",
+        localOutputPath: null,
+        command: null,
+      }),
+    );
+    expect(deliveryBody.delivery.manifestPath).toMatch(
+      /^r2:\/\/infinity-artifacts\/prod\/deliveries\/.+\/delivery-manifest\.json$/,
+    );
+    expect(deliveryBody.delivery.launchManifestPath).toMatch(
+      /^r2:\/\/infinity-artifacts\/prod\/deliveries\//,
+    );
+    expect(deliveryBody.delivery.externalProofManifestPath).toMatch(
+      /^r2:\/\/infinity-artifacts\/prod\/deliveries\/.+\/signed-artifact-manifest\.json$/,
+    );
+    expect(deliveryBody.delivery.artifactStorageUri).toMatch(
+      /^r2:\/\/infinity-artifacts\/prod\/deliveries\//,
+    );
+    expect(deliveryBody.delivery.signedManifestUri).toMatch(
+      /^https:\/\/artifacts\.infinity\.example\/download\?/,
+    );
+    expect(deliveryJson).not.toContain("file://");
+    expect(deliveryJson).not.toContain(tempStateDir);
+    expect(deliveryJson).not.toContain("/Users/martin/infinity");
+
+    const state = await readControlPlaneState();
+    const preview = state.orchestration.previewTargets.find(
+      (candidate) => candidate.deliveryId === deliveryBody.delivery.id,
+    );
+    const handoff = state.orchestration.handoffPackets.find(
+      (candidate) => candidate.deliveryId === deliveryBody.delivery.id,
+    );
+    const deliveryEvidenceJson = JSON.stringify({ preview, handoff });
+    expect(preview?.sourcePath).toMatch(
+      /^r2:\/\/infinity-artifacts\/prod\/deliveries\//,
+    );
+    expect(handoff?.rootPath).toMatch(
+      /^r2:\/\/infinity-artifacts\/prod\/deliveries\//,
+    );
+    expect(handoff?.finalSummaryPath).toMatch(
+      /^r2:\/\/infinity-artifacts\/prod\/deliveries\//,
+    );
+    expect(handoff?.manifestPath).toMatch(
+      /^r2:\/\/infinity-artifacts\/prod\/deliveries\//,
+    );
+    expect(deliveryEvidenceJson).not.toContain("file://");
+    expect(deliveryEvidenceJson).not.toContain(tempStateDir);
+    expect(deliveryEvidenceJson).not.toContain("/Users/martin/infinity");
+
+    const signedManifestResponse = await downloadArtifact(
+      new Request(deliveryBody.delivery.signedManifestUri),
+    );
+    expect(signedManifestResponse.status).toBe(200);
+    const signedManifestText = await signedManifestResponse.text();
+    expect(signedManifestText).not.toContain("file://");
+    expect(signedManifestText).not.toContain("localhost");
+    expect(signedManifestText).not.toContain("127.0.0.1");
+    expect(signedManifestText).not.toContain("0.0.0.0");
+    expect(signedManifestText).not.toContain(tempStateDir);
+    expect(signedManifestText).not.toContain(objectMirrorRoot);
+    expect(signedManifestText).not.toContain("/Users/martin/");
+    const signedManifest = JSON.parse(signedManifestText) as {
+      artifacts: Array<{ signedUrl: string }>;
+    };
+    expect(signedManifest.artifacts.length).toBeGreaterThan(0);
+    for (const artifact of signedManifest.artifacts) {
+      const artifactResponse = await downloadArtifact(
+        new Request(artifact.signedUrl),
+      );
+      expect(artifactResponse.status).toBe(200);
+      const artifactBody = await artifactResponse.text();
+      expect(artifactBody).not.toContain("file://");
+      expect(artifactBody).not.toContain("localhost");
+      expect(artifactBody).not.toContain("127.0.0.1");
+      expect(artifactBody).not.toContain("0.0.0.0");
+      expect(artifactBody).not.toContain(tempStateDir);
+      expect(artifactBody).not.toContain(objectMirrorRoot);
+      expect(artifactBody).not.toContain("/Users/martin/");
+    }
+
+    const previewResponse = await getPreview(
+      new Request(`http://localhost/api/control/orchestration/previews/${preview?.id}`),
+      { params: Promise.resolve({ previewId: preview?.id ?? "" }) },
+    );
+    expect(previewResponse.status).toBe(200);
+  });
+
+  test("strict rollout promotes mocked external PR, preview, and CI proof to production delivery", async () => {
+    process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV = "1";
+    process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN = "https://shell.infinity.example";
+    process.env.FOUNDEROS_ARTIFACT_STORE_MODE = "r2";
+    process.env.FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX =
+      "r2://infinity-artifacts/prod";
+    process.env.FOUNDEROS_ARTIFACT_SIGNED_URL_BASE =
+      "https://artifacts.infinity.example/download";
+    process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET =
+      "test-artifact-signing-secret";
+    const objectMirrorRoot = path.join(tempStateDir, "object-mirror");
+    process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT = objectMirrorRoot;
+    process.env.FOUNDEROS_EXTERNAL_DELIVERY_MODE = "mock";
+
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const deliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const deliveryBody = await deliveryResponse.json();
+    const deliveryJson = JSON.stringify(deliveryBody.delivery);
+
+    expect(deliveryResponse.status).toBe(201);
+    expect(deliveryBody.delivery).toEqual(
+      expect.objectContaining({
+        status: "ready",
+        readinessTier: "production",
+        localOutputPath: null,
+        command: null,
+        externalPreviewProvider: "vercel",
+        ciProofProvider: "github_commit_status",
+      }),
+    );
+    expect(deliveryBody.delivery.externalPullRequestUrl).toMatch(
+      /^https:\/\/github\.com\/founderos\/infinity\/pull\/\d+$/,
+    );
+    expect(deliveryBody.delivery.externalPreviewUrl).toMatch(
+      /^https:\/\/delivery-.+\.preview\.infinity\.example$/,
+    );
+    expect(deliveryBody.delivery.ciProofUri).toMatch(
+      /^https:\/\/github\.com\/founderos\/infinity\/commit\/mock-delivery-.+\/checks$/,
+    );
+    expect(deliveryBody.delivery.externalProofManifestPath).toMatch(
+      /^r2:\/\/infinity-artifacts\/prod\/deliveries\/.+\/external-delivery-proof\.json$/,
+    );
+    expect(deliveryJson).not.toContain("file://");
+    expect(deliveryJson).not.toContain(tempStateDir);
+    expect(deliveryJson).not.toContain(objectMirrorRoot);
+    expect(deliveryJson).not.toContain("/Users/martin/");
+
+    const proofManifestPath = artifactLocalPath(
+      deliveryBody.delivery.externalProofManifestPath,
+    );
+    expect(proofManifestPath).toBeTruthy();
+    const proofManifestJson = JSON.parse(
+      readFileSync(proofManifestPath ?? "", "utf8"),
+    ) as Record<string, unknown>;
+    const proofManifestText = JSON.stringify(proofManifestJson);
+    expect(proofManifestText).toContain(deliveryBody.delivery.externalPullRequestId);
+    expect(proofManifestText).toContain(deliveryBody.delivery.externalPreviewDeploymentId);
+    expect(proofManifestText).toContain(deliveryBody.delivery.ciProofId);
+    expect(proofManifestText).toContain(deliveryBody.delivery.artifactStorageUri);
+    expect(proofManifestText).toContain(deliveryBody.delivery.signedManifestUri);
+    expect(proofManifestText).not.toContain("file://");
+    expect(proofManifestText).not.toContain("localhost");
+    expect(proofManifestText).not.toContain("127.0.0.1");
+    expect(proofManifestText).not.toContain("0.0.0.0");
+    expect(proofManifestText).not.toContain(tempStateDir);
+    expect(proofManifestText).not.toContain(objectMirrorRoot);
+    expect(proofManifestText).not.toContain("/Users/martin/");
+
+    const deliveryManifestPath = artifactLocalPath(deliveryBody.delivery.manifestPath);
+    expect(deliveryManifestPath).toBeTruthy();
+    const deliveryManifestText = readFileSync(deliveryManifestPath ?? "", "utf8");
+    expect(deliveryManifestText).toContain(deliveryBody.delivery.externalPullRequestId);
+    expect(deliveryManifestText).toContain(deliveryBody.delivery.externalPreviewDeploymentId);
+    expect(deliveryManifestText).toContain(deliveryBody.delivery.ciProofId);
+    expect(deliveryManifestText).toContain(deliveryBody.delivery.externalProofManifestPath);
+    expect(deliveryManifestText).not.toContain("file://");
+    expect(deliveryManifestText).not.toContain("localhost");
+    expect(deliveryManifestText).not.toContain("127.0.0.1");
+    expect(deliveryManifestText).not.toContain("0.0.0.0");
+    expect(deliveryManifestText).not.toContain(tempStateDir);
+    expect(deliveryManifestText).not.toContain(objectMirrorRoot);
+    expect(deliveryManifestText).not.toContain("/Users/martin/");
+  });
+
+  test("bad object artifact config fails before persisting local artifact links", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    process.env.FOUNDEROS_ARTIFACT_STORE_MODE = "r2";
+    process.env.FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX =
+      `file://${tempStateDir}/object-artifacts`;
+    process.env.FOUNDEROS_ARTIFACT_SIGNED_URL_BASE =
+      "https://shell.infinity.example/api/control/orchestration/artifacts/download";
+    process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET =
+      "test-artifact-signing-secret";
+    process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT = path.join(
+      tempStateDir,
+      "object-mirror",
+    );
+
+    await expect(
+      postAssembly(
+        new Request("http://localhost/api/control/orchestration/assembly", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ initiativeId }),
+        }),
+      ),
+    ).rejects.toThrow(/must not be a local file path/i);
+
+    const state = await readControlPlaneState();
+    expect(state.orchestration.assemblies).toHaveLength(0);
+    expect(state.orchestration.deliveries).toHaveLength(0);
+  });
+
   test("strict rollout revalidates an existing ready local delivery before early return", async () => {
     const { initiativeId, taskGraphId } = await createPlannedInitiative();
     await completeAllWorkUnits(taskGraphId);
@@ -646,6 +976,69 @@ describe("/api/control/orchestration/delivery", () => {
     expect(listBody.deliveries[0]).toEqual(
       expect.objectContaining({
         id: localDeliveryBody.delivery.id,
+        status: "pending",
+        readinessTier: "staging",
+      }),
+    );
+  });
+
+  test("strict rollout projects stale same-policy idempotency replay responses", async () => {
+    process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV = "1";
+    const requestBody = { initiativeId: "initiative-stale-replay" };
+    const requestHash = hashControlPlaneMutationRequest({
+      route: "delivery.create",
+      body: {
+        ...requestBody,
+        strictRolloutEnv: true,
+      },
+    });
+
+    await updateControlPlaneState((draft) => {
+      draft.mutations.idempotency = [
+        {
+          tenantId: "default",
+          idempotencyKey: "delivery-stale-replay-001",
+          requestHash,
+          mutationEventId: "mutation-stale-replay-001",
+          status: "completed",
+          statusCode: 201,
+          responseJson: {
+            delivery: {
+              id: "delivery-stale-replay-001",
+              initiativeId: requestBody.initiativeId,
+              verificationRunId: "verification-stale-replay-001",
+              resultSummary: "Stale cached local ready response.",
+              launchProofKind: "runnable_result",
+              launchProofUrl: "http://127.0.0.1:4100/index.html",
+              launchProofAt: "2026-04-24T00:00:00.000Z",
+              status: "ready",
+              readinessTier: "local_solo",
+            },
+            verification: null,
+            assembly: null,
+          },
+          createdAt: "2026-04-24T00:00:00.000Z",
+          updatedAt: "2026-04-24T00:00:00.000Z",
+        },
+      ];
+    });
+
+    const replayResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "delivery-stale-replay-001",
+        },
+        body: JSON.stringify(requestBody),
+      }),
+    );
+    const replayBody = await replayResponse.json();
+
+    expect(replayResponse.status).toBe(201);
+    expect(replayBody.delivery).toEqual(
+      expect.objectContaining({
+        id: "delivery-stale-replay-001",
         status: "pending",
         readinessTier: "staging",
       }),

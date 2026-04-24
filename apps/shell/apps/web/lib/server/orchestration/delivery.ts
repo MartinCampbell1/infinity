@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -26,7 +27,15 @@ import {
 } from "./autonomous-run";
 import { materializeAttemptArtifacts, readRunnableAttemptTarget } from "./attempt-artifacts";
 import { listAssemblies } from "./assembly";
-import { resolveOrchestrationDeliveriesRoot, writeDeliveryManifest } from "./artifacts";
+import {
+  artifactLocalPath,
+  resolveArtifactStore,
+  resolveOrchestrationDeliveriesRoot,
+  storeFileArtifact,
+  writeDeliveryManifest,
+  writeSignedArtifactManifest,
+  type StoredArtifact,
+} from "./artifacts";
 import { listVerifications } from "./verification";
 import { listOrchestrationWorkUnits } from "./work-units";
 import { buildOrchestrationDirectoryMeta, buildOrchestrationId, nowIso } from "./shared";
@@ -36,6 +45,10 @@ import {
   resolveDeliveryPromotionState,
   type DeliveryPromotionInput,
 } from "./delivery-state-machine";
+import {
+  deliveryExternalProofFields,
+  publishExternalDeliveryProof,
+} from "./external-delivery";
 
 const LOCALHOST_PROOF_MARKER = "Infinity Local Preview";
 const DELIVERY_RESULT_MARKER = "Infinity Delivery Result";
@@ -100,7 +113,7 @@ type DeliveryLaunchManifest = {
   };
 };
 
-function cloneDelivery(value: DeliveryRecord) {
+export function projectDeliveryForCurrentReadiness(value: DeliveryRecord) {
   const strictRolloutEnv = isStrictRolloutEnv();
   const delivery = withResolvedDeliveryReadiness(
     JSON.parse(JSON.stringify(value)) as DeliveryRecord,
@@ -117,6 +130,10 @@ function cloneDelivery(value: DeliveryRecord) {
     };
   }
   return delivery;
+}
+
+function cloneDelivery(value: DeliveryRecord) {
+  return projectDeliveryForCurrentReadiness(value);
 }
 
 export {
@@ -219,6 +236,159 @@ function deliveryOutputLocation(initiativeId: string, deliveryId: string) {
   );
 }
 
+function deliveryArtifactPrefix(initiativeId: string, deliveryId: string) {
+  return `deliveries/${initiativeId}/${deliveryId}`;
+}
+
+function relativeArtifactKey(rootPath: string, filePath: string) {
+  const relative = path.relative(rootPath, filePath);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    return path.basename(filePath);
+  }
+  return relative;
+}
+
+function sanitizeHostedPreviewHtml(params: {
+  content: string;
+  localOutputPath: string;
+}) {
+  const localPathPrefixes = [
+    params.localOutputPath,
+    resolveOrchestrationDeliveriesRoot(),
+    process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT ?? null,
+    process.env.FOUNDEROS_INTEGRATION_ROOT ?? null,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.length - left.length);
+
+  let content = params.content;
+  for (const prefix of localPathPrefixes) {
+    content = content.split(prefix).join("[local-artifact-path]");
+  }
+  return content
+    .replace(/file:\/\/[^\s"'<>]+/g, "[file-uri-redacted]")
+    .replace(/https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):\d+[^\s"'<>]*/g, "[local-preview-url-redacted]")
+    .replace(/\/Users\/martin\/[^\s"'<>]+/g, "[local-user-path-redacted]")
+    .replace(/\blocalhost\b/g, "local-preview")
+    .replace(/\b127\.0\.0\.1\b/g, "local-preview")
+    .replace(/\b0\.0\.0\.0\b/g, "local-preview");
+}
+
+function packageDeliveryArtifacts(params: {
+  initiativeId: string;
+  deliveryId: string;
+  localOutputPath: string;
+  previewPath: string;
+  launchManifestPath: string;
+  handoffSummaryPath: string;
+  handoffManifestPath: string;
+}) {
+  const store = resolveArtifactStore();
+  const artifactPrefix = deliveryArtifactPrefix(params.initiativeId, params.deliveryId);
+  const storedArtifacts: StoredArtifact[] = [];
+  const storedByRole = new Map<string, StoredArtifact>();
+  const localPathPrefixes = [
+    params.localOutputPath,
+    resolveOrchestrationDeliveriesRoot(),
+    process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT ?? null,
+    store.mode === "local" ? null : process.env.FOUNDEROS_INTEGRATION_ROOT ?? null,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.length - left.length);
+
+  const sanitizeObjectArtifactContent = (filePath: string) => {
+    const bytes = readFileSync(filePath);
+    if (store.mode === "local") {
+      return bytes;
+    }
+    let content = bytes.toString("utf8");
+    for (const prefix of localPathPrefixes) {
+      content = content.split(prefix).join("[local-artifact-path]");
+    }
+    content = content
+      .replace(/file:\/\/[^\s"'<>]+/g, "[file-uri-redacted]")
+      .replace(/https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):\d+[^\s"'<>]*/g, "[local-preview-url-redacted]")
+      .replace(/\/Users\/martin\/[^\s"'<>]+/g, "[local-user-path-redacted]")
+      .replace(/\blocalhost\b/g, "local-preview")
+      .replace(/\b127\.0\.0\.1\b/g, "local-preview")
+      .replace(/\b0\.0\.0\.0\b/g, "local-preview");
+    return Buffer.from(content, "utf8");
+  };
+
+  const addArtifact = (
+    role: string,
+    filePath: string,
+    contentType = "application/octet-stream"
+  ) => {
+    const relative = relativeArtifactKey(params.localOutputPath, filePath);
+    const key =
+      role === "launch-manifest"
+        ? `${artifactPrefix}/launch/launch-manifest.json`
+        : `${artifactPrefix}/${relative}`;
+    const stored =
+      store.mode === "local"
+        ? storeFileArtifact({ key, filePath, contentType })
+        : store.putArtifact({
+            key,
+            content: sanitizeObjectArtifactContent(filePath),
+            contentType,
+          });
+    storedArtifacts.push(stored);
+    storedByRole.set(role, stored);
+    return stored;
+  };
+
+  addArtifact("preview", params.previewPath, "text/html; charset=utf-8");
+  addArtifact("delivery-summary", path.join(params.localOutputPath, "delivery-summary.json"), "application/json");
+  addArtifact("handoff", path.join(params.localOutputPath, "HANDOFF.md"), "text/markdown; charset=utf-8");
+  addArtifact("launch-manifest", params.launchManifestPath, "application/json");
+  addArtifact("handoff-summary", params.handoffSummaryPath, "text/markdown; charset=utf-8");
+  addArtifact("handoff-manifest", params.handoffManifestPath, "application/json");
+
+  const signedManifest = writeSignedArtifactManifest({
+    key: `${artifactPrefix}/signed-artifact-manifest.json`,
+    subject: {
+      kind: "delivery",
+      initiativeId: params.initiativeId,
+      deliveryId: params.deliveryId,
+    },
+    artifacts: storedArtifacts,
+  });
+
+  if (store.mode === "local") {
+    return {
+      recordLocalOutputPath: params.localOutputPath,
+      recordManifestPath: path.join(params.localOutputPath, "delivery-manifest.json"),
+      recordLaunchManifestPath: params.launchManifestPath,
+      recordPreviewSourcePath: params.previewPath,
+      recordHandoffRootPath: params.localOutputPath,
+      recordHandoffSummaryPath: params.handoffSummaryPath,
+      recordHandoffManifestPath: params.handoffManifestPath,
+      recordCommandIsLocal: true,
+      artifactStorageUri: null,
+      signedManifestUri: null,
+      externalProofManifestPath: null,
+    };
+  }
+
+  return {
+    recordLocalOutputPath: null,
+    recordManifestPath: store.uriForKey(`${artifactPrefix}/delivery-manifest.json`),
+    recordLaunchManifestPath:
+      storedByRole.get("launch-manifest")?.uri ?? signedManifest.stored.uri,
+    recordPreviewSourcePath: storedByRole.get("preview")?.uri ?? signedManifest.stored.uri,
+    recordHandoffRootPath: signedManifest.storageRootUri,
+    recordHandoffSummaryPath:
+      storedByRole.get("handoff-summary")?.uri ?? signedManifest.stored.uri,
+    recordHandoffManifestPath:
+      storedByRole.get("handoff-manifest")?.uri ?? signedManifest.stored.uri,
+    recordCommandIsLocal: false,
+    artifactStorageUri: signedManifest.storageRootUri,
+    signedManifestUri: signedManifest.stored.signedUrl,
+    externalProofManifestPath: signedManifest.stored.uri,
+  };
+}
+
 function launchScriptLocation(localOutputPath: string) {
   return path.join(localOutputPath, "launch-localhost.py");
 }
@@ -245,7 +415,10 @@ function isAssemblyBackedRunnableTarget(
     return false;
   }
 
-  return isPathWithinDirectory(target.workingDirectory, assembly.outputLocation);
+  const assemblyOutputLocation = artifactLocalPath(assembly.outputLocation);
+  return assemblyOutputLocation
+    ? isPathWithinDirectory(target.workingDirectory, assemblyOutputLocation)
+    : false;
 }
 
 function buildLaunchScript() {
@@ -794,7 +967,12 @@ async function materializeAssemblyRunnableTarget(params: {
     return null;
   }
 
-  const outputDir = path.join(params.assembly.outputLocation, "runnable-result");
+  const assemblyOutputLocation = artifactLocalPath(params.assembly.outputLocation);
+  if (!assemblyOutputLocation) {
+    return null;
+  }
+
+  const outputDir = path.join(assemblyOutputLocation, "runnable-result");
   await mkdir(outputDir, { recursive: true });
 
   const launchScriptPath = path.join(outputDir, "launch-localhost.py");
@@ -1030,6 +1208,11 @@ async function buildDeliveryFields(
   }
 ): Promise<{
   localOutputPath: string;
+  recordLocalOutputPath: string | null;
+  recordPreviewSourcePath: string;
+  recordHandoffRootPath: string;
+  recordHandoffSummaryPath: string;
+  recordHandoffManifestPath: string;
   launchReady: boolean;
   manifestPath: string;
   previewPath: string;
@@ -1039,7 +1222,11 @@ async function buildDeliveryFields(
   handoffSummaryPath: string;
   handoffManifestPath: string;
   handoffNotes: string;
-  command: string;
+  command: string | null;
+  artifactStorageUri: string | null;
+  signedManifestUri: string | null;
+  externalProofManifestPath: string | null;
+  hostedPreviewHtml: string;
   launchProofUrl: string | null;
   launchProofAt: string | null;
 }> {
@@ -1338,13 +1525,31 @@ async function buildDeliveryFields(
           runnableTarget.entryPath.replace(/^\/+/, "")
         )
       : previewPath;
+  const artifactPackage = packageDeliveryArtifacts({
+    initiativeId,
+    deliveryId,
+    localOutputPath,
+    previewPath: durablePreviewPath,
+    launchManifestPath,
+    handoffSummaryPath,
+    handoffManifestPath,
+  });
+  const hostedPreviewHtml = sanitizeHostedPreviewHtml({
+    content: await readFile(durablePreviewPath, "utf8"),
+    localOutputPath,
+  });
 
   return {
     localOutputPath,
+    recordLocalOutputPath: artifactPackage.recordLocalOutputPath,
+    recordPreviewSourcePath: artifactPackage.recordPreviewSourcePath,
+    recordHandoffRootPath: artifactPackage.recordHandoffRootPath,
+    recordHandoffSummaryPath: artifactPackage.recordHandoffSummaryPath,
+    recordHandoffManifestPath: artifactPackage.recordHandoffManifestPath,
     launchReady,
-    manifestPath: path.join(localOutputPath, "delivery-manifest.json"),
+    manifestPath: artifactPackage.recordManifestPath,
     previewPath: durablePreviewPath,
-    launchManifestPath,
+    launchManifestPath: artifactPackage.recordLaunchManifestPath,
     launchProofKind,
     launchTargetLabel,
     handoffSummaryPath,
@@ -1354,7 +1559,11 @@ async function buildDeliveryFields(
       : scaffoldOnlyTarget
         ? "Review the linked assembly manifest, attempt scaffold, and handoff bundle before any manual publish or release step. A real runnable result still needs separate proof."
         : "Review the linked assembly manifest, shell evidence wrapper, and handoff bundle before any manual publish or release step. A real runnable result still needs separate proof.",
-    command: launchShellCommand,
+    command: artifactPackage.recordCommandIsLocal ? launchShellCommand : null,
+    artifactStorageUri: artifactPackage.artifactStorageUri,
+    signedManifestUri: artifactPackage.signedManifestUri,
+    externalProofManifestPath: artifactPackage.externalProofManifestPath,
+    hostedPreviewHtml,
     launchProofUrl: launchProof?.url ?? null,
     launchProofAt: launchProof?.observedAt ?? null,
   };
@@ -1421,6 +1630,18 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
       title: productContext.title,
     }
   );
+  const externalProof = await publishExternalDeliveryProof({
+    deliveryId,
+    initiativeId: input.initiativeId,
+    assembly,
+    verification,
+    artifactStorageUri: fields.artifactStorageUri,
+    signedManifestUri: fields.signedManifestUri,
+    deliveryManifestUri: fields.manifestPath,
+    launchManifestUri: fields.launchManifestPath,
+    hostedPreviewHtml: fields.hostedPreviewHtml,
+  });
+  const externalProofFields = deliveryExternalProofFields(externalProof);
   const promotionInput: DeliveryPromotionInput = {
     assemblyReady: Boolean(assembly),
     verificationPassed: verification.overallStatus === "passed",
@@ -1428,11 +1649,13 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     launchProofUrl: fields.launchProofUrl,
     launchProofAt: fields.launchProofAt,
     strictRolloutEnv: isStrictRolloutEnv(),
-    externalPreviewUrl: null,
-    externalProofManifestPath: null,
-    ciProofUri: null,
-    artifactStorageUri: null,
-    signedManifestUri: null,
+    externalPullRequestUrl: externalProofFields.externalPullRequestUrl,
+    externalPreviewUrl: externalProofFields.externalPreviewUrl,
+    externalProofManifestPath:
+      externalProofFields.externalProofManifestPath ?? fields.externalProofManifestPath,
+    ciProofUri: externalProofFields.ciProofUri,
+    artifactStorageUri: fields.artifactStorageUri,
+    signedManifestUri: fields.signedManifestUri,
   };
   const launchReady = fields.launchReady && canPersistReadyDelivery(promotionInput);
   const promotionState = resolveDeliveryPromotionState(promotionInput);
@@ -1450,7 +1673,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
         : fields.launchProofKind === "attempt_scaffold"
           ? `Attempt scaffold preview and handoff bundle were prepared for initiative ${input.initiativeId}, but the requested product is still unproven as a real runnable result.`
           : `Evidence wrapper and handoff bundle were prepared for initiative ${input.initiativeId}, but the actual runnable result is still unproven.`,
-    localOutputPath: fields.localOutputPath,
+    localOutputPath: fields.recordLocalOutputPath,
     manifestPath: fields.manifestPath,
     previewUrl: null,
     launchManifestPath: fields.launchManifestPath,
@@ -1458,11 +1681,19 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     launchTargetLabel: fields.launchTargetLabel,
     launchProofUrl: fields.launchProofUrl,
     launchProofAt: fields.launchProofAt,
-    externalPreviewUrl: null,
-    externalProofManifestPath: null,
-    ciProofUri: null,
-    artifactStorageUri: null,
-    signedManifestUri: null,
+    externalPullRequestUrl: externalProofFields.externalPullRequestUrl,
+    externalPullRequestId: externalProofFields.externalPullRequestId,
+    externalPreviewUrl: externalProofFields.externalPreviewUrl,
+    externalPreviewProvider: externalProofFields.externalPreviewProvider,
+    externalPreviewDeploymentId: externalProofFields.externalPreviewDeploymentId,
+    externalProofManifestPath:
+      externalProofFields.externalProofManifestPath ?? fields.externalProofManifestPath,
+    ciProofUri: externalProofFields.ciProofUri,
+    ciProofProvider: externalProofFields.ciProofProvider,
+    ciProofId: externalProofFields.ciProofId,
+    artifactStorageUri: fields.artifactStorageUri,
+    signedManifestUri: fields.signedManifestUri,
+    externalDeliveryProof: externalProofFields.externalDeliveryProof,
     readinessTier,
     handoffNotes: fields.handoffNotes,
     command: fields.command,
@@ -1477,15 +1708,15 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     const preview = upsertPreviewTargetRecord(draft, input.initiativeId, {
       previewId,
       deliveryId: delivery.id,
-      sourcePath: fields.previewPath,
+      sourcePath: fields.recordPreviewSourcePath,
       launchCommand: delivery.command ?? null,
       healthStatus: "ready",
     });
     const handoff = upsertHandoffPacketRecord(draft, input.initiativeId, {
       deliveryId: delivery.id,
-      rootPath: fields.localOutputPath,
-      finalSummaryPath: fields.handoffSummaryPath,
-      manifestPath: fields.handoffManifestPath,
+      rootPath: fields.recordHandoffRootPath,
+      finalSummaryPath: fields.recordHandoffSummaryPath,
+      manifestPath: fields.recordHandoffManifestPath,
       status: launchReady ? "ready" : "building",
     });
     delivery.previewUrl = preview?.url ?? null;

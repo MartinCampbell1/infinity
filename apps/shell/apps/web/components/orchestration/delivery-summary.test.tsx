@@ -208,11 +208,153 @@ describe("DeliverySummary", () => {
     expect(markup).toContain("Staging proof review");
     expect(markup).toContain("Staging runnable proof");
     expect(markup).toContain("runnable proof pending");
+    expect(markup).toContain(">Pending<");
     expect(markup).toContain("Open task graph");
     expect(markup).toContain("Open preview");
     expect(markup).not.toContain("Handoff packet");
     expect(markup).not.toContain("Open handoff packet");
     expect(markup).not.toContain("/execution/handoffs/handoff-pending-proof-001");
     expect(markup).not.toContain(">Delivered<");
+    expect(markup).not.toContain(">Ready<");
+  });
+
+  test("renders object-store artifact proof rows without local file links", () => {
+    const markup = withStrictRolloutEnv("1", () => renderToStaticMarkup(
+      <DeliverySummary
+        delivery={{
+          id: "delivery-object-proof-001",
+          initiativeId: "initiative-object-proof-001",
+          verificationRunId: "verification-object-proof-001",
+          taskGraphId: "task-graph-object-proof-001",
+          resultSummary: "Runnable proof exists, external preview and CI proof are still pending.",
+          localOutputPath: null,
+          manifestPath: "r2://infinity-artifacts/prod/deliveries/delivery-object-proof-001/signed-artifact-manifest.json",
+          previewUrl: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-object-proof-001",
+          launchManifestPath: "r2://infinity-artifacts/prod/deliveries/delivery-object-proof-001/launch/launch-manifest.json",
+          launchProofKind: "runnable_result",
+          launchTargetLabel: "Object-backed runnable result",
+          launchProofUrl: "http://127.0.0.1:4102",
+          launchProofAt: "2026-04-23T22:00:00.000Z",
+          externalProofManifestPath: "r2://infinity-artifacts/prod/deliveries/delivery-object-proof-001/signed-artifact-manifest.json",
+          artifactStorageUri: "r2://infinity-artifacts/prod/deliveries/delivery-object-proof-001",
+          signedManifestUri: "https://artifacts.infinity.example/download?key=deliveries%2Fdelivery-object-proof-001%2Fsigned-artifact-manifest.json&amp;signature=abc",
+          command: null,
+          readinessTier: "staging",
+          status: "pending",
+          deliveredAt: "2026-04-23T22:01:00.000Z",
+        }}
+        initiativeTitle="Object-backed strict rollout"
+        initiativePrompt="Build a hosted delivery."
+        verification={{
+          id: "verification-object-proof-001",
+          initiativeId: "initiative-object-proof-001",
+          assemblyId: "assembly-object-proof-001",
+          overallStatus: "passed",
+          checks: [{ name: "targeted_tests_passed", status: "passed" }],
+          startedAt: "2026-04-23T22:00:00.000Z",
+          finishedAt: "2026-04-23T22:00:00.000Z",
+        }}
+        assembly={{
+          id: "assembly-object-proof-001",
+          initiativeId: "initiative-object-proof-001",
+          taskGraphId: "task-graph-object-proof-001",
+          inputWorkUnitIds: ["work-unit-final"],
+          artifactUris: ["r2://infinity-artifacts/prod/assemblies/initiative-object-proof-001/work-unit-final.json"],
+          outputLocation: "r2://infinity-artifacts/prod/assemblies/initiative-object-proof-001",
+          manifestPath: "r2://infinity-artifacts/prod/assemblies/initiative-object-proof-001/signed-artifact-manifest.json",
+          summary: "Assembled source work units.",
+          status: "assembled",
+          createdAt: "2026-04-23T22:00:00.000Z",
+          updatedAt: "2026-04-23T22:00:00.000Z",
+        }}
+        taskGraphId="task-graph-object-proof-001"
+        runId="run-object-proof-001"
+        handoffId="handoff-object-proof-001"
+        sourceWorkUnits={[]}
+      />,
+    ));
+
+    expect(markup).toContain("Artifact storage");
+    expect(markup).toContain("Signed manifest");
+    expect(markup).toContain("r2://infinity-artifacts/prod/deliveries/delivery-object-proof-001");
+    expect(markup).toContain("https://artifacts.infinity.example/download");
+    expect(markup).toContain('data-proof-row-label="Signed manifest"');
+    expect(markup).not.toContain("file://");
+    expect(markup).not.toContain("/Users/martin/infinity");
+    expect(markup).not.toContain("Launch command");
+  });
+
+  test("renders production external delivery actions for PR and hosted preview", () => {
+    const markup = withStrictRolloutEnv("1", () => renderToStaticMarkup(
+      <DeliverySummary
+        delivery={{
+          id: "delivery-production-proof-001",
+          initiativeId: "initiative-production-proof-001",
+          verificationRunId: "verification-production-proof-001",
+          taskGraphId: "task-graph-production-proof-001",
+          resultSummary: "Production proof is attached.",
+          localOutputPath: null,
+          manifestPath: "r2://infinity-artifacts/prod/deliveries/delivery-production-proof-001/delivery-manifest.json",
+          previewUrl: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-production-proof-001",
+          launchManifestPath: "r2://infinity-artifacts/prod/deliveries/delivery-production-proof-001/launch/launch-manifest.json",
+          launchProofKind: "runnable_result",
+          launchTargetLabel: "Object-backed runnable result",
+          launchProofUrl: "http://127.0.0.1:4102",
+          launchProofAt: "2026-04-23T22:00:00.000Z",
+          externalPullRequestUrl: "https://github.com/founderos/infinity/pull/124",
+          externalPullRequestId: "github-pr-delivery-production-proof-001",
+          externalPreviewUrl: "https://delivery-production-proof-001.preview.infinity.example",
+          externalPreviewProvider: "vercel",
+          externalPreviewDeploymentId: "vercel-preview-delivery-production-proof-001",
+          externalProofManifestPath: "r2://infinity-artifacts/prod/deliveries/delivery-production-proof-001/external-delivery-proof.json",
+          ciProofUri: "https://github.com/founderos/infinity/commit/proof-commit-sha/checks",
+          ciProofProvider: "github_commit_status",
+          ciProofId: "github-status-delivery-production-proof-001",
+          artifactStorageUri: "r2://infinity-artifacts/prod/deliveries/delivery-production-proof-001",
+          signedManifestUri: "https://artifacts.infinity.example/download?key=deliveries%2Fdelivery-production-proof-001%2Fsigned-artifact-manifest.json&amp;signature=abc",
+          command: null,
+          readinessTier: "production",
+          status: "ready",
+          deliveredAt: "2026-04-23T22:01:00.000Z",
+        }}
+        initiativeTitle="Production strict rollout"
+        initiativePrompt="Build a hosted delivery."
+        verification={{
+          id: "verification-production-proof-001",
+          initiativeId: "initiative-production-proof-001",
+          assemblyId: "assembly-production-proof-001",
+          overallStatus: "passed",
+          checks: [{ name: "targeted_tests_passed", status: "passed" }],
+          startedAt: "2026-04-23T22:00:00.000Z",
+          finishedAt: "2026-04-23T22:00:00.000Z",
+        }}
+        assembly={{
+          id: "assembly-production-proof-001",
+          initiativeId: "initiative-production-proof-001",
+          taskGraphId: "task-graph-production-proof-001",
+          inputWorkUnitIds: ["work-unit-final"],
+          artifactUris: ["r2://infinity-artifacts/prod/assemblies/initiative-production-proof-001/work-unit-final.json"],
+          outputLocation: "r2://infinity-artifacts/prod/assemblies/initiative-production-proof-001",
+          manifestPath: "r2://infinity-artifacts/prod/assemblies/initiative-production-proof-001/signed-artifact-manifest.json",
+          summary: "Assembled source work units.",
+          status: "assembled",
+          createdAt: "2026-04-23T22:00:00.000Z",
+          updatedAt: "2026-04-23T22:00:00.000Z",
+        }}
+        taskGraphId="task-graph-production-proof-001"
+        runId="run-production-proof-001"
+        handoffId="handoff-production-proof-001"
+        sourceWorkUnits={[]}
+      />,
+    ));
+
+    expect(markup).toContain("Production handoff ready");
+    expect(markup).toContain("Open pull request");
+    expect(markup).toContain("https://github.com/founderos/infinity/pull/124");
+    expect(markup).toContain("https://delivery-production-proof-001.preview.infinity.example");
+    expect(markup).toContain("CI proof");
+    expect(markup).not.toContain("file://");
+    expect(markup).not.toContain("/Users/martin/infinity");
+    expect(markup).not.toContain("Launch command");
   });
 });

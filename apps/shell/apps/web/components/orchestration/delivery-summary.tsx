@@ -152,7 +152,7 @@ export function DeliverySummary({
   sourceWorkUnits?: DeliverySourceWorkUnit[];
   routeScope?: Partial<ShellRouteScope> | null;
 }) {
-  const previewHref = delivery.previewUrl ?? null;
+  const previewHref = delivery.externalPreviewUrl ?? delivery.previewUrl ?? null;
   const continuityHref = buildExecutionContinuityScopeHref(delivery.initiativeId, routeScope);
   const strictRolloutEnv = isStrictRolloutEnv();
   const readinessCopy = resolveDeliveryReadinessCopy(delivery, {
@@ -203,6 +203,13 @@ export function DeliverySummary({
       : scaffoldOnly
         ? "Open the scaffold preview and handoff evidence, but do not treat it as proof that the requested product is truly runnable yet."
         : "Open the shell-generated preview wrapper and task graph before promoting this delivery any further.";
+  const displayDeliveryStatus =
+    delivery.status === "rejected"
+      ? "Rejected"
+      : handoffReady
+        ? titleCase(delivery.status)
+        : "Pending";
+  const deliveryStatusTone = handoffReady ? "success" : "warning";
   const changedFiles = [
     delivery.manifestPath,
     delivery.launchManifestPath,
@@ -216,7 +223,7 @@ export function DeliverySummary({
   const metrics = [
     {
       label: "Status",
-      value: scaffoldOnly || wrapperOnly ? "Pending" : titleCase(delivery.status),
+      value: displayDeliveryStatus,
       detail: `${readinessCopy.statusDetail} · ${readinessCopy.tierLabel}`,
     },
     {
@@ -250,9 +257,9 @@ export function DeliverySummary({
   const validationRows = [
     {
       label: "delivery",
-      value: titleCase(delivery.status),
+      value: displayDeliveryStatus,
       detail: delivery.id,
-      tone: delivery.status === "ready" || delivery.status === "delivered" ? "success" : "warning",
+      tone: deliveryStatusTone,
     },
     {
       label: "tier",
@@ -295,6 +302,10 @@ export function DeliverySummary({
       value: displayPreviewHref ?? "pending",
     },
     {
+      label: "Pull request",
+      value: delivery.externalPullRequestUrl ?? "not attached",
+    },
+    {
       label: "Local output path",
       value: delivery.localOutputPath ?? "n/a",
     },
@@ -310,10 +321,14 @@ export function DeliverySummary({
       label: "Launch proof URL",
       value: delivery.launchProofUrl ?? "pending",
     },
-    {
-      label: "Launch command",
-      value: delivery.command ?? "pending",
-    },
+    ...(delivery.command
+      ? [
+          {
+            label: "Launch command",
+            value: delivery.command,
+          },
+        ]
+      : []),
     {
       label: "Proof kind",
       value: delivery.launchProofKind ?? "pending",
@@ -326,9 +341,21 @@ export function DeliverySummary({
       label: "External proof manifest",
       value: delivery.externalProofManifestPath ?? "not attached",
     },
+    {
+      label: "CI proof",
+      value: delivery.ciProofUri ?? "not attached",
+    },
+    {
+      label: "Artifact storage",
+      value: delivery.artifactStorageUri ?? "not attached",
+    },
+    {
+      label: "Signed manifest",
+      value: delivery.signedManifestUri ?? "not attached",
+    },
   ];
   const priorityArtifactRows = artifactRows.filter((row) =>
-    ["Preview URL", "Manifest path", "Launch command", "Proof kind"].includes(row.label),
+    ["Preview URL", "Pull request", "Manifest path", "Signed manifest", "Launch command", "Proof kind"].includes(row.label),
   );
   const displayPreviewLabel = displayPreviewHref ?? "preview pending";
   const visibleSourceWorkUnits = sourceWorkUnits ?? [];
@@ -369,6 +396,13 @@ export function DeliverySummary({
                 <Link href={displayPreviewHref ?? previewHref}>
                   <PlaneButton variant="ghost" size="sm">
                     {readinessCopy.actionLabel}
+                  </PlaneButton>
+                </Link>
+              ) : null}
+              {delivery.externalPullRequestUrl ? (
+                <Link href={delivery.externalPullRequestUrl}>
+                  <PlaneButton variant="ghost" size="sm">
+                    Open pull request
                   </PlaneButton>
                 </Link>
               ) : null}
@@ -654,6 +688,13 @@ export function DeliverySummary({
                   </PlaneButton>
                 </Link>
               ) : null}
+              {delivery.externalPullRequestUrl ? (
+                <Link href={delivery.externalPullRequestUrl}>
+                  <PlaneButton variant="ghost" size="md" className="w-full justify-center">
+                    Open pull request
+                  </PlaneButton>
+                </Link>
+              ) : null}
             </div>
           </div>
 
@@ -670,6 +711,11 @@ export function DeliverySummary({
               {displayPreviewHref ? (
                 <Link href={displayPreviewHref} className="transition hover:text-white">
                   Open preview
+                </Link>
+              ) : null}
+              {delivery.externalPullRequestUrl ? (
+                <Link href={delivery.externalPullRequestUrl} className="transition hover:text-white">
+                  Open pull request
                 </Link>
               ) : null}
               <Link href={continuityHref} className="transition hover:text-white">

@@ -48,6 +48,7 @@ describe("delivery readiness copy", () => {
   test("allows production handoff-ready copy only with strict rollout and hosted proof", () => {
     const productionDelivery: DeliveryRecord = {
       ...baseDelivery,
+      externalPullRequestUrl: "https://github.com/founderos/infinity/pull/123",
       externalPreviewUrl: "https://preview.infinity.example/delivery-readiness-001",
       externalProofManifestPath: "s3://infinity/proofs/delivery-readiness-001.json",
       ciProofUri: "github://checks/delivery-readiness-001",

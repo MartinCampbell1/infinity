@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   buildDeliveriesDirectoryResponse,
   createDelivery,
+  projectDeliveryForCurrentReadiness,
 } from "../../../../../lib/server/orchestration/delivery";
 import { isCreateVerificationRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
 import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
@@ -66,9 +67,15 @@ export async function POST(request: Request) {
             tenantId,
             idempotencyKey,
             requestHash,
-          });
+        });
         if (replay) {
-          return NextResponse.json(replay.responseJson, {
+          const responseJson = {
+            ...replay.responseJson,
+            delivery: projectDeliveryForCurrentReadiness(
+              replay.responseJson.delivery,
+            ),
+          };
+          return NextResponse.json(responseJson, {
             status: replay.statusCode,
           });
         }

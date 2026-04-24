@@ -1,5 +1,8 @@
 import { buildExecutionRunScopeHref, type ShellRouteScope } from "../../route-scope";
+import { isDeliveryHandoffReady, withResolvedDeliveryReadiness } from "../../delivery-readiness";
 import type { ControlPlaneState } from "../control-plane/state/types";
+import type { DeliveryRecord } from "../control-plane/contracts/orchestration";
+import { isStrictRolloutEnv } from "../control-plane/workspace/rollout-config";
 import { listAutonomousRuns } from "./autonomous-run";
 
 export type ClaudeDisplayTask = {
@@ -46,9 +49,26 @@ function latestTaskGraph(state: ControlPlaneState, initiativeId: string) {
 }
 
 function latestDelivery(state: ControlPlaneState, initiativeId: string) {
-  return [...state.orchestration.deliveries]
+  const delivery = [...state.orchestration.deliveries]
     .filter((delivery) => delivery.initiativeId === initiativeId)
     .sort((left, right) => (right.deliveredAt ?? right.id).localeCompare(left.deliveredAt ?? left.id))[0] ?? null;
+  return delivery ? projectDeliveryForCurrentPolicy(delivery) : null;
+}
+
+function projectDeliveryForCurrentPolicy(delivery: DeliveryRecord): DeliveryRecord {
+  const strictRolloutEnv = isStrictRolloutEnv();
+  const projected = withResolvedDeliveryReadiness(delivery, { strictRolloutEnv });
+  if (
+    (projected.status === "ready" || projected.status === "delivered") &&
+    !isDeliveryHandoffReady(projected, { strictRolloutEnv })
+  ) {
+    return {
+      ...projected,
+      status: "pending",
+      deliveredAt: null,
+    };
+  }
+  return projected;
 }
 
 function latestAssembly(state: ControlPlaneState, initiativeId: string) {
@@ -125,6 +145,38 @@ function groupForDisplayStage(stage: string, health: string): DisplayRunGroup {
     return "attention";
   }
   return "running";
+}
+
+function deliveryHandoffReadyForCurrentPolicy(delivery: ReturnType<typeof latestDelivery>) {
+  return delivery
+    ? isDeliveryHandoffReady(delivery, { strictRolloutEnv: isStrictRolloutEnv() })
+    : false;
+}
+
+function demoteReadyStageWhenDeliveryPending(
+  stage: string,
+  delivery: ReturnType<typeof latestDelivery>,
+  deliveryHandoffReady: boolean
+) {
+  if (
+    delivery &&
+    !deliveryHandoffReady &&
+    (stage === "ready" || stage === "completed" || stage === "preview_ready" || stage === "handed_off")
+  ) {
+    return "verifying";
+  }
+  return stage;
+}
+
+function demoteHandoffWhenDeliveryPending(
+  handoffStatus: string,
+  delivery: ReturnType<typeof latestDelivery>,
+  deliveryHandoffReady: boolean
+) {
+  if (delivery && !deliveryHandoffReady && handoffStatus === "ready") {
+    return "building";
+  }
+  return handoffStatus;
 }
 
 function workspacePathForRun(
@@ -216,7 +268,17 @@ export function buildClaudeDesignRunsBoardItems(
     const completedUnits = workUnits.filter((workUnit) => workUnit.status === "completed").length;
     const delivery = latestDelivery(state, run.initiativeId);
     const assembly = latestAssembly(state, run.initiativeId);
-    const displayStage = stageFromRun(state, run.initiativeId, run.currentStage);
+    const deliveryHandoffReady = deliveryHandoffReadyForCurrentPolicy(delivery);
+    const displayStage = demoteReadyStageWhenDeliveryPending(
+      stageFromRun(state, run.initiativeId, run.currentStage),
+      delivery,
+      deliveryHandoffReady
+    );
+    const handoffStatus = demoteHandoffWhenDeliveryPending(
+      run.handoffStatus,
+      delivery,
+      deliveryHandoffReady
+    );
     const leadWorkUnit =
       workUnits.find((workUnit) => workUnit.status !== "completed") ?? workUnits[0] ?? null;
     const agentSessions = state.orchestration.agentSessions.filter(
@@ -231,7 +293,7 @@ export function buildClaudeDesignRunsBoardItems(
       stage: displayStage,
       health: run.health,
       preview: previewLabel(run.previewStatus, delivery?.launchProofKind, delivery?.status),
-      handoff: run.handoffStatus,
+      handoff: handoffStatus,
       updated: relativeAge(run.updatedAt, false),
       tasks: `${completedUnits} / ${workUnits.length}`,
       agent: leadWorkUnit?.executorType ?? "worker",
@@ -264,10 +326,16 @@ export function buildClaudeDesignFrontdoorRecentRuns(
     .slice(0, 5)
     .map((run) => {
       const initiative = firstInitiative(state, run.initiativeId);
+      const delivery = latestDelivery(state, run.initiativeId);
+      const deliveryHandoffReady = deliveryHandoffReadyForCurrentPolicy(delivery);
       return {
         id: getClaudeDisplayRunId(run.id),
         title: initiative?.title ?? run.title,
-        status: stageFromRun(state, run.initiativeId, run.currentStage),
+        status: demoteReadyStageWhenDeliveryPending(
+          stageFromRun(state, run.initiativeId, run.currentStage),
+          delivery,
+          deliveryHandoffReady
+        ),
         updatedLabel: relativeAge(run.updatedAt, true),
         href: buildExecutionRunScopeHref(run.initiativeId, routeScope),
       };

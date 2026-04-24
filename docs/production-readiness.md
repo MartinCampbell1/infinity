@@ -25,3 +25,96 @@ Production wording is allowed only when all of these are true:
 
 If any condition is missing, UI and validation output must downgrade to
 `local_solo` or `staging` wording.
+
+## External delivery smoke
+
+P0-BE-14 delivery proof is stronger than local runnable proof. It requires a
+real GitHub PR, a hosted preview, CI proof, and signed object-store artifacts.
+The repo-local command is:
+
+```bash
+npm run external-delivery:preflight --workspace @founderos/web
+npm run test:external-delivery-smoke --workspace @founderos/web
+```
+
+Both commands are intentionally fail-closed. The preflight performs read-only
+GitHub repo/base-branch access checks, Vercel project discovery, and the
+mutation guard without creating a PR or deployment. The smoke command only runs
+the live provider path when all required environment keys are present:
+
+```text
+FOUNDEROS_DEPLOYMENT_ENV=staging
+FOUNDEROS_EXTERNAL_DELIVERY_MODE=github_vercel
+FOUNDEROS_GITHUB_TOKEN
+FOUNDEROS_GITHUB_REPOSITORY
+FOUNDEROS_GITHUB_BASE_BRANCH
+FOUNDEROS_VERCEL_TOKEN
+FOUNDEROS_VERCEL_PROJECT_ID
+FOUNDEROS_VERCEL_GIT_REPO_ID
+FOUNDEROS_VERCEL_TEAM_ID or FOUNDEROS_VERCEL_TEAM_SLUG when the project lives in a team
+FOUNDEROS_VERCEL_PROTECTION_BYPASS_SECRET when signed/preview URLs are behind Vercel Deployment Protection
+FOUNDEROS_ARTIFACT_STORE_MODE=s3|gcs|r2|object
+FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX
+FOUNDEROS_ARTIFACT_SIGNED_URL_BASE
+FOUNDEROS_ARTIFACT_SIGNING_SECRET
+FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT
+FOUNDEROS_EXTERNAL_PREVIEW_EXPECTED_TEXT
+FOUNDEROS_EXTERNAL_DELIVERY_ALLOW_MUTATIONS=1
+```
+
+`FOUNDEROS_VERCEL_TOKEN` must be an API token for the Vercel account or team
+that owns `FOUNDEROS_VERCEL_PROJECT_ID`. A browser-created project is not enough
+if the token cannot read that project or create preview deployments through the
+REST API. Team-owned projects should set `FOUNDEROS_VERCEL_TEAM_ID` or
+`FOUNDEROS_VERCEL_TEAM_SLUG`; the Vercel REST API uses these as `teamId` or
+`slug` query parameters.
+
+If a project is visible in the Vercel UI but preflight still reports
+`Project not found`, create or use a Vercel API token from the same personal or
+team workspace that owns that project, then rerun the read-only preflight before
+running the mutating smoke. The discovery command also prints read-only access
+diagnostics for this case, including scoped project count, personal project
+count, and team-listing status.
+
+Preflight and smoke also probe `FOUNDEROS_ARTIFACT_SIGNED_URL_BASE` with a dummy
+signed-artifact request. A deployed route should reject the dummy request with
+the shell route's `403` JSON `artifact_unavailable` response. A `404` means the
+hosted shell does not contain the artifact download route yet. A `401` means the
+route is behind Vercel Deployment Protection and the smoke needs
+`FOUNDEROS_VERCEL_PROTECTION_BYPASS_SECRET`, which is sent as the
+`x-vercel-protection-bypass` header documented by Vercel for automation.
+Either failure stops the smoke before creating a GitHub delivery PR or Vercel
+preview deployment.
+
+`FOUNDEROS_ARTIFACT_STORE_MODE=local` is never valid for this smoke. The live
+test also rejects `file://`, localhost, `127.0.0.1`, `0.0.0.0`, and `/Users/`
+paths in the hosted preview and signed artifact evidence. The staging launcher
+also rejects object mirror roots under `/tmp`, `/var/tmp`, `/var/folders`, or
+`/Users`; those are local scratch locations that a hosted runtime cannot read
+after deploy. Before it creates or updates a GitHub delivery branch/PR, it also
+downloads the signed manifest and at least one signed artifact through
+`FOUNDEROS_ARTIFACT_SIGNED_URL_BASE`, verifies the returned checksum header, and
+rejects local path leaks in the downloaded bytes.
+The launcher requires `FOUNDEROS_EXTERNAL_DELIVERY_ALLOW_MUTATIONS=1` because a
+successful run mutates GitHub and Vercel. The underlying live smoke test also
+checks the same flag so direct Vitest execution fails closed before provider
+side effects.
+
+A passing smoke must prove all of these in one run:
+
+1. GitHub branch and PR were created or updated for the delivery.
+2. The branch contains `delivery-proofs/<deliveryId>.json`.
+3. The branch contains
+   `apps/shell/apps/web/public/deliveries/<deliveryId>/index.html`.
+4. Vercel reports a ready preview deployment.
+5. The returned preview URL is
+   `https://<deployment>/deliveries/<deliveryId>/index.html`.
+6. Fetching that URL returns `FOUNDEROS_EXTERNAL_PREVIEW_EXPECTED_TEXT`.
+7. GitHub CI status for the proof commit is successful.
+8. The signed manifest and at least one signed artifact are downloadable through
+   expiring signed URLs after crossing the hosted artifact download route.
+9. The external proof manifest and signed artifact manifest use object/signed
+   URLs, not local file paths.
+
+Until that command succeeds against real staging credentials, P0-BE-14 remains a
+blocked staging-smoke item even if all mocked provider tests are green.

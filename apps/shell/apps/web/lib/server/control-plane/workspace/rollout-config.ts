@@ -38,6 +38,27 @@ export const WORKSPACE_SESSION_GRANT_SECRET_ENV_KEY =
   "FOUNDEROS_WORKSPACE_SESSION_GRANT_SECRET";
 export const WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY =
   "FOUNDEROS_WORKSPACE_SESSION_TOKEN_SECRET";
+export const ARTIFACT_STORE_MODE_ENV_KEY = "FOUNDEROS_ARTIFACT_STORE_MODE";
+export const ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY =
+  "FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX";
+export const ARTIFACT_SIGNED_URL_BASE_ENV_KEY =
+  "FOUNDEROS_ARTIFACT_SIGNED_URL_BASE";
+export const ARTIFACT_SIGNING_SECRET_ENV_KEY =
+  "FOUNDEROS_ARTIFACT_SIGNING_SECRET";
+export const ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY =
+  "FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT";
+export const EXTERNAL_DELIVERY_MODE_ENV_KEY =
+  "FOUNDEROS_EXTERNAL_DELIVERY_MODE";
+export const GITHUB_TOKEN_ENV_KEY = "FOUNDEROS_GITHUB_TOKEN";
+export const GITHUB_REPOSITORY_ENV_KEY = "FOUNDEROS_GITHUB_REPOSITORY";
+export const GITHUB_BASE_BRANCH_ENV_KEY = "FOUNDEROS_GITHUB_BASE_BRANCH";
+export const VERCEL_TOKEN_ENV_KEY = "FOUNDEROS_VERCEL_TOKEN";
+export const VERCEL_PROJECT_ID_ENV_KEY = "FOUNDEROS_VERCEL_PROJECT_ID";
+export const VERCEL_GIT_REPO_ID_ENV_KEY = "FOUNDEROS_VERCEL_GIT_REPO_ID";
+export const VERCEL_TEAM_ID_ENV_KEY = "FOUNDEROS_VERCEL_TEAM_ID";
+export const VERCEL_TEAM_SLUG_ENV_KEY = "FOUNDEROS_VERCEL_TEAM_SLUG";
+export const VERCEL_PROTECTION_BYPASS_SECRET_ENV_KEY =
+  "FOUNDEROS_VERCEL_PROTECTION_BYPASS_SECRET";
 
 const SHELL_PUBLIC_ORIGIN_ENV_KEYS = [
   CANONICAL_SHELL_PUBLIC_ORIGIN_ENV_KEY,
@@ -57,6 +78,21 @@ const FULL_DEPLOYMENT_ENV_KEYS = [
   WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY,
   CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY,
   CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY,
+  ARTIFACT_STORE_MODE_ENV_KEY,
+  ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY,
+  ARTIFACT_SIGNED_URL_BASE_ENV_KEY,
+  ARTIFACT_SIGNING_SECRET_ENV_KEY,
+  ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY,
+  EXTERNAL_DELIVERY_MODE_ENV_KEY,
+] as const;
+
+const GITHUB_VERCEL_DELIVERY_ENV_KEYS = [
+  GITHUB_TOKEN_ENV_KEY,
+  GITHUB_REPOSITORY_ENV_KEY,
+  GITHUB_BASE_BRANCH_ENV_KEY,
+  VERCEL_TOKEN_ENV_KEY,
+  VERCEL_PROJECT_ID_ENV_KEY,
+  VERCEL_GIT_REPO_ID_ENV_KEY,
 ] as const;
 
 function normalizeEnvValue(value: string | null | undefined) {
@@ -169,12 +205,126 @@ function findProductionLocalOnlyEnvKeys(env: EnvLike) {
   return [...localOnlyKeys];
 }
 
+function artifactPrefixInvalidForMode(mode: string, prefix: string) {
+  if (
+    prefix.startsWith("/") ||
+    prefix.startsWith("file://") ||
+    prefix.includes("/Users/")
+  ) {
+    return true;
+  }
+  if (isLocalOnlyUrl(prefix)) {
+    return true;
+  }
+  if (mode === "s3") {
+    return !prefix.startsWith("s3://");
+  }
+  if (mode === "gcs") {
+    return !prefix.startsWith("gs://");
+  }
+  if (mode === "r2") {
+    return !prefix.startsWith("r2://");
+  }
+  if (mode === "object") {
+    return !(prefix.startsWith("object://") || prefix.startsWith("https://"));
+  }
+  return true;
+}
+
+function artifactMirrorRootInvalidForProductionLike(value: string) {
+  const normalized = value.trim().replace(/\/+$/, "");
+  return (
+    normalized.includes("/Users/") ||
+    normalized === "/tmp" ||
+    normalized.startsWith("/tmp/") ||
+    normalized === "/private/tmp" ||
+    normalized.startsWith("/private/tmp/") ||
+    normalized === "/var/tmp" ||
+    normalized.startsWith("/var/tmp/") ||
+    normalized.startsWith("/var/folders/")
+  );
+}
+
+function findInvalidArtifactEnvKeys(env: EnvLike) {
+  const invalidKeys = new Set<string>();
+  const deploymentEnv = resolveFounderOsDeploymentEnv(env);
+  const mode = normalizeEnvValue(env[ARTIFACT_STORE_MODE_ENV_KEY])?.toLowerCase();
+  const prefix = normalizeEnvValue(env[ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY]);
+  const signedUrlBase = normalizeEnvValue(env[ARTIFACT_SIGNED_URL_BASE_ENV_KEY]);
+  const mirrorRoot = normalizeEnvValue(env[ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY]);
+  const externalDeliveryMode = normalizeEnvValue(
+    env[EXTERNAL_DELIVERY_MODE_ENV_KEY],
+  )?.toLowerCase();
+
+  if (
+    mode &&
+    mode !== "local" &&
+    mode !== "s3" &&
+    mode !== "gcs" &&
+    mode !== "r2" &&
+    mode !== "object"
+  ) {
+    invalidKeys.add(ARTIFACT_STORE_MODE_ENV_KEY);
+  }
+  if ((deploymentEnv === "production" || deploymentEnv === "staging") && mode === "local") {
+    invalidKeys.add(ARTIFACT_STORE_MODE_ENV_KEY);
+  }
+  if (mode && prefix && artifactPrefixInvalidForMode(mode, prefix)) {
+    invalidKeys.add(ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY);
+  }
+  if (signedUrlBase) {
+    try {
+      const parsed = new URL(signedUrlBase);
+      if (
+        parsed.protocol === "file:" ||
+        isLocalOnlyUrl(signedUrlBase) ||
+        ((deploymentEnv === "production" || deploymentEnv === "staging") &&
+          parsed.protocol !== "https:")
+      ) {
+        invalidKeys.add(ARTIFACT_SIGNED_URL_BASE_ENV_KEY);
+      }
+    } catch {
+      invalidKeys.add(ARTIFACT_SIGNED_URL_BASE_ENV_KEY);
+    }
+  }
+  if (
+    (deploymentEnv === "production" || deploymentEnv === "staging") &&
+    mirrorRoot &&
+    artifactMirrorRootInvalidForProductionLike(mirrorRoot)
+  ) {
+    invalidKeys.add(ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY);
+  }
+  if (
+    externalDeliveryMode &&
+    externalDeliveryMode !== "disabled" &&
+    externalDeliveryMode !== "mock" &&
+    externalDeliveryMode !== "github_vercel"
+  ) {
+    invalidKeys.add(EXTERNAL_DELIVERY_MODE_ENV_KEY);
+  }
+  if (
+    (deploymentEnv === "production" || deploymentEnv === "staging") &&
+    externalDeliveryMode === "mock"
+  ) {
+    invalidKeys.add(EXTERNAL_DELIVERY_MODE_ENV_KEY);
+  }
+  if (
+    (deploymentEnv === "production" || deploymentEnv === "staging") &&
+    externalDeliveryMode === "disabled"
+  ) {
+    invalidKeys.add(EXTERNAL_DELIVERY_MODE_ENV_KEY);
+  }
+
+  return [...invalidKeys];
+}
+
 export function buildDeploymentEnvDiagnostics(env: EnvLike = process.env) {
   const deploymentEnv = resolveFounderOsDeploymentEnv(env);
   const strictEnv = isStrictRolloutEnv(env);
   const missingEnvKeys: string[] = [];
   const localOnlyEnvKeys: string[] =
     deploymentEnv === "production" ? findProductionLocalOnlyEnvKeys(env) : [];
+  const invalidEnvKeys = findInvalidArtifactEnvKeys(env);
 
   if (deploymentEnv === "production" && !strictEnv) {
     missingEnvKeys.push(STRICT_ROLLOUT_ENV_KEY);
@@ -186,6 +336,16 @@ export function buildDeploymentEnvDiagnostics(env: EnvLike = process.env) {
         missingEnvKeys.push(key);
       }
     }
+    const externalDeliveryMode = normalizeEnvValue(
+      env[EXTERNAL_DELIVERY_MODE_ENV_KEY],
+    )?.toLowerCase();
+    if (externalDeliveryMode === "github_vercel") {
+      for (const key of GITHUB_VERCEL_DELIVERY_ENV_KEYS) {
+        if (!normalizeEnvValue(env[key])) {
+          missingEnvKeys.push(key);
+        }
+      }
+    }
 
     if (!hasAnyConfiguredDatabaseUrl(env)) {
       missingEnvKeys.push(CONTROL_PLANE_DATABASE_URL_ENV_KEY);
@@ -195,9 +355,14 @@ export function buildDeploymentEnvDiagnostics(env: EnvLike = process.env) {
   const configuredEnvKeys = [
     DEPLOYMENT_ENV_KEY,
     STRICT_ROLLOUT_ENV_KEY,
+    EXTERNAL_DELIVERY_MODE_ENV_KEY,
     CONTROL_PLANE_DATABASE_URL_ENV_KEY,
     EXECUTION_HANDOFF_DATABASE_URL_ENV_KEY,
     ...FULL_DEPLOYMENT_ENV_KEYS,
+    ...GITHUB_VERCEL_DELIVERY_ENV_KEYS,
+    VERCEL_TEAM_ID_ENV_KEY,
+    VERCEL_TEAM_SLUG_ENV_KEY,
+    VERCEL_PROTECTION_BYPASS_SECRET_ENV_KEY,
   ].filter((key, index, keys) => {
     return keys.indexOf(key) === index && Boolean(normalizeEnvValue(env[key]));
   });
@@ -210,9 +375,13 @@ export function buildDeploymentEnvDiagnostics(env: EnvLike = process.env) {
     strictEnv,
     requiresFullEnv:
       deploymentEnv === "production" || deploymentEnv === "staging",
-    ready: missingEnvKeys.length === 0 && localOnlyEnvKeys.length === 0,
+    ready:
+      missingEnvKeys.length === 0 &&
+      localOnlyEnvKeys.length === 0 &&
+      invalidEnvKeys.length === 0,
     missingEnvKeys,
     localOnlyEnvKeys,
+    invalidEnvKeys,
     configuredEnvKeys,
     secretEnvKeys: [
       WORKSPACE_LAUNCH_SECRET_ENV_KEY,
@@ -220,6 +389,10 @@ export function buildDeploymentEnvDiagnostics(env: EnvLike = process.env) {
       WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY,
       CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY,
       CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY,
+      ARTIFACT_SIGNING_SECRET_ENV_KEY,
+      GITHUB_TOKEN_ENV_KEY,
+      VERCEL_TOKEN_ENV_KEY,
+      VERCEL_PROTECTION_BYPASS_SECRET_ENV_KEY,
       EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY,
     ].filter((key) => Boolean(normalizeEnvValue(env[key]))),
     notes: [
@@ -251,11 +424,15 @@ export function assertDeploymentEnvReady(env: EnvLike = process.env) {
   const localOnly = diagnostics.localOnlyEnvKeys.length
     ? `local-only production origins: ${diagnostics.localOnlyEnvKeys.join(", ")}`
     : null;
+  const invalid = diagnostics.invalidEnvKeys.length
+    ? `invalid env: ${diagnostics.invalidEnvKeys.join(", ")}`
+    : null;
   throw buildDeploymentEnvError(
     [
       `${DEPLOYMENT_ENV_KEY}=${diagnostics.deploymentEnv} is not boot-ready.`,
       missing,
       localOnly,
+      invalid,
     ]
       .filter(Boolean)
       .join(" "),
