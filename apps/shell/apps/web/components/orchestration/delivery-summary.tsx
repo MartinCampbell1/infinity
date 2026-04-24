@@ -18,6 +18,7 @@ import type {
   VerificationRunRecord,
   WorkUnitRecord,
 } from "@/lib/server/control-plane/contracts/orchestration";
+import { DeliveryProofCopyButton } from "./delivery-proof-copy-button";
 
 function titleCase(value: string | null | undefined) {
   if (!value) {
@@ -86,11 +87,14 @@ function DeliveryProofValue({
 }) {
   return (
     <div className="min-w-0">
-      <div
-        className="truncate font-mono text-white/82"
-        title={value}
-      >
-        {compactEvidenceValue(value)}
+      <div className="flex min-w-0 items-start gap-2">
+        <div
+          className="min-w-0 flex-1 truncate font-mono text-white/82"
+          title={value}
+        >
+          {compactEvidenceValue(value)}
+        </div>
+        <DeliveryProofCopyButton label={label} value={value} />
       </div>
       <details
         className="mt-1 rounded-[8px] border border-white/6 bg-black/20 px-2 py-1"
@@ -473,15 +477,25 @@ export function DeliverySummary({
                 </div>
               </div>
 
-              <div className="rounded-[14px] border border-white/8 bg-white/[0.025] px-5 py-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
-                    Source work units
+              <details
+                className="rounded-[14px] border border-white/8 bg-white/[0.025] px-5 py-5"
+                data-secondary-evidence="source-work-units"
+              >
+                <summary className="cursor-pointer list-none">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                        Secondary source evidence
+                      </div>
+                      <div className="mt-1 text-[13px] text-white/62">
+                        Source work units
+                      </div>
+                    </div>
+                    <span className="font-mono text-[11px] text-white/48">
+                      {visibleSourceWorkUnits.length} linked
+                    </span>
                   </div>
-                  <span className="font-mono text-[11px] text-white/48">
-                    {visibleSourceWorkUnits.length} linked
-                  </span>
-                </div>
+                </summary>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   {visibleSourceWorkUnits.length ? (
                     visibleSourceWorkUnits.map((workUnit) => (
@@ -518,7 +532,7 @@ export function DeliverySummary({
                     </div>
                   )}
                 </div>
-              </div>
+              </details>
             </div>
           </div>
         </section>
