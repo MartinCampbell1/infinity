@@ -226,6 +226,26 @@ def assert_run_page_has_task_inspection(page, phase: str) -> None:
         assert_visible_text(page, text, phase)
 
 
+def assert_primary_run_surface_ready(page, phase: str) -> None:
+    required_labels = ("primary run", "open brief", "open task graph", "current stage")
+    try:
+        page.wait_for_function(
+            """(labels) => {
+                const bodyText = document.body.innerText.toLowerCase();
+                return window.location.pathname.includes("/execution/runs/")
+                    && !bodyText.includes("loading execution surface")
+                    && labels.every((label) => bodyText.includes(label));
+            }""",
+            arg=list(required_labels),
+            timeout=20_000,
+        )
+    except Exception as error:
+        body_text = page.locator("body").inner_text(timeout=10_000)
+        raise ValidationFailure(
+            f"Primary run surface was not ready during {phase}. Body excerpt: {body_text[:700]}"
+        ) from error
+
+
 def assert_run_page_has_attempt_inspection(page, phase: str) -> None:
     for text in ("Open batch", "Attempt"):
         assert_visible_text(page, text, phase)
@@ -341,14 +361,22 @@ def wait_for_stage(
 ) -> dict[str, Any]:
     started = time.time()
     latest: dict[str, Any] | None = None
+    latest_error: str | None = None
     while time.time() - started < timeout_seconds:
-        latest = fetch_continuity_snapshot(shell_origin, initiative_id, api_snapshots_dir, name)
+        try:
+            latest = fetch_continuity_snapshot(shell_origin, initiative_id, api_snapshots_dir, name)
+            latest_error = None
+        except requests.RequestException as error:
+            latest_error = f"{type(error).__name__}: {error}"
+            time.sleep(1)
+            continue
         assert_not_blocked(latest)
         if predicate(latest):
             return latest
         time.sleep(1)
     raise ValidationFailure(
-        f"Timed out waiting for stage `{name}` for initiative {initiative_id}. Latest snapshot: {latest}"
+        f"Timed out waiting for stage `{name}` for initiative {initiative_id}. "
+        f"Latest snapshot: {latest}; latest transient HTTP error: {latest_error}"
     )
 
 
@@ -675,6 +703,7 @@ def run_browser_e2e_solo(args: argparse.Namespace) -> int:
 
                 report["initiative_id"] = initiative_id
                 page.wait_for_load_state("networkidle")
+                assert_primary_run_surface_ready(page, "primary run created")
                 capture_phase(
                     page,
                     "02-primary-run-created",
@@ -715,6 +744,7 @@ def run_browser_e2e_solo(args: argparse.Namespace) -> int:
                     api_snapshots_dir,
                     "04-continuity-work-units",
                     lambda continuity: bool(continuity.get("batches")),
+                    timeout_seconds=240,
                 )
                 batch_ids = [
                     str(batch.get("id"))

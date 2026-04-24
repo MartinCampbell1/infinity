@@ -48,7 +48,7 @@ describe("DeliverySummary", () => {
           launchTargetLabel: "Invoice generator",
           launchProofUrl: "http://127.0.0.1:4100",
           launchProofAt: "2026-04-23T20:00:00.000Z",
-          command: "python3 launch-localhost.py --port 4100",
+          command: "python3 /Users/martin/infinity/.control-plane/orchestration/assemblies/assembly-proof-001/runnable-result/launch-localhost.py --port 0 --entry /index.html",
           status: "ready",
           deliveredAt: "2026-04-23T20:01:00.000Z",
         }}
@@ -94,7 +94,12 @@ describe("DeliverySummary", () => {
 
     expect(markup).toContain("Result summary");
     expect(markup).toContain("Generated invoice app is ready.");
+    expect(markup).toContain('data-delivery-proof-grid="grouped"');
+    expect(markup).toContain("2xl:grid-cols-2");
+    expect(markup).toContain('data-proof-drawer="all-values"');
+    expect(markup).toContain("All proof values");
     expect(markup).toContain("Preview URL");
+    expect(markup).toContain('data-proof-row-label="Preview URL"');
     expect(markup).toContain('data-proof-value-label="Preview URL"');
     expect(markup).toContain('data-copy-proof-label="Preview URL"');
     expect(markup).toContain('aria-label="Copy Preview URL"');
@@ -103,13 +108,15 @@ describe("DeliverySummary", () => {
     expect(markup).toContain('data-proof-value-label="Manifest path"');
     expect(markup).toContain('data-copy-proof-label="Manifest path"');
     expect(markup).toContain("/tmp/infinity-delivery/invoice-app/delivery-manifest.json");
-    expect(markup).toContain("/tmp/infinity-delivery/.../delivery-manifest.json");
+    expect(markup).toContain("/tmp/.../invoice-app/delivery-manifest.json");
     expect(markup).toContain("Local output path");
     expect(markup).toContain("/tmp/infinity-delivery/invoice-app");
     expect(markup).toContain("Launch command");
+    expect(markup).toContain('data-proof-row-label="Launch command"');
     expect(markup).toContain('data-proof-value-label="Launch command"');
     expect(markup).toContain('data-copy-proof-label="Launch command"');
-    expect(markup).toContain("python3 launch-localhost.py --port 4100");
+    expect(markup).toContain("python3 .../launch-localhost.py --port 0 --entry /index.html");
+    expect(markup).toContain("/Users/martin/infinity/.control-plane/orchestration/assemblies/assembly-proof-001/runnable-result/launch-localhost.py");
     expect(markup).toContain("Proof kind");
     expect(markup).toContain("runnable_result");
     expect(markup).toContain('data-secondary-evidence="source-work-units"');

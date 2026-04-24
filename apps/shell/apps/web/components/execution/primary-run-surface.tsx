@@ -345,6 +345,28 @@ export function PrimaryRunSurface({
     })),
   ].filter((value): value is { label: string; body: string; createdAt: string } => Boolean(value));
   const runIdLabel = shortRunId(currentRun?.id ?? initiative.id);
+  const proofStripRows = [
+    {
+      label: currentAssembly?.status === "assembled" ? "Assembly ready" : "Assembly pending",
+      value: currentAssembly?.manifestPath
+        ? evidenceLabel(currentAssembly.manifestPath)
+        : currentAssembly?.id ?? "not attached",
+      href: taskGraphHref,
+      tone: currentAssembly?.status === "assembled" ? "success" : "pending",
+    },
+    {
+      label: currentDelivery ? "Verification passed" : "Verification pending",
+      value: currentDelivery?.verificationRunId ?? "not attached",
+      href: deliveryHref,
+      tone: currentDelivery ? "success" : "pending",
+    },
+    {
+      label: currentDelivery?.status === "ready" ? "Delivery ready" : "Delivery pending",
+      value: currentDelivery?.launchProofKind ?? currentDelivery?.id ?? "not attached",
+      href: deliveryHref,
+      tone: currentDelivery?.status === "ready" ? "success" : "pending",
+    },
+  ];
 
   return (
     <main className="mx-auto grid max-w-[1520px] gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -492,6 +514,45 @@ export function PrimaryRunSurface({
                 <div className="mt-1 text-[11px] text-white/56">{metric.detail}</div>
               </div>
             ))}
+          </div>
+
+          <div
+            className="grid gap-3 rounded-[14px] border border-emerald-400/16 bg-emerald-400/[0.045] px-4 py-4 md:grid-cols-3"
+            data-run-proof-strip="assembly-verification-delivery"
+          >
+            {proofStripRows.map((row) => {
+              const content = (
+                <>
+                  <div
+                    className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                      row.tone === "success" ? "text-emerald-100/82" : "text-amber-100/78"
+                    }`}
+                  >
+                    {row.label}
+                  </div>
+                  <div className="mt-2 truncate font-mono text-[11px] leading-5 text-white/76">
+                    {row.value}
+                  </div>
+                </>
+              );
+
+              return row.href ? (
+                <Link
+                  key={row.label}
+                  href={row.href}
+                  className="min-w-0 rounded-[10px] border border-white/7 bg-white/[0.025] px-3 py-3 transition hover:border-white/16 hover:bg-white/[0.045]"
+                >
+                  {content}
+                </Link>
+              ) : (
+                <div
+                  key={row.label}
+                  className="min-w-0 rounded-[10px] border border-white/7 bg-white/[0.025] px-3 py-3"
+                >
+                  {content}
+                </div>
+              );
+            })}
           </div>
         </header>
 

@@ -448,7 +448,7 @@ function buildPromptDerivedIndexHtml(params: {
     '<html lang="en">',
     "<head>",
     '  <meta charset="utf-8" />',
-    `  <title>${escapeHtml(params.title)}</title>`,
+    `  <title>${escapeHtml(productLabel)}</title>`,
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
     "  <style>",
     "    * { box-sizing: border-box; }",
@@ -476,7 +476,7 @@ function buildPromptDerivedIndexHtml(params: {
     '    <section class="app">',
     '      <div class="panel">',
     `        <div class="eyebrow">${escapeHtml(productLabel)} - prompt-derived runnable result</div>`,
-    `        <h1>${escapeHtml(params.title)}</h1>`,
+    `        <h1>${escapeHtml(productLabel)}</h1>`,
     `        <p class="prompt">${escapeHtml(params.prompt)}</p>`,
     "      </div>",
     '      <form class="panel" onsubmit="return false;">',
@@ -491,6 +491,15 @@ function buildPromptDerivedIndexHtml(params: {
     "</body>",
     "</html>",
   ].join("\n");
+}
+
+function resolveRunnableResultTitle(params: { prompt: string; title: string }) {
+  const title = params.title.trim();
+  const prompt = normalizePrompt(params.prompt);
+  if (title.endsWith("...") && prompt.length > title.length) {
+    return prompt;
+  }
+  return title || prompt || "Generated runnable result";
 }
 
 async function materializeAssemblyRunnableTarget(params: {
@@ -518,7 +527,7 @@ async function materializeAssemblyRunnableTarget(params: {
   const generatedAt = nowIso();
   const prompt = normalizePrompt(params.prompt);
   const appKind = deriveRunnableAppKind(prompt);
-  const title = params.title.trim() || "Generated runnable result";
+  const title = resolveRunnableResultTitle({ prompt, title: params.title });
   const appScript = buildRunnableAppScript(appKind);
   const sourceWorkUnits = params.sourceWorkUnits.map((workUnit) => ({
     id: workUnit.id,

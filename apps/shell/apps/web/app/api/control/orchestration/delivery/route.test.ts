@@ -683,7 +683,7 @@ describe("/api/control/orchestration/delivery", () => {
     const prompt =
       "Build a tiny tip calculator web app with amount, tip percent, and visible total.";
     const { initiativeId, taskGraphId } = await createPlannedInitiative({
-      title: "Tiny tip calculator",
+      title: "Build a tiny tip calculator web app with amount, tip percent, and vi...",
       userRequest: prompt,
     });
     await completeAllWorkUnits(taskGraphId);
@@ -768,11 +768,13 @@ describe("/api/control/orchestration/delivery", () => {
     const previewHtml = await previewResponse.text();
 
     expect(previewResponse.status).toBe(200);
-    expect(previewHtml).toContain("Tiny tip calculator");
+    expect(previewHtml).toContain("<h1>Tip calculator</h1>");
+    expect(previewHtml).not.toContain(`<h1>${prompt}</h1>`);
+    expect(previewHtml).not.toContain("<h1>Build a tiny tip calculator web app with amount, tip percent, and vi...</h1>");
     expect(previewHtml).toContain("Bill amount");
     expect(previewHtml).toContain("Tip percent");
     expect(previewHtml).toContain("Total with tip");
-    expect(previewHtml).toContain(prompt);
+    expect(previewHtml).toContain(`<p class="prompt">${prompt}</p>`);
     expect(previewHtml).toContain("tip-result");
     expect(previewHtml).not.toContain("Truthful runnable delivery bundle");
   });

@@ -414,6 +414,11 @@ export type DeliveryRecord = {
 	localOutputPath?: string | null;
 	manifestPath?: string | null;
 	previewUrl?: string | null;
+	launchManifestPath?: string | null;
+	launchProofKind?: 'runnable_result' | 'attempt_scaffold' | 'synthetic_wrapper' | null;
+	launchTargetLabel?: string | null;
+	launchProofUrl?: string | null;
+	launchProofAt?: string | null;
 	handoffNotes?: string | null;
 	command?: string | null;
 	status: 'pending' | 'ready' | 'delivered' | 'rejected';

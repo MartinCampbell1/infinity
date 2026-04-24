@@ -289,6 +289,13 @@ describe("PrimaryRunSurface", () => {
     expect(markup).toContain('data-status="delivered"');
     expect(markup).toContain("Current stage");
     expect(markup).toContain("Delivered");
+    expect(markup).toContain('data-run-proof-strip="assembly-verification-delivery"');
+    expect(markup).toContain("Assembly ready");
+    expect(markup).toContain("Verification passed");
+    expect(markup).toContain("Delivery ready");
+    expect(markup).toContain("/execution/task-graphs/task-graph-1");
+    expect(markup).toContain("/execution/delivery/delivery-1");
+    expect(markup).toContain("assembly-manifest.json");
 
     expect(markup).toContain('data-task-board-layout="scan-list"');
     expect(markup).toContain("Task t01");

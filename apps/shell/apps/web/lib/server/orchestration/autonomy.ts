@@ -29,6 +29,12 @@ const AUTONOMOUS_REPO_SCOPE = [
 
 const MAX_AUTONOMOUS_PASSES = 24;
 
+function yieldAutonomousLoopTurn() {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
 function autonomyFailureDetail(error: unknown, kernelBaseUrl: string) {
   const message = error instanceof Error ? error.message : "Autonomous orchestration failed.";
   const cause =
@@ -322,6 +328,9 @@ export async function runAutonomousLoopForInitiative(initiativeId: string) {
     progressedAny = progressedAny || progressed;
     if (!progressed) {
       break;
+    }
+    if (!shouldRunAutonomousLoopInline()) {
+      await yieldAutonomousLoopTurn();
     }
   }
 

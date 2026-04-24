@@ -154,9 +154,9 @@ const SHELL_NAV_GROUPS: ShellNavGroup[] = [
 function pageMeta(pathname: string) {
   if (pathname === "/") {
     return {
-      eyebrow: "Plane / Home",
-      title: "Home",
-      description: "Plane AI home.",
+      eyebrow: "Control plane / Home",
+      title: "Run control plane",
+      description: "Shell-first home for autonomous run control.",
     };
   }
 
@@ -885,7 +885,10 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                       <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/85 text-[16px] font-medium text-white">
                         I
                       </div>
-                      <div className="min-w-0 text-[16px] font-medium tracking-[-0.02em] text-foreground">
+                      <div
+                        className="min-w-0 text-[16px] font-medium tracking-[-0.02em] text-foreground"
+                        aria-label={meta.eyebrow}
+                      >
                         {meta.eyebrow.split("/").map((part, index, parts) => (
                           <span key={`${part}-${index}`} className="inline-flex items-center gap-2">
                             <span className={index === parts.length - 1 ? "text-foreground" : "text-white/78"}>

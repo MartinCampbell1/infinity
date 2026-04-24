@@ -58,21 +58,31 @@ function compactEvidenceValue(value: string) {
     return value;
   }
 
+  const commandMatch = value.match(/^(\S+)\s+(.+?launch-localhost\.py)(\s+.*)$/);
+  if (commandMatch) {
+    const [, binary, scriptPath, args] = commandMatch;
+    const scriptName = scriptPath?.replace(/^['"]|['"]$/g, "").split("/").filter(Boolean).at(-1);
+    if (binary && scriptName && args) {
+      return `${binary} .../${scriptName}${args}`;
+    }
+  }
+
   try {
     const url = new URL(value);
     const pathParts = url.pathname.split("/").filter(Boolean);
-    const lastPart = pathParts.at(-1);
-    if (lastPart && pathParts.length > 1) {
-      return `${url.origin}/.../${lastPart}`;
+    const tail = pathParts.slice(-2).join("/");
+    if (tail && pathParts.length > 2) {
+      return `${url.origin}/.../${tail}`;
     }
   } catch {
     // Not a URL; handle local paths and commands below.
   }
 
   const pathParts = value.split("/").filter(Boolean);
-  const lastPart = pathParts.at(-1);
-  if (value.startsWith("/") && lastPart && pathParts.length > 2) {
-    return `/${pathParts.slice(0, 2).join("/")}/.../${lastPart}`;
+  const tail = pathParts.slice(-2).join("/");
+  if (value.startsWith("/") && tail && pathParts.length > 3) {
+    const headCount = pathParts[0] === "Users" && pathParts[1] ? 2 : 1;
+    return `/${pathParts.slice(0, headCount).join("/")}/.../${tail}`;
   }
 
   return `${value.slice(0, 28)}...${value.slice(-18)}`;
@@ -86,15 +96,23 @@ function DeliveryProofValue({
   value: string;
 }) {
   return (
-    <div className="min-w-0">
-      <div className="flex min-w-0 items-start gap-2">
+    <div
+      className="min-w-0 rounded-[10px] border border-white/7 bg-white/[0.025] px-3 py-3"
+      data-proof-row-label={label}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+          {label}
+        </div>
+        <DeliveryProofCopyButton label={label} value={value} />
+      </div>
+      <div className="mt-2 flex min-w-0 items-start gap-2">
         <div
-          className="min-w-0 flex-1 truncate font-mono text-white/82"
+          className="min-w-0 flex-1 truncate font-mono text-[11px] leading-6 text-white/82"
           title={value}
         >
           {compactEvidenceValue(value)}
         </div>
-        <DeliveryProofCopyButton label={label} value={value} />
       </div>
       <details
         className="mt-1 rounded-[8px] border border-white/6 bg-black/20 px-2 py-1"
@@ -275,6 +293,9 @@ export function DeliverySummary({
       value: delivery.launchProofKind ?? "pending",
     },
   ];
+  const priorityArtifactRows = artifactRows.filter((row) =>
+    ["Preview URL", "Manifest path", "Launch command", "Proof kind"].includes(row.label),
+  );
   const displayPreviewLabel = displayPreviewHref ?? "preview pending";
   const visibleSourceWorkUnits = sourceWorkUnits ?? [];
 
@@ -463,16 +484,34 @@ export function DeliverySummary({
                     <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
                       Runnable proof
                     </div>
-                    <div className="mt-4 grid grid-cols-[150px_minmax(0,1fr)] gap-x-4 gap-y-3 text-[11px]">
+                    <div
+                      className="mt-4 grid gap-3 2xl:grid-cols-2"
+                      data-delivery-proof-grid="grouped"
+                    >
                       {artifactRows.map((row) => (
-                        <React.Fragment key={row.label}>
-                          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
-                            {row.label}
-                          </div>
-                          <DeliveryProofValue label={row.label} value={row.value} />
-                        </React.Fragment>
+                        <DeliveryProofValue key={row.label} label={row.label} value={row.value} />
                       ))}
                     </div>
+                    <details
+                      className="mt-4 rounded-[10px] border border-white/7 bg-black/20 px-4 py-3"
+                      data-proof-drawer="all-values"
+                    >
+                      <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.14em] text-white/54">
+                        All proof values
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                        {artifactRows.map((row) => (
+                          <div key={row.label}>
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                              {row.label}
+                            </div>
+                            <code className="mt-1 block select-all break-all font-mono text-[10.5px] leading-5 text-white/72">
+                              {row.value}
+                            </code>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   </div>
                 </div>
               </div>
@@ -594,16 +633,11 @@ export function DeliverySummary({
 
           <div className="mt-5 rounded-[12px] border border-white/8 bg-white/[0.025] px-4 py-4 text-[11px]">
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
-              Artifacts
+              Proof shortcuts
             </div>
-            <div className="mt-4 grid grid-cols-[120px_1fr] gap-x-4 gap-y-3">
-              {artifactRows.map((row) => (
-                <React.Fragment key={row.label}>
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
-                    {row.label}
-                  </div>
-                  <DeliveryProofValue label={row.label} value={row.value} />
-                </React.Fragment>
+            <div className="mt-4 grid gap-3">
+              {priorityArtifactRows.map((row) => (
+                <DeliveryProofValue key={row.label} label={row.label} value={row.value} />
               ))}
             </div>
             <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-white/54">
