@@ -2,6 +2,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 
+const listDeliveriesMock = vi.hoisted(() => vi.fn(async () => []));
+
 vi.mock("@/lib/route-scope", () => ({
   readShellRouteScopeFromQueryRecord: vi.fn(() => ({
     projectId: "",
@@ -20,7 +22,20 @@ vi.mock("@/lib/route-scope", () => ({
 }));
 
 vi.mock("@/components/orchestration/delivery-summary", () => ({
-  DeliverySummary: () => <section>Delivery summary mock</section>,
+  DeliverySummary: ({
+    delivery,
+  }: {
+    delivery: { status: string; readinessTier?: string | null };
+  }) => (
+    <section>
+      Delivery summary mock status {delivery.status} tier{" "}
+      {delivery.readinessTier ?? "unknown"}
+    </section>
+  ),
+}));
+
+vi.mock("@/lib/server/orchestration/delivery", () => ({
+  listDeliveries: listDeliveriesMock,
 }));
 
 vi.mock("@/lib/server/control-plane/state/store", () => ({
@@ -83,5 +98,33 @@ describe("execution delivery detail route", () => {
     expect(markup).toContain("targeted_tests_passed");
     expect(markup).toContain("Generated app tests failed.");
     expect(markup).toContain("/execution/continuity/initiative-delivery-missing");
+  });
+
+  test("renders projected delivery records instead of raw stale ready state", async () => {
+    listDeliveriesMock.mockResolvedValueOnce([
+      {
+        id: "delivery-stale-ready",
+        initiativeId: "initiative-delivery-missing",
+        verificationRunId: "verification-blocked-001",
+        resultSummary: "Projected stale ready delivery.",
+        launchProofKind: "runnable_result",
+        launchProofUrl: "http://127.0.0.1:4100/index.html",
+        launchProofAt: "2026-04-23T20:00:00.000Z",
+        status: "pending",
+        readinessTier: "staging",
+      },
+    ]);
+
+    const markup = renderToStaticMarkup(
+      await Page({
+        params: Promise.resolve({ deliveryId: "delivery-stale-ready" }),
+        searchParams: Promise.resolve({
+          initiative_id: "initiative-delivery-missing",
+        }),
+      }),
+    );
+
+    expect(markup).toContain("Delivery summary mock status pending tier staging");
+    expect(markup).not.toContain("status ready");
   });
 });

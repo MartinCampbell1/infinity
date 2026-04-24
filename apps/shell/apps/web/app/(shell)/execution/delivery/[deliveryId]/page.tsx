@@ -8,6 +8,7 @@ import {
   readShellRouteScopeFromQueryRecord,
 } from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
+import { listDeliveries } from "@/lib/server/orchestration/delivery";
 
 type DeliverySearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -23,7 +24,7 @@ export default async function ExecutionDeliveryPage({
   const routeScope = readShellRouteScopeFromQueryRecord(resolvedSearchParams);
   const state = await readControlPlaneState();
   const delivery =
-    state.orchestration.deliveries.find(
+    (await listDeliveries()).find(
       (candidate) => candidate.id === resolvedParams.deliveryId
     ) ?? null;
 

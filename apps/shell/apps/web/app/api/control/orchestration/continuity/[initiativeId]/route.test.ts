@@ -43,6 +43,8 @@ const ORIGINAL_VALIDATION_COMMANDS =
   process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
 const ORIGINAL_VALIDATION_COMMANDS_ALLOWED =
   process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
+const ORIGINAL_STRICT_ROLLOUT =
+  process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
 
 let tempStateDir = "";
 
@@ -53,6 +55,7 @@ beforeEach(async () => {
   delete process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
   delete process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
   delete process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
+  delete process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
   process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON = "1";
   process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON = JSON.stringify(
     [
@@ -116,6 +119,12 @@ afterEach(async () => {
   } else {
     process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON =
       ORIGINAL_VALIDATION_COMMANDS_ALLOWED;
+  }
+  if (ORIGINAL_STRICT_ROLLOUT === undefined) {
+    delete process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
+  } else {
+    process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV =
+      ORIGINAL_STRICT_ROLLOUT;
   }
   if (tempStateDir) {
     rmSync(tempStateDir, { recursive: true, force: true });
@@ -502,5 +511,32 @@ describe("/api/control/orchestration/continuity/[initiativeId]", () => {
     );
     expect(body.links.approvalsHref).toContain("/execution/approvals");
     expect(body.links.recoveriesHref).toContain("/execution/recoveries");
+  });
+
+  test("strict rollout continuity demotes stale local ready delivery projection", async () => {
+    const { initiativeId } = await createFullTrace();
+    process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV = "1";
+
+    const response = await getContinuity(
+      new Request(
+        `http://localhost/api/control/orchestration/continuity/${initiativeId}`,
+      ),
+      { params: Promise.resolve({ initiativeId }) },
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.delivery).toEqual(
+      expect.objectContaining({
+        status: "pending",
+        readinessTier: "staging",
+        externalPreviewUrl: null,
+        externalProofManifestPath: null,
+        ciProofUri: null,
+        artifactStorageUri: null,
+        signedManifestUri: null,
+      }),
+    );
+    expect(body.links.deliveryHref).toContain(body.delivery.id);
   });
 });

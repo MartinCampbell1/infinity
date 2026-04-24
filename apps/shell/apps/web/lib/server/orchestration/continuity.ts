@@ -11,6 +11,7 @@ import type { InitiativeContinuityResponse } from "../control-plane/contracts/co
 import { listMockApprovalRequests } from "../control-plane/approvals";
 import { buildControlPlaneStateNotes, getControlPlaneIntegrationState, getControlPlaneStorageKind, getControlPlaneStorageSource, readControlPlaneState } from "../control-plane/state/store";
 import { listMockRecoveryIncidents } from "../control-plane/recoveries";
+import { listDeliveries } from "./delivery";
 
 const DEFAULT_HERMES_MEMORY_BASE_URL = "http://127.0.0.1:8766";
 
@@ -59,10 +60,7 @@ export async function buildInitiativeContinuityResponse(
           left.finishedAt ?? left.startedAt ?? left.id
         )
       )[0] ?? null;
-  const delivery =
-    [...state.orchestration.deliveries]
-      .filter((candidate) => candidate.initiativeId === initiativeId)
-      .sort((left, right) => (right.deliveredAt ?? right.id).localeCompare(left.deliveredAt ?? left.id))[0] ?? null;
+  const delivery = (await listDeliveries({ initiativeId }))[0] ?? null;
 
   const allApprovals = await listMockApprovalRequests();
   const allRecoveries = await listMockRecoveryIncidents();

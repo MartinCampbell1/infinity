@@ -10,7 +10,7 @@ import {
   withShellRouteScope,
   type ShellRouteScope,
 } from "@/lib/route-scope";
-import { resolveDeliveryReadinessCopy } from "../../lib/delivery-readiness";
+import { isDeliveryHandoffReady, resolveDeliveryReadinessCopy } from "../../lib/delivery-readiness";
 import { isStrictRolloutEnv } from "../../lib/server/control-plane/workspace/rollout-config";
 import {
   PlaneButton,
@@ -303,10 +303,14 @@ export function PrimaryRunSurface({
     currentRun?.currentStage === "preview_ready" || currentRun?.currentStage === "handed_off"
       ? "verifying"
       : currentRun?.currentStage ?? initiative.status;
+  const strictRolloutEnv = isStrictRolloutEnv();
+  const deliveryHandoffReady = currentDelivery
+    ? isDeliveryHandoffReady(currentDelivery, { strictRolloutEnv })
+    : false;
   const delivered =
-    currentDelivery?.status === "ready" ||
-    currentRun?.currentStage === "handed_off" ||
-    initiative.status === "ready";
+    currentDelivery
+      ? deliveryHandoffReady
+      : currentRun?.currentStage === "handed_off" || initiative.status === "ready";
   const headlineStage = delivered ? "delivered" : displayStage;
   const stages = stageOrder(headlineStage, delivered);
   const activeAgentCount = agentSessions.filter((session) =>
@@ -365,16 +369,16 @@ export function PrimaryRunSurface({
     },
     {
       label:
-        currentDelivery?.status === "ready"
+        currentDelivery && deliveryHandoffReady
           ? `Delivery ready · ${
               resolveDeliveryReadinessCopy(currentDelivery, {
-                strictRolloutEnv: isStrictRolloutEnv(),
+                strictRolloutEnv,
               }).tierLabel
             }`
           : "Delivery pending",
       value: currentDelivery?.launchProofKind ?? currentDelivery?.id ?? "not attached",
       href: deliveryHref,
-      tone: currentDelivery?.status === "ready" ? "success" : "pending",
+      tone: deliveryHandoffReady ? "success" : "pending",
     },
   ];
 
@@ -448,7 +452,7 @@ export function PrimaryRunSurface({
               ) : null}
               {deliveryHref ? (
                 <Link href={deliveryHref}>
-                  <PlaneButton variant="primary" size="sm">
+                  <PlaneButton variant={deliveryHandoffReady ? "primary" : "subtle"} size="sm">
                     Open delivery
                   </PlaneButton>
                 </Link>

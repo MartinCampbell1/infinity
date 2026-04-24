@@ -583,8 +583,14 @@ func TestFileBackedServiceRestoresPersistedState(t *testing.T) {
 		t.Fatalf("expected original failed attempt plus retry attempt, got %d", len(resumed.Attempts))
 	}
 	retryAttempt := resumed.Attempts[1]
+	if retryAttempt.AttemptNumber != 2 {
+		t.Fatalf("expected default retry policy to create attempt number 2, got %d", retryAttempt.AttemptNumber)
+	}
 	if retryAttempt.Status != "leased" {
 		t.Fatalf("expected retry attempt to be leased, got %s", retryAttempt.Status)
+	}
+	if retryAttempt.ExecutorType != "codex" {
+		t.Fatalf("expected default retry policy to keep original executor, got %s", retryAttempt.ExecutorType)
 	}
 	if retryAttempt.ParentAttemptID == nil || *retryAttempt.ParentAttemptID != resumed.Attempts[0].ID {
 		t.Fatalf("expected retry attempt to link to parent, got %#v", retryAttempt.ParentAttemptID)

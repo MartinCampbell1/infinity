@@ -18,7 +18,7 @@ import type {
   VerificationRunRecord,
   WorkUnitRecord,
 } from "@/lib/server/control-plane/contracts/orchestration";
-import { resolveDeliveryReadinessCopy } from "../../lib/delivery-readiness";
+import { isDeliveryHandoffReady, resolveDeliveryReadinessCopy } from "../../lib/delivery-readiness";
 import { isStrictRolloutEnv } from "../../lib/server/control-plane/workspace/rollout-config";
 import { DeliveryProofCopyButton } from "./delivery-proof-copy-button";
 
@@ -154,26 +154,55 @@ export function DeliverySummary({
 }) {
   const previewHref = delivery.previewUrl ?? null;
   const continuityHref = buildExecutionContinuityScopeHref(delivery.initiativeId, routeScope);
+  const strictRolloutEnv = isStrictRolloutEnv();
   const readinessCopy = resolveDeliveryReadinessCopy(delivery, {
-    strictRolloutEnv: isStrictRolloutEnv(),
+    strictRolloutEnv,
   });
-  const launchReady = readinessCopy.launchReady;
+  const runnableProofReady = readinessCopy.launchReady;
+  const handoffReady = isDeliveryHandoffReady(delivery, { strictRolloutEnv });
+  const pendingRunnableProof = runnableProofReady && !handoffReady;
   const displayPreviewHref = previewHref;
-  const scaffoldOnly = delivery.launchProofKind === "attempt_scaffold" && !launchReady;
-  const wrapperOnly = delivery.launchProofKind === "synthetic_wrapper" && !launchReady;
+  const scaffoldOnly = delivery.launchProofKind === "attempt_scaffold" && !handoffReady;
+  const wrapperOnly = delivery.launchProofKind === "synthetic_wrapper" && !handoffReady;
   const taskGraphHref = taskGraphId
     ? buildExecutionTaskGraphScopeHref(taskGraphId, routeScope, {
         initiativeId: delivery.initiativeId,
       })
     : null;
   const handoffHref = handoffId ? buildExecutionHandoffScopeHref(handoffId, routeScope) : null;
-  const metricTone = launchReady
+  const metricTone = handoffReady
     ? "border-emerald-400/20 bg-emerald-400/[0.05]"
-    : scaffoldOnly
-      ? "border-amber-400/20 bg-amber-400/[0.05]"
-    : wrapperOnly
+    : pendingRunnableProof || scaffoldOnly || wrapperOnly
       ? "border-amber-400/20 bg-amber-400/[0.05]"
       : "border-white/10 bg-white/[0.03]";
+  const reviewLabel = handoffReady
+    ? "Delivered"
+    : pendingRunnableProof
+      ? "Runnable proof review"
+      : scaffoldOnly
+        ? "Scaffold review"
+        : "Delivery";
+  const proofLabel = handoffReady
+    ? "runnable result"
+    : pendingRunnableProof
+      ? "runnable proof pending"
+      : scaffoldOnly
+        ? "attempt scaffold"
+        : "wrapper preview";
+  const sidebarActionTitle = handoffReady
+    ? "Primary handoff"
+    : pendingRunnableProof
+      ? "Staging proof review"
+      : scaffoldOnly
+        ? "Scaffold review"
+        : "Wrapper review";
+  const sidebarActionDescription = handoffReady
+    ? "Open the shell handoff packet and localhost preview. The delivery is backed by runnable-result proof."
+    : pendingRunnableProof
+      ? "Runnable-result proof exists, but this delivery is not handoff-ready until the required readiness gates are attached."
+      : scaffoldOnly
+        ? "Open the scaffold preview and handoff evidence, but do not treat it as proof that the requested product is truly runnable yet."
+        : "Open the shell-generated preview wrapper and task graph before promoting this delivery any further.";
   const changedFiles = [
     delivery.manifestPath,
     delivery.launchManifestPath,
@@ -314,12 +343,12 @@ export function DeliverySummary({
           <span>›</span>
           <span className="font-mono">{shortRunId(runId)}</span>
           <span>›</span>
-          <span>{launchReady ? "Delivered" : scaffoldOnly ? "Scaffold review" : "Delivery"}</span>
+          <span>{reviewLabel}</span>
         </div>
 
         <header className="space-y-4">
-          <div className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${launchReady ? "text-emerald-200/86" : "text-amber-200/86"}`}>
-              {launchReady ? "Delivered" : "Delivery"} · {delivery.id}
+          <div className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${handoffReady ? "text-emerald-200/86" : "text-amber-200/86"}`}>
+              {handoffReady ? "Delivered" : "Delivery"} · {delivery.id}
           </div>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -343,14 +372,14 @@ export function DeliverySummary({
                   </PlaneButton>
                 </Link>
               ) : null}
-              {launchReady && handoffHref ? (
+              {handoffReady && handoffHref ? (
                 <Link href={handoffHref}>
                   <PlaneButton variant="primary" size="sm">
                     Handoff packet
                   </PlaneButton>
                 </Link>
               ) : null}
-              {!launchReady && taskGraphHref ? (
+              {!handoffReady && taskGraphHref ? (
                 <Link href={taskGraphHref}>
                   <PlaneButton variant="subtle" size="sm">
                     Open task graph
@@ -365,17 +394,17 @@ export function DeliverySummary({
               <div
                 key={metric.label}
                       className={`px-4 py-4 ${index < metrics.length - 1 ? "border-b md:border-b-0 md:border-r" : ""} ${
-                  launchReady
+                  handoffReady
                     ? "border-emerald-400/14"
-                    : scaffoldOnly || wrapperOnly
+                    : pendingRunnableProof || scaffoldOnly || wrapperOnly
                       ? "border-amber-400/14"
                       : "border-white/10"
                 }`}
               >
                 <div className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${
-                  launchReady
+                  handoffReady
                     ? "text-emerald-200/64"
-                    : scaffoldOnly || wrapperOnly
+                    : pendingRunnableProof || scaffoldOnly || wrapperOnly
                       ? "text-amber-200/64"
                       : "text-white/48"
                 }`}>
@@ -402,7 +431,7 @@ export function DeliverySummary({
               <span className="truncate">{displayPreviewLabel}</span>
             </div>
               <span className="font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
-              {launchReady ? "runnable result" : scaffoldOnly ? "attempt scaffold" : "wrapper preview"}
+              {proofLabel}
             </span>
           </div>
 
@@ -598,24 +627,20 @@ export function DeliverySummary({
 
           <div className="mt-5 rounded-[14px] border border-[rgba(133,169,255,0.28)] bg-[rgba(133,169,255,0.08)] px-4 py-4">
             <div className="text-[14px] font-medium text-[#dfe8ff]">
-              {launchReady ? "Primary handoff" : scaffoldOnly ? "Scaffold review" : "Wrapper review"}
+              {sidebarActionTitle}
             </div>
             <p className="mt-3 text-[12px] leading-6 text-[#dfe8ff]/80">
-              {launchReady
-                ? "Open the shell handoff packet and localhost preview. The delivery is backed by runnable-result proof."
-                : scaffoldOnly
-                  ? "Open the scaffold preview and handoff evidence, but do not treat it as proof that the requested product is truly runnable yet."
-                : "Open the shell-generated preview wrapper and task graph before promoting this delivery any further."}
+              {sidebarActionDescription}
             </p>
             <div className="mt-4 flex flex-col gap-2">
-              {launchReady && handoffHref ? (
+              {handoffReady && handoffHref ? (
                 <Link href={handoffHref}>
                   <PlaneButton variant="primary" size="md" className="w-full justify-center">
                     Open handoff packet
                   </PlaneButton>
                 </Link>
               ) : null}
-              {!launchReady && taskGraphHref ? (
+              {!handoffReady && taskGraphHref ? (
                 <Link href={taskGraphHref}>
                   <PlaneButton variant="primary" size="md" className="w-full justify-center">
                     Open task graph
@@ -650,12 +675,12 @@ export function DeliverySummary({
               <Link href={continuityHref} className="transition hover:text-white">
                 Open run
               </Link>
-              {launchReady && handoffHref ? (
+              {handoffReady && handoffHref ? (
                 <Link href={handoffHref} className="transition hover:text-white">
                   Open handoff packet
                 </Link>
               ) : null}
-              {!launchReady && taskGraphHref ? (
+              {!handoffReady && taskGraphHref ? (
                 <Link href={taskGraphHref} className="transition hover:text-white">
                   Open task graph
                 </Link>

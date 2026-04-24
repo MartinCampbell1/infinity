@@ -15,7 +15,13 @@ export type DeliveryReadinessCopy = {
 };
 
 export function hasHostedProofManifest(delivery: DeliveryRecord) {
-  return Boolean(delivery.externalProofManifestPath?.trim());
+  return Boolean(
+    delivery.externalPreviewUrl?.trim() &&
+      delivery.externalProofManifestPath?.trim() &&
+      delivery.ciProofUri?.trim() &&
+      delivery.artifactStorageUri?.trim() &&
+      delivery.signedManifestUri?.trim()
+  );
 }
 
 export function resolveDeliveryReadinessTier(
@@ -55,8 +61,31 @@ function titleCase(value: string | null | undefined) {
     .join(" ");
 }
 
+function isPersistedReady(delivery: DeliveryRecord) {
+  return delivery.status === "ready" || delivery.status === "delivered";
+}
+
 function isRunnableProofReady(delivery: DeliveryRecord) {
-  return delivery.launchProofKind === "runnable_result" && Boolean(delivery.launchProofAt);
+  return (
+    delivery.launchProofKind === "runnable_result" &&
+    Boolean(delivery.launchProofUrl?.trim()) &&
+    Boolean(delivery.launchProofAt?.trim())
+  );
+}
+
+export function isDeliveryHandoffReady(
+  delivery: DeliveryRecord,
+  options: { strictRolloutEnv?: boolean } = {},
+) {
+  if (!isPersistedReady(delivery) || !isRunnableProofReady(delivery)) {
+    return false;
+  }
+
+  if (options.strictRolloutEnv && !hasHostedProofManifest(delivery)) {
+    return false;
+  }
+
+  return true;
 }
 
 export function resolveDeliveryReadinessCopy(

@@ -430,7 +430,8 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 		let launchedBatchId = "";
 		let launchedInitiativeId = "";
 		let launchedWorkUnitId = "";
-		let batchResumed = false;
+		let retryRequested = false;
+		let retryRequestBody: Record<string, unknown> | null = null;
 
 		const kernelServer = createServer(async (request: IncomingMessage, response: ServerResponse) => {
 			if (request.method === "POST" && request.url === "/api/v1/batches") {
@@ -485,6 +486,7 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 							workUnitIds: [launchedWorkUnitId],
 							concurrencyLimit: 1,
 							status: "blocked",
+							recoveryState: "retryable",
 							startedAt: "2026-04-18T10:00:00.000Z",
 							finishedAt: null,
 						},
@@ -494,6 +496,7 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 							batchId: launchedBatchId,
 							executorType: "droid",
 							status: "failed",
+							recoveryState: "retryable",
 							startedAt: "2026-04-18T10:00:00.000Z",
 							finishedAt: "2026-04-18T10:03:00.000Z",
 							summary: null,
@@ -516,7 +519,8 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 							taskGraphId,
 							workUnitIds: [launchedWorkUnitId],
 							concurrencyLimit: 1,
-							status: batchResumed ? "running" : "blocked",
+							status: retryRequested ? "running" : "blocked",
+							recoveryState: "retryable",
 							startedAt: "2026-04-18T10:00:00.000Z",
 							finishedAt: null,
 						},
@@ -526,22 +530,48 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 								workUnitId: launchedWorkUnitId,
 								batchId: launchedBatchId,
 								executorType: "droid",
-								status: batchResumed ? "started" : "failed",
+								status: "failed",
+								recoveryState: retryRequested ? "archived" : "retryable",
 								startedAt: "2026-04-18T10:00:00.000Z",
-								finishedAt: batchResumed ? null : "2026-04-18T10:03:00.000Z",
+								finishedAt: "2026-04-18T10:03:00.000Z",
 								summary: null,
 								artifactUris: [],
-								errorCode: batchResumed ? null : "TOOL_FAILURE",
-								errorSummary: batchResumed ? null : "tool crashed",
+								errorCode: "TOOL_FAILURE",
+								errorSummary: "tool crashed",
 							},
+							...(retryRequested
+								? [
+										{
+											id: "attempt-foundation-002-retry-2",
+											workUnitId: launchedWorkUnitId,
+											batchId: launchedBatchId,
+											executorType: "codex",
+											status: "leased",
+											recoveryState: "retryable",
+											attemptNumber: 2,
+											parentAttemptId: "attempt-foundation-002",
+											retryReason: "operator retry",
+											startedAt: "2026-04-18T10:04:00.000Z",
+											finishedAt: null,
+											summary: null,
+											artifactUris: [],
+											errorCode: null,
+											errorSummary: null,
+										},
+									]
+								: []),
 						],
 					})
 				);
 				return;
 			}
 
-			if (request.method === "POST" && request.url === `/api/v1/batches/${launchedBatchId}/resume`) {
-				batchResumed = true;
+			if (
+				request.method === "POST" &&
+				request.url === `/api/v1/batches/${launchedBatchId}/retry-work-unit`
+			) {
+				retryRequested = true;
+				retryRequestBody = await readJsonBody(request);
 				response.writeHead(200, { "content-type": "application/json" });
 				response.end(
 					JSON.stringify({
@@ -552,24 +582,27 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 							workUnitIds: [launchedWorkUnitId],
 							concurrencyLimit: 1,
 							status: "running",
+							recoveryState: "retryable",
 							startedAt: "2026-04-18T10:00:00.000Z",
 							finishedAt: null,
 						},
-						attempts: [
-							{
-								id: "attempt-foundation-002",
-								workUnitId: launchedWorkUnitId,
-								batchId: launchedBatchId,
-								executorType: "droid",
-								status: "started",
-								startedAt: "2026-04-18T10:04:00.000Z",
-								finishedAt: null,
-								summary: null,
-								artifactUris: [],
-								errorCode: null,
-								errorSummary: null,
-							},
-						],
+						attempt: {
+							id: "attempt-foundation-002-retry-2",
+							workUnitId: launchedWorkUnitId,
+							batchId: launchedBatchId,
+							executorType: "codex",
+							status: "leased",
+							recoveryState: "retryable",
+							attemptNumber: 2,
+							parentAttemptId: "attempt-foundation-002",
+							retryReason: "operator retry",
+							startedAt: "2026-04-18T10:04:00.000Z",
+							finishedAt: null,
+							summary: null,
+							artifactUris: [],
+							errorCode: null,
+							errorSummary: null,
+						},
 					})
 				);
 				return;
@@ -655,6 +688,7 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 
 			expect(reassignResponse.status).toBe(200);
 			expect(reassignBody.workUnit.executorType).toBe("codex");
+			expect(reassignBody.workUnit.latestAttemptId).toBe("attempt-foundation-002-retry-2");
 			expect(reassignBody.batch.status).toBe("running");
 			expect(reassignBody.supervisorActions).toEqual(
 				expect.arrayContaining([
@@ -665,7 +699,13 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 					}),
 				])
 			);
-			expect(batchResumed).toBe(true);
+			expect(retryRequested).toBe(true);
+			expect(retryRequestBody).toEqual(
+				expect.objectContaining({
+					workUnitId,
+					executorType: "codex",
+				})
+			);
 		} finally {
 			await new Promise<void>((resolve, reject) =>
 				kernelServer.close((error) => (error ? reject(error) : resolve()))

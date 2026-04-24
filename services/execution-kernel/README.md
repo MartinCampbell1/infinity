@@ -8,6 +8,7 @@ Current scope:
 - `POST /api/v1/batches`
 - `GET /api/v1/batches/{batchId}`
 - `POST /api/v1/batches/{batchId}/lease-next`
+- `POST /api/v1/batches/{batchId}/retry-work-unit`
 - `POST /api/v1/batches/{batchId}/resume`
 - `POST /api/v1/batches/{batchId}/discard`
 - `GET /api/v1/attempts/{attemptId}`
@@ -24,6 +25,8 @@ Current implementation is intentionally small, but the daemon now:
   `concurrencyLimit`;
 - leases runnable attempts with a TTL, accepts worker heartbeats, and makes
   expired leases retryable/reassignable;
+- creates retry/reassignment attempt lineage instead of mutating completed or
+  failed attempts in place;
 - refuses to boot in `production` or `staging` deployment mode without
   `EXECUTION_KERNEL_DATABASE_URL`;
 - keeps a local file-backed state snapshot at `./.local-state/execution-kernel/state.json`
@@ -38,6 +41,8 @@ Storage modes:
   heartbeats, and append-only kernel events through
   `migrations/002_durable_kernel_store.sql` and
   `migrations/003_scheduler_attempt_leases.sql`.
+  `migrations/004_retry_attempt_lineage.sql` adds retry attempt lineage
+  metadata.
 - `EXECUTION_KERNEL_DEPLOYMENT_ENV=production` or `staging` requires the
   Postgres URL and rejects file/memory stores at boot.
 - Development mode may use `EXECUTION_KERNEL_STATE_PATH` for a local JSON
@@ -54,7 +59,8 @@ Service auth:
   secret rotation. `EXECUTION_KERNEL_SERVICE_AUTH_PREVIOUS_SECRET` remains a
   local/legacy fallback.
 - Tokens must include one of `kernel.health.read`, `kernel.batch.create`, or
-  `kernel.attempt.mutate`, depending on the route. Lease, heartbeat, resume,
-  discard, completion, and failure routes require `kernel.attempt.mutate`.
+  `kernel.attempt.mutate`, depending on the route. Lease, retry-work-unit,
+  heartbeat, resume, discard, completion, and failure routes require
+  `kernel.attempt.mutate`.
 - `EXECUTION_KERNEL_LOCALHOST_DEV_AUTH_BYPASS=0` disables the local loopback
   fallback even in development.

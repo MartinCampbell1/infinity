@@ -9,6 +9,10 @@ kernel events.
 `003_scheduler_attempt_leases.sql` adds attempt-level lease holder, lease
 expiry, and heartbeat columns used by the runnable scheduler.
 
+`004_retry_attempt_lineage.sql` adds retry attempt number, parent attempt, retry
+reason, and backoff metadata so supervisor retries/reassignments remain
+inspectable.
+
 Runtime request paths must stay free of `CREATE TABLE` or `ALTER TABLE`
 statements; production/staging boot fails closed unless
 `EXECUTION_KERNEL_DATABASE_URL` is configured.

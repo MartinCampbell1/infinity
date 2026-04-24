@@ -9,7 +9,7 @@ import type {
   DeliveryMutationResponse,
   WorkUnitRecord,
 } from "../control-plane/contracts/orchestration";
-import { withResolvedDeliveryReadiness } from "../../delivery-readiness";
+import { isDeliveryHandoffReady, withResolvedDeliveryReadiness } from "../../delivery-readiness";
 import { readControlPlaneState, updateControlPlaneState } from "../control-plane/state/store";
 import { isStrictRolloutEnv } from "../control-plane/workspace/rollout-config";
 
@@ -30,6 +30,12 @@ import { resolveOrchestrationDeliveriesRoot, writeDeliveryManifest } from "./art
 import { listVerifications } from "./verification";
 import { listOrchestrationWorkUnits } from "./work-units";
 import { buildOrchestrationDirectoryMeta, buildOrchestrationId, nowIso } from "./shared";
+import {
+  canPersistReadyDelivery,
+  deliveryReadinessTierForPromotion,
+  resolveDeliveryPromotionState,
+  type DeliveryPromotionInput,
+} from "./delivery-state-machine";
 
 const LOCALHOST_PROOF_MARKER = "Infinity Local Preview";
 const DELIVERY_RESULT_MARKER = "Infinity Delivery Result";
@@ -95,52 +101,31 @@ type DeliveryLaunchManifest = {
 };
 
 function cloneDelivery(value: DeliveryRecord) {
-  return withResolvedDeliveryReadiness(
+  const strictRolloutEnv = isStrictRolloutEnv();
+  const delivery = withResolvedDeliveryReadiness(
     JSON.parse(JSON.stringify(value)) as DeliveryRecord,
-    { strictRolloutEnv: isStrictRolloutEnv() },
+    { strictRolloutEnv },
   );
+  if (
+    (delivery.status === "ready" || delivery.status === "delivered") &&
+    !isDeliveryHandoffReady(delivery, { strictRolloutEnv })
+  ) {
+    return {
+      ...delivery,
+      status: "pending" as const,
+      deliveredAt: null,
+    };
+  }
+  return delivery;
 }
 
-export type DeliveryPromotionState =
-  | "attempt_scaffold"
-  | "assembly_ready"
-  | "verification_passed"
-  | "runnable_result"
-  | "delivery.ready";
-
-export type DeliveryPromotionInput = {
-  assemblyReady: boolean;
-  verificationPassed: boolean;
-  launchProofKind?: DeliveryLaunchProofKind | null;
-  launchProofUrl?: string | null;
-  launchProofAt?: string | null;
-};
-
-export function resolveDeliveryPromotionState(
-  input: DeliveryPromotionInput
-): DeliveryPromotionState {
-  if (!input.assemblyReady) {
-    return "attempt_scaffold";
-  }
-
-  if (!input.verificationPassed) {
-    return "assembly_ready";
-  }
-
-  if (input.launchProofKind !== "runnable_result") {
-    return "verification_passed";
-  }
-
-  if (!input.launchProofUrl || !input.launchProofAt) {
-    return "runnable_result";
-  }
-
-  return "delivery.ready";
-}
-
-export function canPersistReadyDelivery(input: DeliveryPromotionInput) {
-  return resolveDeliveryPromotionState(input) === "delivery.ready";
-}
+export {
+  canPersistReadyDelivery,
+  deliveryReadinessTierForPromotion,
+  resolveDeliveryPromotionState,
+  type DeliveryPromotionInput,
+  type DeliveryPromotionState,
+} from "./delivery-state-machine";
 
 export async function listDeliveries(filters?: { initiativeId?: string | null }) {
   const state = await readControlPlaneState();
@@ -1408,6 +1393,9 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
   const readyResultSummary = buildReadyDeliveryResultSummary(productContext);
   if (
     existingDelivery?.status === "ready" &&
+    isDeliveryHandoffReady(existingDelivery, {
+      strictRolloutEnv: isStrictRolloutEnv(),
+    }) &&
     (await readyDeliveryMatchesCurrentRunnable(existingDelivery, productContext.prompt)) &&
     existingDelivery.resultSummary === readyResultSummary
   ) {
@@ -1433,15 +1421,22 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
       title: productContext.title,
     }
   );
-  const launchReady =
-    fields.launchReady &&
-    canPersistReadyDelivery({
-      assemblyReady: Boolean(assembly),
-      verificationPassed: verification.overallStatus === "passed",
-      launchProofKind: fields.launchProofKind,
-      launchProofUrl: fields.launchProofUrl,
-      launchProofAt: fields.launchProofAt,
-    });
+  const promotionInput: DeliveryPromotionInput = {
+    assemblyReady: Boolean(assembly),
+    verificationPassed: verification.overallStatus === "passed",
+    launchProofKind: fields.launchProofKind,
+    launchProofUrl: fields.launchProofUrl,
+    launchProofAt: fields.launchProofAt,
+    strictRolloutEnv: isStrictRolloutEnv(),
+    externalPreviewUrl: null,
+    externalProofManifestPath: null,
+    ciProofUri: null,
+    artifactStorageUri: null,
+    signedManifestUri: null,
+  };
+  const launchReady = fields.launchReady && canPersistReadyDelivery(promotionInput);
+  const promotionState = resolveDeliveryPromotionState(promotionInput);
+  const readinessTier = deliveryReadinessTierForPromotion(promotionInput);
   const delivery: DeliveryRecord = {
     id: deliveryId,
     initiativeId: input.initiativeId,
@@ -1450,6 +1445,8 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     resultSummary:
       launchReady
         ? readyResultSummary
+        : promotionState === "external_proof_required"
+          ? `Runnable localhost result and handoff bundle were prepared for initiative ${input.initiativeId}, but strict rollout requires external preview, CI proof, signed manifest, and artifact storage proof before delivery.ready.`
         : fields.launchProofKind === "attempt_scaffold"
           ? `Attempt scaffold preview and handoff bundle were prepared for initiative ${input.initiativeId}, but the requested product is still unproven as a real runnable result.`
           : `Evidence wrapper and handoff bundle were prepared for initiative ${input.initiativeId}, but the actual runnable result is still unproven.`,
@@ -1461,8 +1458,12 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     launchTargetLabel: fields.launchTargetLabel,
     launchProofUrl: fields.launchProofUrl,
     launchProofAt: fields.launchProofAt,
+    externalPreviewUrl: null,
     externalProofManifestPath: null,
-    readinessTier: "local_solo",
+    ciProofUri: null,
+    artifactStorageUri: null,
+    signedManifestUri: null,
+    readinessTier,
     handoffNotes: fields.handoffNotes,
     command: fields.command,
     status: launchReady ? "ready" : "pending",
@@ -1527,6 +1528,8 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
       stage: launchReady ? "preview_ready" : preview ? "preview_ready" : "delivering",
       summary: launchReady
         ? `Delivery ${delivery.id} is ready with localhost launch proof.`
+        : promotionState === "external_proof_required"
+          ? `Delivery ${delivery.id} has runnable localhost proof, but strict rollout requires external proof before delivery.ready.`
         : fields.launchProofKind === "attempt_scaffold"
           ? `Delivery ${delivery.id} has attempt scaffold evidence and handoff metadata, but no real runnable result proof yet.`
           : `Delivery ${delivery.id} has shell wrapper evidence and handoff metadata, but no real runnable result proof yet.`,

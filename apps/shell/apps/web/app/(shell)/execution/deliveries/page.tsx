@@ -4,6 +4,7 @@ import {
   readShellRouteScopeFromQueryRecord,
 } from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
+import { listDeliveries } from "@/lib/server/orchestration/delivery";
 
 type ExecutionDeliveriesSearchParams = Promise<
   Record<string, string | string[] | undefined>
@@ -17,11 +18,11 @@ export default async function ExecutionDeliveriesPage({
   const params = searchParams ? await searchParams : undefined;
   const routeScope = readShellRouteScopeFromQueryRecord(params);
   const state = await readControlPlaneState();
+  const deliveries = await listDeliveries();
   const initiativesById = new Map(
     state.orchestration.initiatives.map((initiative) => [initiative.id, initiative])
   );
-  const items = [...state.orchestration.deliveries]
-    .sort((left, right) => (right.deliveredAt ?? right.id).localeCompare(left.deliveredAt ?? left.id))
+  const items = deliveries
     .map((delivery) => {
       const initiative = initiativesById.get(delivery.initiativeId);
       const prompt = initiative?.userRequest ?? delivery.resultSummary;

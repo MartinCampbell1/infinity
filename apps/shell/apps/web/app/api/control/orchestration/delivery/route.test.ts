@@ -31,6 +31,10 @@ const ORIGINAL_VALIDATION_COMMANDS =
 const ORIGINAL_VALIDATION_COMMANDS_ALLOWED =
   process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
 const ORIGINAL_INTEGRATION_ROOT = process.env.FOUNDEROS_INTEGRATION_ROOT;
+const ORIGINAL_STRICT_ROLLOUT =
+  process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
+const ORIGINAL_SHELL_PUBLIC_ORIGIN =
+  process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN;
 
 let tempStateDir = "";
 
@@ -38,6 +42,7 @@ beforeEach(async () => {
   tempStateDir = mkdtempSync(path.join(tmpdir(), "infinity-delivery-"));
   process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR = tempStateDir;
   process.env.FOUNDEROS_INTEGRATION_ROOT = tempStateDir;
+  delete process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
   delete process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
   delete process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
   process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON = "1";
@@ -96,6 +101,17 @@ afterEach(async () => {
     delete process.env.FOUNDEROS_INTEGRATION_ROOT;
   } else {
     process.env.FOUNDEROS_INTEGRATION_ROOT = ORIGINAL_INTEGRATION_ROOT;
+  }
+  if (ORIGINAL_STRICT_ROLLOUT === undefined) {
+    delete process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV;
+  } else {
+    process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV =
+      ORIGINAL_STRICT_ROLLOUT;
+  }
+  if (ORIGINAL_SHELL_PUBLIC_ORIGIN === undefined) {
+    delete process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN;
+  } else {
+    process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN = ORIGINAL_SHELL_PUBLIC_ORIGIN;
   }
   if (tempStateDir) {
     rmSync(tempStateDir, { recursive: true, force: true });
@@ -402,6 +418,238 @@ describe("/api/control/orchestration/delivery", () => {
         (initiative) => initiative.id === initiativeId,
       )?.status,
     ).toBe("ready");
+  });
+
+  test("strict rollout does not persist delivery.ready without external proof set", async () => {
+    process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV = "1";
+    process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN = "https://shell.infinity.example";
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const deliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const deliveryBody = await deliveryResponse.json();
+
+    expect(deliveryResponse.status).toBe(201);
+    expect(deliveryBody.delivery).toEqual(
+      expect.objectContaining({
+        initiativeId,
+        taskGraphId,
+        status: "pending",
+        readinessTier: "staging",
+        launchProofKind: "runnable_result",
+        externalPreviewUrl: null,
+        externalProofManifestPath: null,
+        ciProofUri: null,
+        artifactStorageUri: null,
+        signedManifestUri: null,
+      }),
+    );
+    expect(deliveryBody.delivery.launchProofUrl).toMatch(
+      /^http:\/\/127\.0\.0\.1:\d+\/index\.html$/,
+    );
+    expect(deliveryBody.delivery.resultSummary).toMatch(
+      /strict rollout requires external preview, CI proof, signed manifest, and artifact storage proof/i,
+    );
+
+    const state = await readControlPlaneState();
+    expect(
+      state.orchestration.initiatives.find(
+        (initiative) => initiative.id === initiativeId,
+      )?.status,
+    ).toBe("verifying");
+  });
+
+  test("strict rollout revalidates an existing ready local delivery before early return", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const localDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const localDeliveryBody = await localDeliveryResponse.json();
+
+    expect(localDeliveryResponse.status).toBe(201);
+    expect(localDeliveryBody.delivery).toEqual(
+      expect.objectContaining({
+        status: "ready",
+        readinessTier: "local_solo",
+        externalProofManifestPath: null,
+      }),
+    );
+
+    process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV = "1";
+    process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN = "https://shell.infinity.example";
+
+    const strictListResponse = await getDelivery(
+      new Request(
+        `http://localhost/api/control/orchestration/delivery?initiative_id=${initiativeId}`,
+      ),
+    );
+    const strictListBody = await strictListResponse.json();
+
+    expect(strictListResponse.status).toBe(200);
+    expect(strictListBody.deliveries).toEqual([
+      expect.objectContaining({
+        id: localDeliveryBody.delivery.id,
+        status: "pending",
+        readinessTier: "staging",
+      }),
+    ]);
+
+    const strictDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const strictDeliveryBody = await strictDeliveryResponse.json();
+
+    expect(strictDeliveryResponse.status).toBe(201);
+    expect(strictDeliveryBody.delivery).toEqual(
+      expect.objectContaining({
+        id: localDeliveryBody.delivery.id,
+        status: "pending",
+        readinessTier: "staging",
+        launchProofKind: "runnable_result",
+        externalPreviewUrl: null,
+        externalProofManifestPath: null,
+        ciProofUri: null,
+        artifactStorageUri: null,
+        signedManifestUri: null,
+      }),
+    );
+    expect(strictDeliveryBody.delivery.resultSummary).toMatch(
+      /strict rollout requires external preview, CI proof, signed manifest, and artifact storage proof/i,
+    );
+
+    const state = await readControlPlaneState();
+    expect(
+      state.orchestration.deliveries.find(
+        (delivery) => delivery.id === localDeliveryBody.delivery.id,
+      )?.status,
+    ).toBe("pending");
+    expect(
+      state.orchestration.initiatives.find(
+        (initiative) => initiative.id === initiativeId,
+      )?.status,
+    ).toBe("verifying");
+  });
+
+  test("strict rollout policy prevents idempotency replay of local ready delivery", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+
+    const requestBody = JSON.stringify({ initiativeId });
+    const localDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "delivery-policy-replay-001",
+        },
+        body: requestBody,
+      }),
+    );
+    const localDeliveryBody = await localDeliveryResponse.json();
+
+    expect(localDeliveryResponse.status).toBe(201);
+    expect(localDeliveryBody.delivery.status).toBe("ready");
+
+    process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV = "1";
+    process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN = "https://shell.infinity.example";
+
+    const replayResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "delivery-policy-replay-001",
+        },
+        body: requestBody,
+      }),
+    );
+    const replayBody = await replayResponse.json();
+
+    expect(replayResponse.status).toBe(409);
+    expect(replayBody.code).toBe("idempotency_key_conflict");
+
+    const listResponse = await getDelivery(
+      new Request(
+        `http://localhost/api/control/orchestration/delivery?initiative_id=${initiativeId}`,
+      ),
+    );
+    const listBody = await listResponse.json();
+
+    expect(listResponse.status).toBe(200);
+    expect(listBody.deliveries[0]).toEqual(
+      expect.objectContaining({
+        id: localDeliveryBody.delivery.id,
+        status: "pending",
+        readinessTier: "staging",
+      }),
+    );
   });
 
   test("failed verification blocks delivery creation", async () => {

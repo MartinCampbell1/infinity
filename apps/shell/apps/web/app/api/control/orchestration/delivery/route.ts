@@ -17,6 +17,7 @@ import {
   recordControlPlaneMutationResult,
 } from "../../../../../lib/server/control-plane/state/mutations";
 import type { DeliveryMutationResponse } from "../../../../../lib/server/control-plane/contracts/orchestration";
+import { isStrictRolloutEnv } from "../../../../../lib/server/control-plane/workspace/rollout-config";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,10 @@ export async function POST(request: Request) {
     const requestHash = idempotencyKey
       ? hashControlPlaneMutationRequest({
           route: "delivery.create",
-          body,
+          body: {
+            ...body,
+            strictRolloutEnv: isStrictRolloutEnv(),
+          },
         })
       : null;
     const tenantId = activeControlPlaneTenantId();

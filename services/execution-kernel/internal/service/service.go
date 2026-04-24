@@ -1166,6 +1166,13 @@ func (svc *InMemory) batchEnvelopeLocked(batchID string) (events.BatchEnvelope, 
 		if leftOK && rightOK && leftOrder != rightOrder {
 			return leftOrder - rightOrder
 		}
+		if left.WorkUnitID == right.WorkUnitID {
+			leftNumber := normalizedAttemptNumber(left)
+			rightNumber := normalizedAttemptNumber(right)
+			if leftNumber != rightNumber {
+				return leftNumber - rightNumber
+			}
+		}
 		switch {
 		case left.ID < right.ID:
 			return -1

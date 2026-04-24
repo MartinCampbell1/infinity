@@ -179,6 +179,7 @@ describe("PrimaryRunSurface", () => {
           command: "npm run preview",
           launchProofKind: "runnable_result",
           launchProofUrl: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-1",
+          launchProofAt: now,
           previewUrl: "/api/control/orchestration/previews/preview-1",
           launchManifestPath: "/tmp/delivery/launch-manifest.json",
           launchTargetLabel: "Local preview",

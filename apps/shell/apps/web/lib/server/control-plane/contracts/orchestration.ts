@@ -529,7 +529,11 @@ export interface DeliveryRecord {
   launchTargetLabel?: string | null;
   launchProofUrl?: string | null;
   launchProofAt?: string | null;
+  externalPreviewUrl?: string | null;
   externalProofManifestPath?: string | null;
+  ciProofUri?: string | null;
+  artifactStorageUri?: string | null;
+  signedManifestUri?: string | null;
   readinessTier?: ReadinessTier;
   handoffNotes?: string | null;
   command?: string | null;
