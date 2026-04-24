@@ -51,6 +51,12 @@ type LaunchTarget = {
   shellCommand: string;
 };
 
+type RunnableAppKind =
+  | "invoice_generator"
+  | "tip_calculator"
+  | "todo_tasker"
+  | "prompt_calculator";
+
 type DeliveryLaunchManifest = {
   version?: 1;
   launcher: "python_static_site";
@@ -62,6 +68,7 @@ type DeliveryLaunchManifest = {
   targetKind: DeliveryLaunchProofKind;
   targetLabel: string;
   proofKind?: DeliveryLaunchProofKind;
+  appKind?: RunnableAppKind;
   prompt?: string;
   generatedAt?: string;
   launchCommand?: string;
@@ -295,19 +302,67 @@ function normalizePrompt(value: string | null | undefined) {
   return (value ?? "").trim() || "Build a small local web app.";
 }
 
-function deriveRunnableAppKind(prompt: string) {
+function deriveRunnableAppKind(prompt: string): RunnableAppKind {
   const normalized = prompt.toLowerCase();
   if (normalized.includes("invoice")) {
-    return "invoice_generator" as const;
+    return "invoice_generator";
   }
   if (
     normalized.includes("tip") ||
     normalized.includes("gratuity") ||
     normalized.includes("bill amount")
   ) {
-    return "tip_calculator" as const;
+    return "tip_calculator";
   }
-  return "prompt_calculator" as const;
+  if (
+    normalized.includes("todo") ||
+    normalized.includes("to-do") ||
+    normalized.includes("checklist") ||
+    normalized.includes("tasker") ||
+    normalized.includes("таскер") ||
+    normalized.includes("список дел") ||
+    normalized.includes("галоч") ||
+    normalized.includes("отмеч")
+  ) {
+    return "todo_tasker";
+  }
+  return "prompt_calculator";
+}
+
+async function readDeliveryLaunchManifest(manifestPath: string | null | undefined) {
+  if (!manifestPath) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(await readFile(manifestPath, "utf8")) as Partial<DeliveryLaunchManifest>;
+  } catch {
+    return null;
+  }
+}
+
+function launchManifestMatchesPrompt(
+  manifest: Partial<DeliveryLaunchManifest> | null,
+  prompt: string
+) {
+  const normalizedPrompt = normalizePrompt(prompt);
+  return (
+    manifest?.targetKind === "runnable_result" &&
+    manifest.proofKind === "runnable_result" &&
+    manifest.prompt === normalizedPrompt &&
+    manifest.appKind === deriveRunnableAppKind(normalizedPrompt)
+  );
+}
+
+async function readyDeliveryMatchesCurrentRunnable(delivery: DeliveryRecord, prompt: string) {
+  if (delivery.status !== "ready" || delivery.launchProofKind !== "runnable_result") {
+    return false;
+  }
+
+  return launchManifestMatchesPrompt(
+    await readDeliveryLaunchManifest(delivery.launchManifestPath),
+    prompt
+  );
 }
 
 function buildTipCalculatorScript() {
@@ -368,6 +423,81 @@ function buildInvoiceGeneratorScript() {
   ].join("\n");
 }
 
+function buildTodoTaskerScript() {
+  return [
+    "(() => {",
+    "  const form = document.getElementById('todo-form');",
+    "  const input = document.getElementById('todo-input');",
+    "  const addButton = document.getElementById('todo-add');",
+    "  const list = document.getElementById('todo-list');",
+    "  const openCount = document.getElementById('todo-open-count');",
+    "  const completedCount = document.getElementById('todo-completed-count');",
+    "  const storageKey = 'infinity.todo_tasker.tasks.v1';",
+    "  const initialTasks = [",
+    "    { id: 'task-1', title: 'Добавить первую задачу', completed: false },",
+    "    { id: 'task-2', title: 'Отметить выполненное галочкой', completed: true },",
+    "  ];",
+    "  function readTasks() {",
+    "    try {",
+    "      const stored = JSON.parse(window.localStorage.getItem(storageKey) || 'null');",
+    "      if (Array.isArray(stored)) return stored;",
+    "    } catch {}",
+    "    return initialTasks;",
+    "  }",
+    "  let tasks = readTasks();",
+    "  function persistTasks() {",
+    "    window.localStorage.setItem(storageKey, JSON.stringify(tasks));",
+    "  }",
+    "  function renderTasks() {",
+    "    list.replaceChildren();",
+    "    for (const task of tasks) {",
+    "      const item = document.createElement('li');",
+    "      item.className = `todo-item${task.completed ? ' is-complete' : ''}`;",
+    "      const checkbox = document.createElement('input');",
+    "      checkbox.type = 'checkbox';",
+    "      checkbox.checked = task.completed;",
+    "      checkbox.setAttribute('aria-label', `Toggle ${task.title}`);",
+    "      checkbox.addEventListener('change', () => toggleTask(task.id));",
+    "      const title = document.createElement('span');",
+    "      title.textContent = task.title;",
+    "      item.append(checkbox, title);",
+    "      list.append(item);",
+    "    }",
+    "    const completed = tasks.filter((task) => task.completed).length;",
+    "    completedCount.textContent = String(completed);",
+    "    openCount.textContent = String(tasks.length - completed);",
+    "  }",
+    "  function addTask(title) {",
+    "    const normalized = String(title || '').trim();",
+    "    if (!normalized) return tasks;",
+    "    tasks = [{ id: `task-${Date.now()}`, title: normalized, completed: false }, ...tasks];",
+    "    persistTasks();",
+    "    renderTasks();",
+    "    return tasks;",
+    "  }",
+    "  function toggleTask(id) {",
+    "    tasks = tasks.map((task) => task.id === id ? { ...task, completed: !task.completed } : task);",
+    "    persistTasks();",
+    "    renderTasks();",
+    "    return tasks;",
+    "  }",
+    "  function submitTask(event) {",
+    "    event.preventDefault();",
+    "    addTask(input.value);",
+    "    input.value = '';",
+    "    input.focus();",
+    "  }",
+    "  form.addEventListener('submit', submitTask);",
+    "  addButton.addEventListener('click', submitTask);",
+    "  input.addEventListener('keydown', (event) => {",
+    "    if (event.key === 'Enter') submitTask(event);",
+    "  });",
+    "  window.__INFINITY_RUNNABLE_APP__ = { kind: 'todo_tasker', addTask, toggleTask, getTasks: () => tasks };",
+    "  renderTasks();",
+    "})();",
+  ].join("\n");
+}
+
 function buildGenericCalculatorScript() {
   return [
     "(() => {",
@@ -396,6 +526,9 @@ function buildRunnableAppScript(appKind: ReturnType<typeof deriveRunnableAppKind
   if (appKind === "invoice_generator") {
     return buildInvoiceGeneratorScript();
   }
+  if (appKind === "todo_tasker") {
+    return buildTodoTaskerScript();
+  }
   return buildGenericCalculatorScript();
 }
 
@@ -422,6 +555,19 @@ function buildRunnableAppForm(appKind: ReturnType<typeof deriveRunnableAppKind>)
       "</div>",
     ].join("\n");
   }
+  if (appKind === "todo_tasker") {
+    return [
+      '<div id="todo-form" class="todo-form" role="form" aria-label="Add todo task">',
+      '  <label><span>New task</span><input id="todo-input" type="text" placeholder="Например: купить продукты" /></label>',
+      '  <button id="todo-add" type="button">Add task</button>',
+      "</div>",
+      '<div class="result-grid">',
+      '  <div><span>Open</span><strong id="todo-open-count">0</strong></div>',
+      '  <div><span>Completed</span><strong id="todo-completed-count">0</strong></div>',
+      "</div>",
+      '<ul id="todo-list" class="todo-list"></ul>',
+    ].join("\n");
+  }
   return [
     '<label><span>Value</span><input id="prompt-value" type="number" inputmode="decimal" value="12" /></label>',
     '<label><span>Multiplier</span><input id="prompt-multiplier" type="number" inputmode="decimal" value="3" /></label>',
@@ -441,7 +587,9 @@ function buildPromptDerivedIndexHtml(params: {
       ? "Tip calculator"
       : params.appKind === "invoice_generator"
         ? "Invoice generator"
-        : "Prompt calculator";
+        : params.appKind === "todo_tasker"
+          ? "Todo tasker"
+          : "Prompt calculator";
 
   return [
     "<!doctype html>",
@@ -462,13 +610,21 @@ function buildPromptDerivedIndexHtml(params: {
     "    form { display: grid; gap: 14px; }",
     "    label { display: grid; gap: 7px; color: rgba(245,247,248,0.72); font-size: 13px; }",
     "    input { width: 100%; border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; background: #0b0d0f; color: #fff; padding: 12px 13px; font-size: 15px; }",
+    "    button { border: 1px solid rgba(158,221,191,0.36); border-radius: 8px; background: rgba(158,221,191,0.16); color: #f5f7f8; padding: 12px 14px; font-size: 14px; font-weight: 650; cursor: pointer; }",
+    "    button:hover { background: rgba(158,221,191,0.22); }",
     "    .result-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }",
     "    .result-grid > div { border: 1px solid rgba(158,221,191,0.22); border-radius: 8px; background: rgba(158,221,191,0.08); padding: 14px; }",
     "    .result-grid span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(245,247,248,0.58); }",
     "    .result-grid strong { display: block; margin-top: 8px; font-size: 24px; }",
+    "    .todo-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }",
+    "    .todo-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }",
+    "    .todo-item { display: grid; grid-template-columns: 22px 1fr; align-items: center; gap: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(255,255,255,0.035); padding: 12px; }",
+    "    .todo-item input { width: 18px; height: 18px; padding: 0; accent-color: #9eddbf; }",
+    "    .todo-item span { color: #f5f7f8; line-height: 1.45; }",
+    "    .todo-item.is-complete span { color: rgba(245,247,248,0.48); text-decoration: line-through; }",
     "    .prompt { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: rgba(245,247,248,0.64); word-break: break-word; }",
     "    .marker { position: absolute; opacity: 0; pointer-events: none; }",
-    "    @media (max-width: 680px) { .result-grid { grid-template-columns: 1fr; } h1 { font-size: 28px; } }",
+    "    @media (max-width: 680px) { .result-grid, .todo-form { grid-template-columns: 1fr; } h1 { font-size: 28px; } }",
     "  </style>",
     "</head>",
     "<body>",
@@ -1102,11 +1258,18 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     state.orchestration.initiatives.find(
       (candidate) => candidate.id === input.initiativeId
     ) ?? null;
+  const productContext = {
+    prompt: initiative?.userRequest ?? input.initiativeId,
+    title: initiative?.title ?? "Generated runnable result",
+  };
   const existingDelivery =
     (await listDeliveries({ initiativeId: input.initiativeId })).find(
       (candidate) => candidate.verificationRunId === verification.id
     ) ?? null;
-  if (existingDelivery?.status === "ready") {
+  if (
+    existingDelivery?.status === "ready" &&
+    (await readyDeliveryMatchesCurrentRunnable(existingDelivery, productContext.prompt))
+  ) {
     return {
       ...(await buildOrchestrationDirectoryMeta([
         `Delivery ${existingDelivery.id} already exists for initiative ${input.initiativeId}.`,
@@ -1125,8 +1288,8 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     assembly,
     verification.id,
     {
-      prompt: initiative?.userRequest ?? input.initiativeId,
-      title: initiative?.title ?? "Generated runnable result",
+      prompt: productContext.prompt,
+      title: productContext.title,
     }
   );
   const launchReady =

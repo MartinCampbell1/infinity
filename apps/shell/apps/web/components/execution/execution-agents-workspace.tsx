@@ -25,7 +25,7 @@ import {
 import {
   emptyShellExecutionAgentsSnapshot,
   type ShellExecutionAgentsSnapshot,
-} from "@/lib/execution-agents";
+} from "@/lib/execution-agents-shared";
 import {
   buildExecutionAgentScopeHref,
   buildExecutionEventsScopeHref,

@@ -1,5 +1,5 @@
 import type { ShellExecutionAgentSnapshot } from "@/lib/execution-agent-model";
-import type { ShellExecutionAgentsSnapshot } from "@/lib/execution-agents";
+import type { ShellExecutionAgentsSnapshot } from "@/lib/execution-agents-shared";
 import type { ShellExecutionEventsSnapshot } from "@/lib/execution-events-model";
 import type { ShellExecutionHandoffsSnapshot } from "@/lib/execution-handoffs-model";
 

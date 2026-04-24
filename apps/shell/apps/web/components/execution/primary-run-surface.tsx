@@ -16,6 +16,7 @@ import {
   PlaneStatusPill,
 } from "@/components/execution/plane-run-primitives";
 import { RecoveryActionStrip } from "@/components/execution/operator-action-controls";
+import { RunLiveRefresh } from "./run-live-refresh";
 import { getClaudeDisplayRunId } from "@/lib/server/orchestration/claude-design-presentation";
 import type { ApprovalRequest } from "@/lib/server/control-plane/contracts/approvals";
 import type {
@@ -368,8 +369,11 @@ export function PrimaryRunSurface({
     },
   ];
 
+  const liveRefreshEnabled = !delivered && initiative.status !== "cancelled";
+
   return (
-    <main className="mx-auto grid max-w-[1520px] gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
+    <main className="mx-auto grid max-w-[1520px] gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <RunLiveRefresh enabled={liveRefreshEnabled} />
       <section className="min-w-0 space-y-5">
         <div className="flex items-center gap-2 text-[11px] text-white/56">
           <Link href={continuityHref} className="inline-flex items-center gap-1 transition hover:text-white">
@@ -568,7 +572,7 @@ export function PrimaryRunSurface({
             </span>
           </div>
 
-          <div data-task-board-layout="scan-list" className="space-y-3">
+          <div data-task-board-layout="lane-columns" className="grid gap-3 lg:grid-cols-3">
             {[
               {
                 label: "running",
@@ -615,7 +619,7 @@ export function PrimaryRunSurface({
                   return (
                     <div
                       key={workUnit.id}
-                      className={`grid gap-3 rounded-[10px] border px-4 py-3 md:grid-cols-[74px_minmax(0,1fr)_174px] md:items-center ${
+                      className={`grid gap-3 rounded-[10px] border px-4 py-3 2xl:grid-cols-[74px_minmax(0,1fr)_174px] 2xl:items-center ${
                         selected
                           ? "border-[rgba(133,169,255,0.38)] bg-[rgba(133,169,255,0.06)]"
                           : "border-white/7 bg-white/[0.025]"
@@ -665,7 +669,7 @@ export function PrimaryRunSurface({
                           <div className="mt-1 text-[11px] text-rose-100/78">Failure {failureReason}</div>
                         ) : null}
                       </div>
-                      <div className="flex flex-wrap gap-1.5 font-mono text-[9.5px] text-[var(--shell-sidebar-muted)] md:justify-end">
+                      <div className="flex flex-wrap gap-1.5 font-mono text-[9.5px] text-[var(--shell-sidebar-muted)] 2xl:justify-end">
                         <span className="inline-flex rounded-[4px] bg-white/[0.03] px-2 py-1">
                           Executor {workUnit.executorType}
                         </span>
@@ -747,7 +751,7 @@ export function PrimaryRunSurface({
         </section>
       </section>
 
-      <aside className="hidden xl:block">
+      <aside className="hidden lg:block">
         <div className="sticky top-0 h-[calc(100vh-56px)] overflow-auto border-l border-[color:var(--shell-sidebar-border)] bg-[rgba(8,11,15,0.6)] px-5 py-5">
           {selectedWorkUnit ? (
             <>

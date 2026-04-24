@@ -297,7 +297,8 @@ describe("PrimaryRunSurface", () => {
     expect(markup).toContain("/execution/delivery/delivery-1");
     expect(markup).toContain("assembly-manifest.json");
 
-    expect(markup).toContain('data-task-board-layout="scan-list"');
+    expect(markup).toContain('data-run-live-refresh="idle"');
+    expect(markup).toContain('data-task-board-layout="lane-columns"');
     expect(markup).toContain("Task t01");
     expect(markup).not.toContain("Work unit work-unit-1");
     expect(markup).toContain("apps/shell/apps/web/app/calculator/page.tsx");
@@ -311,5 +312,53 @@ describe("PrimaryRunSurface", () => {
     expect(markup).not.toContain("Work unit work-unit-2");
     expect(markup).toContain("Executor droid");
     expect(markup).toContain("Failure Preview smoke proof failed on missing output total.");
+  });
+
+  test("keeps active runs refreshing until the delivery projection is visible", () => {
+    const markup = renderToStaticMarkup(
+      <PrimaryRunSurface
+        initiative={{
+          id: "initiative-refresh",
+          title: "Live tasker",
+          userRequest: "Build a tasker.",
+          status: "running",
+          requestedBy: "martin",
+          workspaceSessionId: null,
+          priority: "high",
+          createdAt: now,
+          updatedAt: now,
+        }}
+        currentRun={{
+          id: "run-refresh",
+          initiativeId: "initiative-refresh",
+          title: "Live tasker",
+          originalPrompt: "Build a tasker.",
+          entryMode: "shell_chat",
+          currentStage: "executing",
+          health: "healthy",
+          automationMode: "autonomous",
+          manualStageProgression: false,
+          operatorOverrideActive: false,
+          previewStatus: "building",
+          handoffStatus: "building",
+          createdAt: now,
+          updatedAt: now,
+        }}
+        currentTaskGraph={null}
+        currentBatch={null}
+        currentDelivery={null}
+        currentPreviewTarget={null}
+        latestRunEvent={null}
+        currentHandoffPacket={null}
+        plannerNotes={[]}
+        workUnits={[]}
+        agentSessions={[]}
+        recoveryIncidents={[]}
+        approvalRequests={[]}
+        workspaceHostContext={null}
+      />,
+    );
+
+    expect(markup).toContain('data-run-live-refresh="active"');
   });
 });

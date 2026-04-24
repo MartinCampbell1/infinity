@@ -779,6 +779,169 @@ describe("/api/control/orchestration/delivery", () => {
     expect(previewHtml).not.toContain("Truthful runnable delivery bundle");
   });
 
+  test("todo tasker prompts create a checklist runnable preview and manifest", async () => {
+    const prompt =
+      "создай мне пожалуйста простой таскер: список дел который я сначала вношу, а потом отмечаю галочками что сделал.";
+    const { initiativeId, taskGraphId } = await createPlannedInitiative({
+      title: "создай мне пожалуйста простой таскер: список дел который я сначала вн...",
+      userRequest: prompt,
+    });
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const deliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const deliveryBody = await deliveryResponse.json();
+
+    expect(deliveryResponse.status).toBe(201);
+    expect(deliveryBody.delivery.status).toBe("ready");
+    expect(deliveryBody.delivery.launchProofKind).toBe("runnable_result");
+
+    const launchManifest = JSON.parse(
+      readFileSync(deliveryBody.delivery.launchManifestPath, "utf8"),
+    ) as { appKind?: string };
+    expect(launchManifest.appKind).toBe("todo_tasker");
+
+    const appJsPath = path.join(
+      path.dirname(deliveryBody.delivery.launchManifestPath),
+      "app.js",
+    );
+    const appJs = readFileSync(appJsPath, "utf8");
+    expect(appJs).toContain("todo_tasker");
+    expect(appJs).toContain("addTask");
+    expect(appJs).toContain("toggleTask");
+
+    const state = await readControlPlaneState();
+    const preview = state.orchestration.previewTargets.find(
+      (candidate) => candidate.deliveryId === deliveryBody.delivery.id,
+    );
+    expect(preview).toBeTruthy();
+
+    const previewResponse = await getPreview(
+      new Request(
+        `http://localhost/api/control/orchestration/previews/${preview?.id}`,
+      ),
+      { params: Promise.resolve({ previewId: preview?.id ?? "" }) },
+    );
+    const previewHtml = await previewResponse.text();
+
+    expect(previewResponse.status).toBe(200);
+    expect(previewHtml).toContain("<h1>Todo tasker</h1>");
+    expect(previewHtml).toContain("New task");
+    expect(previewHtml).toContain("Add task");
+    expect(previewHtml).toContain("todo-list");
+    expect(previewHtml).toContain("todo-open-count");
+    expect(previewHtml).toContain("todo-completed-count");
+    expect(previewHtml).not.toContain("<h1>Prompt calculator</h1>");
+    expect(previewHtml).not.toContain("prompt-result");
+  });
+
+  test("repeated todo delivery rebuilds stale generic runnable artifacts", async () => {
+    const prompt =
+      "создай мне пожалуйста простой таскер: список дел который я сначала вношу, а потом отмечаю галочками что сделал.";
+    const { initiativeId, taskGraphId } = await createPlannedInitiative({
+      title: "создай мне пожалуйста простой таскер: список дел который я сначала вн...",
+      userRequest: prompt,
+    });
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const firstDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const firstDeliveryBody = await firstDeliveryResponse.json();
+    expect(firstDeliveryResponse.status).toBe(201);
+    expect(firstDeliveryBody.delivery.status).toBe("ready");
+
+    const launchManifestPath = firstDeliveryBody.delivery.launchManifestPath as string;
+    const launchManifest = JSON.parse(
+      readFileSync(launchManifestPath, "utf8"),
+    ) as Record<string, unknown>;
+    writeFileSync(
+      launchManifestPath,
+      JSON.stringify(
+        {
+          ...launchManifest,
+          appKind: "prompt_calculator",
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(
+      path.join(path.dirname(launchManifestPath), "index.html"),
+      "<!doctype html><html><body><h1>Prompt calculator</h1><output id=\"prompt-result\"></output></body></html>",
+    );
+
+    const secondDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const secondDeliveryBody = await secondDeliveryResponse.json();
+    expect(secondDeliveryResponse.status).toBe(201);
+    expect(secondDeliveryBody.delivery.id).toBe(firstDeliveryBody.delivery.id);
+
+    const rebuiltManifest = JSON.parse(
+      readFileSync(secondDeliveryBody.delivery.launchManifestPath, "utf8"),
+    ) as { appKind?: string };
+    const rebuiltHtml = readFileSync(
+      path.join(path.dirname(secondDeliveryBody.delivery.launchManifestPath), "index.html"),
+      "utf8",
+    );
+
+    expect(rebuiltManifest.appKind).toBe("todo_tasker");
+    expect(rebuiltHtml).toContain("<h1>Todo tasker</h1>");
+    expect(rebuiltHtml).toContain("todo-list");
+    expect(rebuiltHtml).not.toContain("<h1>Prompt calculator</h1>");
+    expect(rebuiltHtml).not.toContain("prompt-result");
+  });
+
   test("delivery binds to the verification-linked assembly even if a newer assembly exists", async () => {
     const { initiativeId, taskGraphId } = await createPlannedInitiative();
     await completeAllWorkUnits(taskGraphId);
