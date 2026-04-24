@@ -5,7 +5,7 @@ Workspace: `/Users/martin/infinity`
 Branch: `master`
 Validated implementation commit: `66c4628`
 Post-GO hardening commit: `d0592d2`
-Validation packet: `handoff-packets/validation/2026-04-24T00-58-39Z`
+Validation packet: `handoff-packets/validation/2026-04-24T01-12-18Z`
 
 ## Scope
 
@@ -32,13 +32,13 @@ These were rerun during the current closeout pass:
 
 Most recent successful full validation observed during this closeout:
 
-- run dir: `handoff-packets/validation/2026-04-24T00-58-39Z`
+- run dir: `handoff-packets/validation/2026-04-24T01-12-18Z`
 - status: `passed-final-release`
 - release readiness: `final_ready`
 - repo checks: `passed`
 - browser product E2E: `passed`
 - critic: `completed_external_critic`
-- critic score: `8.1`
+- critic score: `8.2`
 - unresolved must-fix: `0`
 - shell origin: `http://127.0.0.1:3738`
 - work-ui origin: `http://127.0.0.1:3102`
@@ -46,11 +46,11 @@ Most recent successful full validation observed during this closeout:
 - shell port requested/actual: `3737` / `3738`
 - work-ui port requested/actual: `3101` / `3102`
 - kernel port requested/actual: `8798` / `8799`
-- browser E2E report: `handoff-packets/browser-e2e/browser-e2e-2026-04-24T01-00-03Z/report.json`
+- browser E2E report: `handoff-packets/browser-e2e/browser-e2e-2026-04-24T01-13-18Z/report.json`
 
 ## Autonomous proof
 
-From `handoff-packets/validation/2026-04-24T00-58-39Z/autonomous-proof.json`:
+From `handoff-packets/validation/2026-04-24T01-12-18Z/autonomous-proof.json`:
 
 - root frontdoor stayed on `/`
 - autonomous one-prompt: `true`
@@ -66,7 +66,7 @@ The launch manifest used by the truthful delivery proof is assembly-backed:
 
 ## Approval and fallback proof
 
-The 2026-04-24 packet explicitly closes the Phase 5.3 critic must-fix items:
+The 2026-04-24 post-hardening packet explicitly closes the Phase 5.3 critic must-fix items:
 
 - standalone Work UI recovery showed the effective fallback shell origin `http://127.0.0.1:3738`
 - `api-snapshots/approval-created-pending.json` recorded `pending: 1`
@@ -98,7 +98,7 @@ The final independent critic returned `pass: true` with no unresolved `must_fix`
 - derive the run detail headline status chip from the same final delivery/projection state as the delivery CTA
 - add copy/open or expanded disclosure affordances for long delivery proof paths and launch URLs
 
-These were closed in the bounded post-GO hardening commit `d0592d2`:
+These were closed in the bounded post-GO hardening commit `d0592d2` and revalidated by the final packet `2026-04-24T01-12-18Z`:
 
 - delivered runs now use a `delivered` headline status and current-stage metric when delivery evidence is ready
 - delivery proof rows now keep the compact scan view and add expandable `Full value` blocks with selectable full paths/URLs/commands
@@ -109,4 +109,10 @@ Focused hardening verification:
 - `npm --workspace @founderos/web exec vitest run components/orchestration/delivery-summary.test.tsx`
 - `npm run shell:typecheck`
 - `git diff --check`
-- independent critic gate: `GO`
+- independent hardening critic gate: `GO`
+- final screenshot critic gate: `GO`, score `8.2`, unresolved `must_fix: 0`
+
+The post-hardening final critic left only non-blocking visual polish suggestions for a future pass:
+
+- make full proof values copyable/default-visible without expanding each row
+- reduce duplicate lower-page delivery evidence density
