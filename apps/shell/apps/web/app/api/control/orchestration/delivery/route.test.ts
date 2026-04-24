@@ -858,6 +858,85 @@ describe("/api/control/orchestration/delivery", () => {
     expect(previewHtml).not.toContain("prompt-result");
   });
 
+  test("wishlist prompts create a wish tracker with completion celebration", async () => {
+    const prompt =
+      "сделай мне пожалуйста простенький список моих желаний: я буду туда вносить свои желания, а когда они сбудутся, я буду отмечать их как выполнено, и буде какая то простенькая поздравительная анимация, типа конфети или фанфары.";
+    const { initiativeId, taskGraphId } = await createPlannedInitiative({
+      title: "сделай мне пожалуйста простенький список моих желаний: я буду туда вн...",
+      userRequest: prompt,
+    });
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const deliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const deliveryBody = await deliveryResponse.json();
+
+    expect(deliveryResponse.status).toBe(201);
+    expect(deliveryBody.delivery.status).toBe("ready");
+    expect(deliveryBody.delivery.launchProofKind).toBe("runnable_result");
+    expect(deliveryBody.delivery.resultSummary).toContain("список моих желаний");
+
+    const launchManifest = JSON.parse(
+      readFileSync(deliveryBody.delivery.launchManifestPath, "utf8"),
+    ) as { appKind?: string };
+    expect(launchManifest.appKind).toBe("wishlist_tracker");
+
+    const appJsPath = path.join(
+      path.dirname(deliveryBody.delivery.launchManifestPath),
+      "app.js",
+    );
+    const appJs = readFileSync(appJsPath, "utf8");
+    expect(appJs).toContain("wishlist_tracker");
+    expect(appJs).toContain("addWish");
+    expect(appJs).toContain("toggleWish");
+
+    const state = await readControlPlaneState();
+    const preview = state.orchestration.previewTargets.find(
+      (candidate) => candidate.deliveryId === deliveryBody.delivery.id,
+    );
+    expect(preview).toBeTruthy();
+
+    const previewResponse = await getPreview(
+      new Request(
+        `http://localhost/api/control/orchestration/previews/${preview?.id}`,
+      ),
+      { params: Promise.resolve({ previewId: preview?.id ?? "" }) },
+    );
+    const previewHtml = await previewResponse.text();
+
+    expect(previewResponse.status).toBe(200);
+    expect(previewHtml).toContain("<h1>Wishlist tracker</h1>");
+    expect(previewHtml).toContain("New wish");
+    expect(previewHtml).toContain("Add wish");
+    expect(previewHtml).toContain("wish-list");
+    expect(previewHtml).toContain("wish-celebration");
+    expect(previewHtml).not.toContain("<h1>Todo tasker</h1>");
+    expect(previewHtml).not.toContain('id="todo-list"');
+  });
+
   test("repeated todo delivery rebuilds stale generic runnable artifacts", async () => {
     const prompt =
       "создай мне пожалуйста простой таскер: список дел который я сначала вношу, а потом отмечаю галочками что сделал.";

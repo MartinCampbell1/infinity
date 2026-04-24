@@ -17,27 +17,35 @@ export default async function ExecutionDeliveriesPage({
   const params = searchParams ? await searchParams : undefined;
   const routeScope = readShellRouteScopeFromQueryRecord(params);
   const state = await readControlPlaneState();
+  const initiativesById = new Map(
+    state.orchestration.initiatives.map((initiative) => [initiative.id, initiative])
+  );
   const items = [...state.orchestration.deliveries]
     .sort((left, right) => (right.deliveredAt ?? right.id).localeCompare(left.deliveredAt ?? left.id))
-    .map((delivery) => ({
-      id: delivery.id,
-      headline: delivery.resultSummary,
-      detail:
-        (delivery.launchTargetLabel ? `${delivery.launchTargetLabel} · ` : "") +
-        (delivery.launchProofUrl ??
-        delivery.previewUrl ??
-        delivery.localOutputPath ??
-        "Delivery output unavailable"),
-      meta: [
-        `status ${delivery.status}`,
-        delivery.launchProofKind ? `proof ${delivery.launchProofKind}` : null,
-        delivery.launchManifestPath ? "localhost manifest" : null,
-        delivery.localOutputPath,
-      ],
-      href: buildExecutionDeliveryScopeHref(delivery.id, routeScope, {
-        initiativeId: delivery.initiativeId,
-      }),
-    }));
+    .map((delivery) => {
+      const initiative = initiativesById.get(delivery.initiativeId);
+      const prompt = initiative?.userRequest ?? delivery.resultSummary;
+
+      return {
+        id: delivery.id,
+        headline: initiative?.title ?? delivery.resultSummary,
+        detail:
+          `${prompt} · ` +
+          (delivery.launchProofUrl ??
+            delivery.previewUrl ??
+            delivery.localOutputPath ??
+            "Delivery output unavailable"),
+        meta: [
+          `status ${delivery.status}`,
+          delivery.launchProofKind ? `proof ${delivery.launchProofKind}` : null,
+          delivery.launchManifestPath ? "localhost manifest" : null,
+          delivery.localOutputPath,
+        ],
+        href: buildExecutionDeliveryScopeHref(delivery.id, routeScope, {
+          initiativeId: delivery.initiativeId,
+        }),
+      };
+    });
 
   return (
     <AutonomousRecordBoard

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export function RunLiveRefresh({
   enabled,
@@ -9,17 +10,19 @@ export function RunLiveRefresh({
   enabled: boolean;
   intervalMs?: number;
 }) {
+  const router = useRouter();
+
   useEffect(() => {
     if (!enabled) {
       return undefined;
     }
 
     const interval = window.setInterval(() => {
-      window.location.reload();
+      router.refresh();
     }, intervalMs);
 
     return () => window.clearInterval(interval);
-  }, [enabled, intervalMs]);
+  }, [enabled, intervalMs, router]);
 
   return (
     <span

@@ -38,8 +38,23 @@ describe("ShellFrame navigation", () => {
     );
 
     expect(markup).toContain("Control plane / Home");
+    expect(markup).toContain("New run");
+    expect(markup).toContain('href="/"');
     expect(markup).toContain("Run control plane");
     expect(markup).not.toContain("Plane / Home");
+  });
+
+  test("keeps a visible frontdoor link while browsing execution routes", () => {
+    mockUsePathname.mockReturnValue("/execution/approvals");
+
+    const markup = renderToStaticMarkup(
+      <ShellFrame>
+        <main>Approvals board</main>
+      </ShellFrame>,
+    );
+
+    expect(markup).toContain("New run");
+    expect(markup).toContain('href="/"');
   });
 
   test("does not render static sidebar counters that can contradict durable control-plane state", () => {

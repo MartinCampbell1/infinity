@@ -54,6 +54,7 @@ type LaunchTarget = {
 type RunnableAppKind =
   | "invoice_generator"
   | "tip_calculator"
+  | "wishlist_tracker"
   | "todo_tasker"
   | "prompt_calculator";
 
@@ -308,6 +309,15 @@ function deriveRunnableAppKind(prompt: string): RunnableAppKind {
     return "invoice_generator";
   }
   if (
+    normalized.includes("wishlist") ||
+    normalized.includes("wish list") ||
+    normalized.includes("wish") ||
+    normalized.includes("желани") ||
+    normalized.includes("сбуд")
+  ) {
+    return "wishlist_tracker";
+  }
+  if (
     normalized.includes("tip") ||
     normalized.includes("gratuity") ||
     normalized.includes("bill amount")
@@ -498,6 +508,99 @@ function buildTodoTaskerScript() {
   ].join("\n");
 }
 
+function buildWishlistTrackerScript() {
+  return [
+    "(() => {",
+    "  const form = document.getElementById('wish-form');",
+    "  const input = document.getElementById('wish-input');",
+    "  const addButton = document.getElementById('wish-add');",
+    "  const list = document.getElementById('wish-list');",
+    "  const openCount = document.getElementById('wish-open-count');",
+    "  const completedCount = document.getElementById('wish-completed-count');",
+    "  const celebration = document.getElementById('wish-celebration');",
+    "  const storageKey = 'infinity.wishlist_tracker.wishes.v1';",
+    "  const initialWishes = [",
+    "    { id: 'wish-1', title: 'Записать первое желание', completed: false },",
+    "    { id: 'wish-2', title: 'Отметить желание, которое сбылось', completed: false },",
+    "  ];",
+    "  function readWishes() {",
+    "    try {",
+    "      const stored = JSON.parse(window.localStorage.getItem(storageKey) || 'null');",
+    "      if (Array.isArray(stored)) return stored;",
+    "    } catch {}",
+    "    return initialWishes;",
+    "  }",
+    "  let wishes = readWishes();",
+    "  let celebrationTimer = null;",
+    "  function persistWishes() {",
+    "    window.localStorage.setItem(storageKey, JSON.stringify(wishes));",
+    "  }",
+    "  function showCelebration(title) {",
+    "    if (!celebration) return;",
+    "    if (celebrationTimer) window.clearTimeout(celebrationTimer);",
+    "    celebration.textContent = `Fanfare: ${title}`;",
+    "    celebration.classList.add('is-visible');",
+    "    celebrationTimer = window.setTimeout(() => {",
+    "      celebration.classList.remove('is-visible');",
+    "    }, 1800);",
+    "  }",
+    "  function renderWishes() {",
+    "    list.replaceChildren();",
+    "    for (const wish of wishes) {",
+    "      const item = document.createElement('li');",
+    "      item.className = `wish-item${wish.completed ? ' is-complete' : ''}`;",
+    "      const checkbox = document.createElement('input');",
+    "      checkbox.type = 'checkbox';",
+    "      checkbox.checked = wish.completed;",
+    "      checkbox.setAttribute('aria-label', `Toggle ${wish.title}`);",
+    "      checkbox.addEventListener('change', () => toggleWish(wish.id));",
+    "      const title = document.createElement('span');",
+    "      title.textContent = wish.title;",
+    "      item.append(checkbox, title);",
+    "      list.append(item);",
+    "    }",
+    "    const completed = wishes.filter((wish) => wish.completed).length;",
+    "    completedCount.textContent = String(completed);",
+    "    openCount.textContent = String(wishes.length - completed);",
+    "  }",
+    "  function addWish(title) {",
+    "    const normalized = String(title || '').trim();",
+    "    if (!normalized) return wishes;",
+    "    wishes = [{ id: `wish-${Date.now()}`, title: normalized, completed: false }, ...wishes];",
+    "    persistWishes();",
+    "    renderWishes();",
+    "    return wishes;",
+    "  }",
+    "  function toggleWish(id) {",
+    "    let completedTitle = null;",
+    "    wishes = wishes.map((wish) => {",
+    "      if (wish.id !== id) return wish;",
+    "      const completed = !wish.completed;",
+    "      if (completed) completedTitle = wish.title;",
+    "      return { ...wish, completed };",
+    "    });",
+    "    persistWishes();",
+    "    renderWishes();",
+    "    if (completedTitle) showCelebration(completedTitle);",
+    "    return wishes;",
+    "  }",
+    "  function submitWish(event) {",
+    "    event.preventDefault();",
+    "    addWish(input.value);",
+    "    input.value = '';",
+    "    input.focus();",
+    "  }",
+    "  form.addEventListener('submit', submitWish);",
+    "  addButton.addEventListener('click', submitWish);",
+    "  input.addEventListener('keydown', (event) => {",
+    "    if (event.key === 'Enter') submitWish(event);",
+    "  });",
+    "  window.__INFINITY_RUNNABLE_APP__ = { kind: 'wishlist_tracker', addWish, toggleWish, getWishes: () => wishes };",
+    "  renderWishes();",
+    "})();",
+  ].join("\n");
+}
+
 function buildGenericCalculatorScript() {
   return [
     "(() => {",
@@ -526,6 +629,9 @@ function buildRunnableAppScript(appKind: ReturnType<typeof deriveRunnableAppKind
   if (appKind === "invoice_generator") {
     return buildInvoiceGeneratorScript();
   }
+  if (appKind === "wishlist_tracker") {
+    return buildWishlistTrackerScript();
+  }
   if (appKind === "todo_tasker") {
     return buildTodoTaskerScript();
   }
@@ -553,6 +659,20 @@ function buildRunnableAppForm(appKind: ReturnType<typeof deriveRunnableAppKind>)
       '  <div><span>Tax</span><strong id="invoice-tax-output">$0.00</strong></div>',
       '  <div><span>Printable total</span><strong id="invoice-total">$0.00</strong></div>',
       "</div>",
+    ].join("\n");
+  }
+  if (appKind === "wishlist_tracker") {
+    return [
+      '<div id="wish-form" class="wish-form" role="form" aria-label="Add wish">',
+      '  <label><span>New wish</span><input id="wish-input" type="text" placeholder="Например: поездка к океану" /></label>',
+      '  <button id="wish-add" type="button">Add wish</button>',
+      "</div>",
+      '<div class="result-grid">',
+      '  <div><span>Open</span><strong id="wish-open-count">0</strong></div>',
+      '  <div><span>Completed</span><strong id="wish-completed-count">0</strong></div>',
+      "</div>",
+      '<div id="wish-celebration" class="wish-celebration" aria-live="polite"></div>',
+      '<ul id="wish-list" class="wish-list"></ul>',
     ].join("\n");
   }
   if (appKind === "todo_tasker") {
@@ -587,9 +707,11 @@ function buildPromptDerivedIndexHtml(params: {
       ? "Tip calculator"
       : params.appKind === "invoice_generator"
         ? "Invoice generator"
-        : params.appKind === "todo_tasker"
-          ? "Todo tasker"
-          : "Prompt calculator";
+        : params.appKind === "wishlist_tracker"
+          ? "Wishlist tracker"
+          : params.appKind === "todo_tasker"
+            ? "Todo tasker"
+            : "Prompt calculator";
 
   return [
     "<!doctype html>",
@@ -622,9 +744,17 @@ function buildPromptDerivedIndexHtml(params: {
     "    .todo-item input { width: 18px; height: 18px; padding: 0; accent-color: #9eddbf; }",
     "    .todo-item span { color: #f5f7f8; line-height: 1.45; }",
     "    .todo-item.is-complete span { color: rgba(245,247,248,0.48); text-decoration: line-through; }",
+    "    .wish-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }",
+    "    .wish-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }",
+    "    .wish-item { display: grid; grid-template-columns: 22px 1fr; align-items: center; gap: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(255,255,255,0.035); padding: 12px; }",
+    "    .wish-item input { width: 18px; height: 18px; padding: 0; accent-color: #9eddbf; }",
+    "    .wish-item span { color: #f5f7f8; line-height: 1.45; }",
+    "    .wish-item.is-complete span { color: rgba(245,247,248,0.48); text-decoration: line-through; }",
+    "    .wish-celebration { min-height: 42px; display: grid; place-items: center; border: 1px dashed rgba(158,221,191,0.18); border-radius: 8px; color: rgba(245,247,248,0.48); transition: transform 160ms ease, border-color 160ms ease, color 160ms ease, background 160ms ease; }",
+    "    .wish-celebration.is-visible { transform: translateY(-1px); border-color: rgba(158,221,191,0.48); background: rgba(158,221,191,0.13); color: #f5f7f8; }",
     "    .prompt { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: rgba(245,247,248,0.64); word-break: break-word; }",
     "    .marker { position: absolute; opacity: 0; pointer-events: none; }",
-    "    @media (max-width: 680px) { .result-grid, .todo-form { grid-template-columns: 1fr; } h1 { font-size: 28px; } }",
+    "    @media (max-width: 680px) { .result-grid, .todo-form, .wish-form { grid-template-columns: 1fr; } h1 { font-size: 28px; } }",
     "  </style>",
     "</head>",
     "<body>",
@@ -656,6 +786,10 @@ function resolveRunnableResultTitle(params: { prompt: string; title: string }) {
     return prompt;
   }
   return title || prompt || "Generated runnable result";
+}
+
+function buildReadyDeliveryResultSummary(params: { prompt: string; title: string }) {
+  return `${resolveRunnableResultTitle(params)} - runnable localhost delivery bundle backed by verified assembly evidence.`;
 }
 
 async function materializeAssemblyRunnableTarget(params: {
@@ -1266,9 +1400,11 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     (await listDeliveries({ initiativeId: input.initiativeId })).find(
       (candidate) => candidate.verificationRunId === verification.id
     ) ?? null;
+  const readyResultSummary = buildReadyDeliveryResultSummary(productContext);
   if (
     existingDelivery?.status === "ready" &&
-    (await readyDeliveryMatchesCurrentRunnable(existingDelivery, productContext.prompt))
+    (await readyDeliveryMatchesCurrentRunnable(existingDelivery, productContext.prompt)) &&
+    existingDelivery.resultSummary === readyResultSummary
   ) {
     return {
       ...(await buildOrchestrationDirectoryMeta([
@@ -1308,7 +1444,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     taskGraphId: assembly.taskGraphId,
     resultSummary:
       launchReady
-        ? "Runnable localhost delivery bundle backed by verified assembly evidence."
+        ? readyResultSummary
         : fields.launchProofKind === "attempt_scaffold"
           ? `Attempt scaffold preview and handoff bundle were prepared for initiative ${input.initiativeId}, but the requested product is still unproven as a real runnable result.`
           : `Evidence wrapper and handoff bundle were prepared for initiative ${input.initiativeId}, but the actual runnable result is still unproven.`,

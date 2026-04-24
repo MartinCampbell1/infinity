@@ -47,12 +47,19 @@ type ShellNavGroup = {
 
 const CONTROL_PLANE_ITEMS: ShellNavItem[] = [
   {
+    label: "New run",
+    href: "/",
+    description: "Start from a prompt",
+    icon: PencilLine,
+    match: (pathname) => pathname === "/",
+  },
+  {
     label: "Run control plane",
     href: "/execution/runs",
     description: "Canonical autonomous lifecycle",
     icon: LayoutGrid,
     match: (pathname) =>
-      pathname === "/" || pathname === "/execution" || pathname.startsWith("/execution/runs"),
+      pathname === "/execution" || pathname.startsWith("/execution/runs"),
   },
   {
     label: "Planner",
@@ -478,7 +485,14 @@ function GroupRail({
     return (
       <div className="shell-icon-rail hidden md:flex md:flex-col">
         <div className="flex h-14 items-center justify-center border-b border-[color:var(--shell-sidebar-border)]">
-          <div className="shell-rail-brand text-[15px] font-medium text-white">I</div>
+          <Link
+            href="/"
+            className="shell-rail-brand text-[15px] font-medium text-white"
+            aria-label="New run"
+            title="New run"
+          >
+            I
+          </Link>
         </div>
 
         <div className="flex flex-1 flex-col items-center gap-4 px-2 py-4">
@@ -506,7 +520,14 @@ function GroupRail({
   return (
     <div className="shell-icon-rail hidden md:flex md:flex-col">
       <div className="flex h-14 items-center justify-center border-b border-[color:var(--shell-sidebar-border)]">
-        <div className="shell-rail-brand text-[15px] font-medium text-white">I</div>
+        <Link
+          href="/"
+          className="shell-rail-brand text-[15px] font-medium text-white"
+          aria-label="New run"
+          title="New run"
+        >
+          I
+        </Link>
       </div>
 
       <div className="flex flex-1 flex-col items-center gap-2 px-3 py-4">
@@ -867,9 +888,14 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                 <div className="min-w-0">
                   {isPlaneWorkspaceRoute ? (
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/85 text-[16px] font-medium text-white">
+                      <Link
+                        href="/"
+                        className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/85 text-[16px] font-medium text-white"
+                        aria-label="New run"
+                        title="New run"
+                      >
                         I
-                      </div>
+                      </Link>
                       <div className="flex items-center gap-2 text-[16px] font-medium tracking-[-0.02em] text-foreground">
                         infinity
                         <ChevronDown className="h-4 w-4 text-[var(--shell-sidebar-muted)]" />
@@ -882,9 +908,14 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                           <PanelLeft className="h-4 w-4" />
                         </div>
                       </div>
-                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/85 text-[16px] font-medium text-white">
+                      <Link
+                        href="/"
+                        className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/85 text-[16px] font-medium text-white"
+                        aria-label="New run"
+                        title="New run"
+                      >
                         I
-                      </div>
+                      </Link>
                       <div
                         className="min-w-0 text-[16px] font-medium tracking-[-0.02em] text-foreground"
                         aria-label={meta.eyebrow}
@@ -961,7 +992,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                         </button>
                       </>
                     ) : null}
-                    {currentTopbarMode === "runs" ? (
+                    {currentTopbarMode !== "frontdoor" ? (
                       <Link
                         href="/"
                         className="inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4 text-[13px] text-white/78"

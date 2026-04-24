@@ -17,6 +17,12 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: vi.fn(),
+  }),
+}));
+
 vi.mock("@/lib/route-scope", () => ({
   buildExecutionBatchScopeHref: (
     batchId: string,
