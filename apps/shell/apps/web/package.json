@@ -2,7 +2,6 @@
   "name": "@founderos/web",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "sh -c 'next dev --hostname ${FOUNDEROS_WEB_HOST:-127.0.0.1} --port ${FOUNDEROS_WEB_PORT:-3737}'",
     "build": "next build",
