@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { get as getBlob, head as headBlob, put as putBlob } from "@vercel/blob";
 
 import type {
   AssemblyRecord,
@@ -56,7 +57,12 @@ export interface ArtifactStore {
     key: string;
     content: string | Buffer;
     contentType: string;
-  }): StoredArtifact;
+  }): Promise<StoredArtifact>;
+  readArtifact(params: {
+    key: string;
+    sha256: string;
+  }): Promise<{ bytes: Buffer; contentType: string }>;
+  artifactExists(uri: string): Promise<boolean>;
 }
 
 function trimTrailingSlash(value: string) {
@@ -113,6 +119,14 @@ function resolveArtifactStoreMode() {
   throw new Error(
     "FOUNDEROS_ARTIFACT_STORE_MODE must be one of local, s3, gcs, r2, or object."
   );
+}
+
+function resolveArtifactObjectBackend() {
+  return normalizeEnvValue(process.env.FOUNDEROS_ARTIFACT_OBJECT_BACKEND)?.toLowerCase() ?? null;
+}
+
+function usesVercelBlobObjectBackend() {
+  return resolveArtifactObjectBackend() === "vercel_blob";
 }
 
 function requiresObjectArtifactStore() {
@@ -180,10 +194,12 @@ function assertArtifactStorageUriPrefix(
 
   if (mode === "object") {
     const validObjectPrefix =
-      uriPrefix.startsWith("object://") || uriPrefix.startsWith("https://");
+      uriPrefix.startsWith("object://") ||
+      uriPrefix.startsWith("vercel-blob://") ||
+      uriPrefix.startsWith("https://");
     if (!validObjectPrefix) {
       throw new Error(
-        "FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX must start with object:// or https:// when FOUNDEROS_ARTIFACT_STORE_MODE=object."
+        "FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX must start with object://, vercel-blob://, or https:// when FOUNDEROS_ARTIFACT_STORE_MODE=object."
       );
     }
   }
@@ -211,11 +227,41 @@ function assertSignedUrlBase(value: string) {
 }
 
 function assertObjectMirrorRoot(value: string) {
+  if (usesVercelBlobObjectBackend()) {
+    return;
+  }
   if (requiresObjectArtifactStore() && objectMirrorRootIsLocalScratch(value)) {
     throw new Error(
       "FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT must be a durable object-store mount in production-like deployments, not /tmp, /var/folders, or a /Users path."
     );
   }
+}
+
+function vercelBlobToken() {
+  const token =
+    normalizeEnvValue(process.env.BLOB_READ_WRITE_TOKEN) ??
+    normalizeEnvValue(process.env.FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN);
+  if (!token) {
+    throw new Error(
+      "BLOB_READ_WRITE_TOKEN or FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN is required when FOUNDEROS_ARTIFACT_OBJECT_BACKEND=vercel_blob."
+    );
+  }
+  return token;
+}
+
+async function streamToBuffer(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    chunks.push(value);
+    byteLength += value.byteLength;
+  }
+  return Buffer.concat(chunks, byteLength);
 }
 
 function objectMirrorRootIsLocalScratch(value: string) {
@@ -330,11 +376,11 @@ class LocalArtifactStore implements ArtifactStore {
     return null;
   }
 
-  putArtifact(params: {
+  async putArtifact(params: {
     key: string;
     content: string | Buffer;
     contentType: string;
-  }): StoredArtifact {
+  }): Promise<StoredArtifact> {
     const key = sanitizeArtifactKey(params.key);
     const localPath = path.join(this.rootPath, key);
     const bytes = contentBuffer(params.content);
@@ -351,6 +397,27 @@ class LocalArtifactStore implements ArtifactStore {
       contentType: params.contentType,
       localPath,
     };
+  }
+
+  async readArtifact(params: { key: string; sha256: string }) {
+    const localPath = path.join(this.rootPath, sanitizeArtifactKey(params.key));
+    if (!existsSync(localPath)) {
+      throw new Error("Signed artifact is not available in the configured artifact store.");
+    }
+    const bytes = readFileSync(localPath);
+    const observedSha256 = sha256Hex(bytes);
+    if (observedSha256 !== params.sha256) {
+      throw new Error("Signed artifact checksum mismatch.");
+    }
+    return {
+      bytes,
+      contentType: "application/octet-stream",
+    };
+  }
+
+  async artifactExists(uri: string) {
+    const localPath = this.localPathForUri(uri);
+    return localPath ? existsSync(localPath) : false;
   }
 }
 
@@ -392,11 +459,11 @@ class ObjectArtifactStore implements ArtifactStore {
     return path.join(this.mirrorRootPath, key);
   }
 
-  putArtifact(params: {
+  async putArtifact(params: {
     key: string;
     content: string | Buffer;
     contentType: string;
-  }): StoredArtifact {
+  }): Promise<StoredArtifact> {
     const key = sanitizeArtifactKey(params.key);
     const bytes = contentBuffer(params.content);
     const sha256 = sha256Hex(bytes);
@@ -414,6 +481,128 @@ class ObjectArtifactStore implements ArtifactStore {
       contentType: params.contentType,
       localPath,
     };
+  }
+
+  async readArtifact(params: { key: string; sha256: string }) {
+    const localPath = this.localPathForUri(this.uriForKey(params.key));
+    if (!localPath || !existsSync(localPath)) {
+      throw new Error("Signed artifact is not available in the configured artifact store.");
+    }
+    const bytes = readFileSync(localPath);
+    const observedSha256 = sha256Hex(bytes);
+    if (observedSha256 !== params.sha256) {
+      throw new Error("Signed artifact checksum mismatch.");
+    }
+    return {
+      bytes,
+      contentType: "application/octet-stream",
+    };
+  }
+
+  async artifactExists(uri: string) {
+    const localPath = this.localPathForUri(uri);
+    return localPath ? existsSync(localPath) : false;
+  }
+}
+
+class VercelBlobArtifactStore implements ArtifactStore {
+  mode = "object" as const;
+  durable = true;
+  rootUri: string;
+
+  constructor(
+    private readonly uriPrefix: string,
+    private readonly signedUrlBase: string
+  ) {
+    this.rootUri = uriPrefix.replace(/\/+$/, "");
+  }
+
+  uriForKey(key: string) {
+    return `${this.rootUri}/${encodeArtifactKey(key)}`;
+  }
+
+  signedUrlFor(params: { key: string; sha256: string; expiresAt?: string }) {
+    const key = sanitizeArtifactKey(params.key);
+    const expiry = params.expiresAt ?? expiresAt();
+    const signed = hmacSignature(this.mode, `${key}\n${params.sha256}\n${expiry}`);
+    const url = new URL(this.signedUrlBase);
+    url.searchParams.set("key", key);
+    url.searchParams.set("sha256", params.sha256);
+    url.searchParams.set("expires", expiry);
+    url.searchParams.set("signature", signed);
+    return url.toString();
+  }
+
+  localPathForUri(_uri: string) {
+    return null;
+  }
+
+  private keyFromUri(uri: string) {
+    if (!uri.startsWith(`${this.rootUri}/`)) {
+      return null;
+    }
+    return decodeArtifactKey(trimLeadingSlash(uri.slice(this.rootUri.length)));
+  }
+
+  async putArtifact(params: {
+    key: string;
+    content: string | Buffer;
+    contentType: string;
+  }): Promise<StoredArtifact> {
+    const key = sanitizeArtifactKey(params.key);
+    const bytes = contentBuffer(params.content);
+    const sha256 = sha256Hex(bytes);
+    await putBlob(key, bytes, {
+      access: "private",
+      allowOverwrite: true,
+      contentType: params.contentType,
+      token: vercelBlobToken(),
+    });
+    const expires = expiresAt();
+    return {
+      key,
+      uri: this.uriForKey(key),
+      signedUrl: this.signedUrlFor({ key, sha256, expiresAt: expires }),
+      expiresAt: expires,
+      sha256,
+      byteSize: bytes.byteLength,
+      contentType: params.contentType,
+      localPath: null,
+    };
+  }
+
+  async readArtifact(params: { key: string; sha256: string }) {
+    const key = sanitizeArtifactKey(params.key);
+    const result = await getBlob(key, {
+      access: "private",
+      token: vercelBlobToken(),
+      useCache: false,
+    });
+    if (!result || result.statusCode !== 200 || !result.stream) {
+      throw new Error("Signed artifact is not available in the configured artifact store.");
+    }
+    const bytes = await streamToBuffer(result.stream);
+    const observedSha256 = sha256Hex(bytes);
+    if (observedSha256 !== params.sha256) {
+      throw new Error("Signed artifact checksum mismatch.");
+    }
+    return {
+      bytes,
+      contentType: result.blob.contentType,
+    };
+  }
+
+  async artifactExists(uri: string) {
+    const key = this.keyFromUri(uri);
+    if (!key) {
+      return false;
+    }
+    try {
+      await headBlob(key, { token: vercelBlobToken() });
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -445,6 +634,10 @@ export function resolveArtifactStore(): ArtifactStore {
     );
   }
   assertSignedUrlBase(signedUrlBase);
+  if (mode === "object" && usesVercelBlobObjectBackend()) {
+    vercelBlobToken();
+    return new VercelBlobArtifactStore(uriPrefix, signedUrlBase);
+  }
   const mirrorRootPath = normalizeEnvValue(process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT);
   if (!mirrorRootPath) {
     throw new Error(
@@ -456,7 +649,7 @@ export function resolveArtifactStore(): ArtifactStore {
   return new ObjectArtifactStore(mode, uriPrefix, signedUrlBase, mirrorRootPath);
 }
 
-export function storeJsonArtifact(params: {
+export async function storeJsonArtifact(params: {
   key: string;
   payload: unknown;
   contentType?: string;
@@ -468,7 +661,7 @@ export function storeJsonArtifact(params: {
   });
 }
 
-export function storeTextArtifact(params: {
+export async function storeTextArtifact(params: {
   key: string;
   content: string;
   contentType?: string;
@@ -480,7 +673,7 @@ export function storeTextArtifact(params: {
   });
 }
 
-export function storeFileArtifact(params: {
+export async function storeFileArtifact(params: {
   key: string;
   filePath: string;
   contentType?: string;
@@ -492,7 +685,7 @@ export function storeFileArtifact(params: {
   });
 }
 
-export function writeSignedArtifactManifest(params: {
+export async function writeSignedArtifactManifest(params: {
   key: string;
   subject: Record<string, unknown>;
   artifacts: readonly StoredArtifact[];
@@ -514,7 +707,7 @@ export function writeSignedArtifactManifest(params: {
       value: signature,
     },
   };
-  const stored = store.putArtifact({
+  const stored = await store.putArtifact({
     key: params.key,
     content: JSON.stringify(manifest, null, 2),
     contentType: "application/json",
@@ -526,12 +719,19 @@ export function writeSignedArtifactManifest(params: {
   };
 }
 
-export function artifactEvidenceExists(uriOrPath: string | null | undefined) {
+export async function artifactEvidenceExists(uriOrPath: string | null | undefined) {
   if (!uriOrPath) {
     return false;
   }
   const localPath = artifactLocalPath(uriOrPath);
-  return localPath ? existsSync(localPath) : false;
+  if (localPath) {
+    return existsSync(localPath);
+  }
+  try {
+    return await resolveArtifactStore().artifactExists(uriOrPath);
+  } catch {
+    return false;
+  }
 }
 
 export function artifactLocalPath(uriOrPath: string | null | undefined) {
@@ -551,7 +751,7 @@ export function artifactLocalPath(uriOrPath: string | null | undefined) {
   }
 }
 
-export function readSignedArtifactDownload(searchParams: URLSearchParams) {
+export async function readSignedArtifactDownload(searchParams: URLSearchParams) {
   const key = normalizeEnvValue(searchParams.get("key"));
   const sha256 = normalizeEnvValue(searchParams.get("sha256"));
   const expires = normalizeEnvValue(searchParams.get("expires"));
@@ -571,19 +771,11 @@ export function readSignedArtifactDownload(searchParams: URLSearchParams) {
     throw new Error("Signed artifact URL signature is invalid.");
   }
 
-  const localPath = store.localPathForUri(store.uriForKey(key));
-  if (!localPath || !existsSync(localPath)) {
-    throw new Error("Signed artifact is not available in the configured artifact store.");
-  }
-
-  const bytes = readFileSync(localPath);
-  const observedSha256 = sha256Hex(bytes);
-  if (observedSha256 !== sha256) {
-    throw new Error("Signed artifact checksum mismatch.");
-  }
+  const artifact = await store.readArtifact({ key, sha256 });
 
   return {
-    bytes,
+    bytes: artifact.bytes,
+    contentType: artifact.contentType,
     sha256,
     key,
   };
@@ -604,7 +796,7 @@ type AssemblyArtifactRecord = {
   artifactUri: string;
 };
 
-export function materializeAssemblyArtifacts(
+export async function materializeAssemblyArtifacts(
   initiativeId: string,
   taskGraph: TaskGraphRecord,
   workUnits: readonly WorkUnitRecord[]
@@ -615,7 +807,7 @@ export function materializeAssemblyArtifacts(
   mkdirSync(attemptsDir, { recursive: true });
 
   const generatedAt = nowIso();
-  const artifacts = workUnits.map((workUnit) => {
+  const artifacts = await Promise.all(workUnits.map(async (workUnit) => {
     const attemptId = workUnit.latestAttemptId ?? `attempt-missing-${workUnit.id}`;
     const artifactPath = path.join(attemptsDir, `${attemptId}.json`);
     const payload = {
@@ -630,7 +822,7 @@ export function materializeAssemblyArtifacts(
       generatedAt,
     };
     writeFileSync(artifactPath, JSON.stringify(payload, null, 2));
-    const stored = storeJsonArtifact({
+    const stored = await storeJsonArtifact({
       key: `assemblies/${initiativeId}/${taskGraph.id}/attempts/${attemptId}.json`,
       payload,
     });
@@ -645,7 +837,7 @@ export function materializeAssemblyArtifacts(
       artifactPath: store.mode === "local" ? artifactPath : stored.uri,
       artifactUri: stored.uri,
     } satisfies AssemblyArtifactRecord;
-  });
+  }));
 
   return {
     assemblyDir:
@@ -691,7 +883,7 @@ export function buildAssemblyManifest(params: {
   };
 }
 
-export function writeAssemblyManifest(params: {
+export async function writeAssemblyManifest(params: {
   initiativeId: string;
   taskGraph: TaskGraphRecord;
   workUnits: readonly WorkUnitRecord[];
@@ -704,11 +896,11 @@ export function writeAssemblyManifest(params: {
   const manifestPath = path.join(assemblyDir, "assembly-manifest.json");
   const manifest = buildAssemblyManifest(params);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-  const storedManifest = storeJsonArtifact({
+  const storedManifest = await storeJsonArtifact({
     key: `assemblies/${params.initiativeId}/${params.taskGraph.id}/assembly-manifest.json`,
     payload: manifest,
   });
-  const signedManifest = writeSignedArtifactManifest({
+  const signedManifest = await writeSignedArtifactManifest({
     key: `assemblies/${params.initiativeId}/${params.taskGraph.id}/signed-artifact-manifest.json`,
     subject: {
       kind: "assembly",
@@ -777,7 +969,7 @@ function objectStoreDeliveryManifest(
   };
 }
 
-export function writeDeliveryManifest(params: {
+export async function writeDeliveryManifest(params: {
   delivery: DeliveryRecord;
   assembly: AssemblyRecord;
   verification: VerificationRunRecord;
@@ -787,7 +979,7 @@ export function writeDeliveryManifest(params: {
 
   if (store.mode !== "local") {
     const storedManifest = objectStoreDeliveryManifest(manifest);
-    const stored = storeJsonArtifact({
+    const stored = await storeJsonArtifact({
       key: `deliveries/${params.delivery.initiativeId}/${params.delivery.id}/delivery-manifest.json`,
       payload: storedManifest,
     });

@@ -47,6 +47,11 @@ export const ARTIFACT_SIGNING_SECRET_ENV_KEY =
   "FOUNDEROS_ARTIFACT_SIGNING_SECRET";
 export const ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY =
   "FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT";
+export const ARTIFACT_OBJECT_BACKEND_ENV_KEY =
+  "FOUNDEROS_ARTIFACT_OBJECT_BACKEND";
+export const VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY = "BLOB_READ_WRITE_TOKEN";
+export const FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY =
+  "FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN";
 export const EXTERNAL_DELIVERY_MODE_ENV_KEY =
   "FOUNDEROS_EXTERNAL_DELIVERY_MODE";
 export const GITHUB_TOKEN_ENV_KEY = "FOUNDEROS_GITHUB_TOKEN";
@@ -82,7 +87,6 @@ const FULL_DEPLOYMENT_ENV_KEYS = [
   ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY,
   ARTIFACT_SIGNED_URL_BASE_ENV_KEY,
   ARTIFACT_SIGNING_SECRET_ENV_KEY,
-  ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY,
   EXTERNAL_DELIVERY_MODE_ENV_KEY,
 ] as const;
 
@@ -205,7 +209,11 @@ function findProductionLocalOnlyEnvKeys(env: EnvLike) {
   return [...localOnlyKeys];
 }
 
-function artifactPrefixInvalidForMode(mode: string, prefix: string) {
+function artifactPrefixInvalidForMode(
+  mode: string,
+  prefix: string,
+  artifactObjectBackend?: string | null,
+) {
   if (
     prefix.startsWith("/") ||
     prefix.startsWith("file://") ||
@@ -226,7 +234,12 @@ function artifactPrefixInvalidForMode(mode: string, prefix: string) {
     return !prefix.startsWith("r2://");
   }
   if (mode === "object") {
-    return !(prefix.startsWith("object://") || prefix.startsWith("https://"));
+    return !(
+      prefix.startsWith("object://") ||
+      (artifactObjectBackend === "vercel_blob" &&
+        prefix.startsWith("vercel-blob://")) ||
+      prefix.startsWith("https://")
+    );
   }
   return true;
 }
@@ -252,6 +265,9 @@ function findInvalidArtifactEnvKeys(env: EnvLike) {
   const prefix = normalizeEnvValue(env[ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY]);
   const signedUrlBase = normalizeEnvValue(env[ARTIFACT_SIGNED_URL_BASE_ENV_KEY]);
   const mirrorRoot = normalizeEnvValue(env[ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY]);
+  const artifactObjectBackend = normalizeEnvValue(
+    env[ARTIFACT_OBJECT_BACKEND_ENV_KEY],
+  )?.toLowerCase();
   const externalDeliveryMode = normalizeEnvValue(
     env[EXTERNAL_DELIVERY_MODE_ENV_KEY],
   )?.toLowerCase();
@@ -269,8 +285,21 @@ function findInvalidArtifactEnvKeys(env: EnvLike) {
   if ((deploymentEnv === "production" || deploymentEnv === "staging") && mode === "local") {
     invalidKeys.add(ARTIFACT_STORE_MODE_ENV_KEY);
   }
-  if (mode && prefix && artifactPrefixInvalidForMode(mode, prefix)) {
+  if (
+    mode &&
+    prefix &&
+    artifactPrefixInvalidForMode(mode, prefix, artifactObjectBackend)
+  ) {
     invalidKeys.add(ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY);
+  }
+  if (
+    artifactObjectBackend &&
+    artifactObjectBackend !== "vercel_blob"
+  ) {
+    invalidKeys.add(ARTIFACT_OBJECT_BACKEND_ENV_KEY);
+  }
+  if (artifactObjectBackend === "vercel_blob" && mode !== "object") {
+    invalidKeys.add(ARTIFACT_STORE_MODE_ENV_KEY);
   }
   if (signedUrlBase) {
     try {
@@ -289,6 +318,7 @@ function findInvalidArtifactEnvKeys(env: EnvLike) {
   }
   if (
     (deploymentEnv === "production" || deploymentEnv === "staging") &&
+    artifactObjectBackend !== "vercel_blob" &&
     mirrorRoot &&
     artifactMirrorRootInvalidForProductionLike(mirrorRoot)
   ) {
@@ -346,6 +376,19 @@ export function buildDeploymentEnvDiagnostics(env: EnvLike = process.env) {
         }
       }
     }
+    const artifactObjectBackend = normalizeEnvValue(
+      env[ARTIFACT_OBJECT_BACKEND_ENV_KEY],
+    )?.toLowerCase();
+    if (artifactObjectBackend === "vercel_blob") {
+      if (
+        !normalizeEnvValue(env[VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY]) &&
+        !normalizeEnvValue(env[FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY])
+      ) {
+        missingEnvKeys.push(VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY);
+      }
+    } else if (!normalizeEnvValue(env[ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY])) {
+      missingEnvKeys.push(ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY);
+    }
 
     if (!hasAnyConfiguredDatabaseUrl(env)) {
       missingEnvKeys.push(CONTROL_PLANE_DATABASE_URL_ENV_KEY);
@@ -359,6 +402,10 @@ export function buildDeploymentEnvDiagnostics(env: EnvLike = process.env) {
     CONTROL_PLANE_DATABASE_URL_ENV_KEY,
     EXECUTION_HANDOFF_DATABASE_URL_ENV_KEY,
     ...FULL_DEPLOYMENT_ENV_KEYS,
+    ARTIFACT_OBJECT_BACKEND_ENV_KEY,
+    ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY,
+    VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
+    FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
     ...GITHUB_VERCEL_DELIVERY_ENV_KEYS,
     VERCEL_TEAM_ID_ENV_KEY,
     VERCEL_TEAM_SLUG_ENV_KEY,
@@ -393,6 +440,8 @@ export function buildDeploymentEnvDiagnostics(env: EnvLike = process.env) {
       GITHUB_TOKEN_ENV_KEY,
       VERCEL_TOKEN_ENV_KEY,
       VERCEL_PROTECTION_BYPASS_SECRET_ENV_KEY,
+      VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
+      FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
       EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY,
     ].filter((key) => Boolean(normalizeEnvValue(env[key]))),
     notes: [

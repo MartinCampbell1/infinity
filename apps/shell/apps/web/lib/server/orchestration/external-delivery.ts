@@ -268,7 +268,7 @@ function buildExternalProofPayload(params: {
   };
 }
 
-function storeExternalProof(params: {
+async function storeExternalProof(params: {
   input: ExternalDeliveryPublishInput;
   proof: ReturnType<typeof buildExternalProofPayload>;
   externalPullRequestUrl: string;
@@ -279,8 +279,8 @@ function storeExternalProof(params: {
   ciProofUri: string;
   ciProofProvider: string;
   ciProofId: string;
-}): ExternalDeliveryPublishResult {
-  const storedProof = storeJsonArtifact({
+}): Promise<ExternalDeliveryPublishResult> {
+  const storedProof = await storeJsonArtifact({
     key: `deliveries/${params.input.initiativeId}/${params.input.deliveryId}/external-delivery-proof.json`,
     payload: params.proof,
   });
@@ -334,9 +334,9 @@ function assertHostedPreviewPayloadAvailable(input: ExternalDeliveryPublishInput
   }
 }
 
-function publishMockExternalDelivery(
+async function publishMockExternalDelivery(
   input: ExternalDeliveryPublishInput
-): ExternalDeliveryPublishResult {
+): Promise<ExternalDeliveryPublishResult> {
   assertObjectArtifactsAvailable(input, "Mock");
 
   const prNumber = stableNumericId(input.deliveryId);

@@ -57,11 +57,11 @@ function proofPath(input: ExecutorAttemptInput) {
   );
 }
 
-function persistProofBundle(input: ExecutorAttemptInput, proof: ExecutorProofBundle) {
+async function persistProofBundle(input: ExecutorAttemptInput, proof: ExecutorProofBundle) {
   const outputPath = proofPath(input);
   mkdirSync(path.dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, JSON.stringify(proof, null, 2));
-  const storedProof = storeFileArtifact({
+  const storedProof = await storeFileArtifact({
     key: `executor-proofs/${input.initiativeId}/${input.attempt.id}.json`,
     filePath: outputPath,
     contentType: "application/json",
@@ -71,7 +71,7 @@ function persistProofBundle(input: ExecutorAttemptInput, proof: ExecutorProofBun
     artifactUris: [...proof.artifactUris, storedProof.uri],
   };
   writeFileSync(outputPath, JSON.stringify(persisted, null, 2));
-  storeFileArtifact({
+  await storeFileArtifact({
     key: `executor-proofs/${input.initiativeId}/${input.attempt.id}.json`,
     filePath: outputPath,
     contentType: "application/json",
@@ -83,7 +83,7 @@ class SyntheticExecutorAdapter implements ExecutorAdapter {
   kind = "synthetic" as const;
 
   async run(input: ExecutorAttemptInput) {
-    const artifacts = materializeAttemptArtifacts({
+    const artifacts = await materializeAttemptArtifacts({
       initiativeId: input.initiativeId,
       taskGraphId: input.taskGraphId,
       batchId: input.batchId,

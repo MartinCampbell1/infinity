@@ -103,7 +103,7 @@ async function writeAssemblyPackage(
           2
         )
       );
-      const stored = storeJsonArtifact({
+      const stored = await storeJsonArtifact({
         key: `${artifactPrefix}/work-units/${attemptId}.json`,
         payload: {
           initiativeId,
@@ -157,7 +157,7 @@ async function writeAssemblyPackage(
     manifestPath,
     JSON.stringify(manifest, null, 2)
   );
-  const storedManifest = storeJsonArtifact({
+  const storedManifest = await storeJsonArtifact({
     key: `${artifactPrefix}/assembly-manifest.json`,
     payload: manifest,
   });
@@ -173,14 +173,14 @@ async function writeAssemblyPackage(
     `Artifacts: ${artifacts.length}`,
   ].join("\n");
   await writeFile(path.join(localOutputLocation, "README.md"), readme);
-  const storedReadme = storeTextArtifact({
+  const storedReadme = await storeTextArtifact({
     key: `${artifactPrefix}/README.md`,
     content: readme,
     contentType: "text/markdown; charset=utf-8",
   });
   storedArtifacts.push(storedReadme);
 
-  const signedManifest = writeSignedArtifactManifest({
+  const signedManifest = await writeSignedArtifactManifest({
     key: `${artifactPrefix}/signed-artifact-manifest.json`,
     subject: {
       kind: "assembly",

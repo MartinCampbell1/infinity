@@ -6,6 +6,7 @@ import {
   CONTROL_PLANE_DATABASE_URL_ENV_KEY,
   CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY,
   CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY,
+  ARTIFACT_OBJECT_BACKEND_ENV_KEY,
   ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY,
   ARTIFACT_SIGNED_URL_BASE_ENV_KEY,
   ARTIFACT_SIGNING_SECRET_ENV_KEY,
@@ -21,6 +22,7 @@ import {
   LEGACY_CONTROL_PLANE_SECRET_ENV_KEY,
   PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY,
   STRICT_ROLLOUT_ENV_KEY,
+  VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
   VERCEL_GIT_REPO_ID_ENV_KEY,
   VERCEL_PROJECT_ID_ENV_KEY,
   VERCEL_PROTECTION_BYPASS_SECRET_ENV_KEY,
@@ -371,6 +373,48 @@ describe("workspace rollout config", () => {
       VERCEL_PROTECTION_BYPASS_SECRET_ENV_KEY,
     );
     expect(JSON.stringify(diagnostics)).not.toContain("bypass-secret-value");
+  });
+
+  test("accepts Vercel Blob artifact storage in staging without a mirror root", () => {
+    const diagnostics = buildDeploymentEnvDiagnostics({
+      [DEPLOYMENT_ENV_KEY]: "staging",
+      [CONTROL_PLANE_DATABASE_URL_ENV_KEY]:
+        "postgres://user:password@db.infinity.example:5432/founderos",
+      [CANONICAL_SHELL_PUBLIC_ORIGIN_ENV_KEY]: "https://shell.infinity.example",
+      [CANONICAL_WORK_UI_BASE_URL_ENV_KEY]: "https://work.infinity.example",
+      [EXECUTION_KERNEL_BASE_URL_ENV_KEY]: "https://kernel.infinity.example",
+      [EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY]: "kernel-secret",
+      [PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY]:
+        "https://shell.infinity.example,https://work.infinity.example",
+      [WORKSPACE_LAUNCH_SECRET_ENV_KEY]: "launch-secret",
+      [WORKSPACE_SESSION_GRANT_SECRET_ENV_KEY]: "grant-secret",
+      [WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY]: "session-secret",
+      [CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY]: "operator-secret",
+      [CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY]: "service-secret",
+      [ARTIFACT_STORE_MODE_ENV_KEY]: "object",
+      [ARTIFACT_OBJECT_BACKEND_ENV_KEY]: "vercel_blob",
+      [ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY]: "vercel-blob://infinity-staging",
+      [ARTIFACT_SIGNED_URL_BASE_ENV_KEY]:
+        "https://artifacts.infinity.example/download",
+      [ARTIFACT_SIGNING_SECRET_ENV_KEY]: "artifact-secret",
+      [VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY]: "blob-secret-value",
+      [EXTERNAL_DELIVERY_MODE_ENV_KEY]: "github_vercel",
+      [GITHUB_TOKEN_ENV_KEY]: "github-secret",
+      [GITHUB_REPOSITORY_ENV_KEY]: "founderos/infinity",
+      [GITHUB_BASE_BRANCH_ENV_KEY]: "main",
+      [VERCEL_TOKEN_ENV_KEY]: "vercel-secret",
+      [VERCEL_PROJECT_ID_ENV_KEY]: "prj_founderos_infinity",
+      [VERCEL_GIT_REPO_ID_ENV_KEY]: "123456789",
+    });
+
+    expect(diagnostics.ready).toBe(true);
+    expect(diagnostics.missingEnvKeys).not.toContain(
+      ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY,
+    );
+    expect(diagnostics.secretEnvKeys).toContain(
+      VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain("blob-secret-value");
   });
 
   test("rejects mocked external delivery mode in production-like deployments", () => {

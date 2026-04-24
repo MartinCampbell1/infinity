@@ -97,7 +97,9 @@ FOUNDEROS_ARTIFACT_STORE_MODE=s3|gcs|r2|object
 FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX
 FOUNDEROS_ARTIFACT_SIGNED_URL_BASE
 FOUNDEROS_ARTIFACT_SIGNING_SECRET
-FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT
+FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT unless FOUNDEROS_ARTIFACT_OBJECT_BACKEND=vercel_blob
+FOUNDEROS_ARTIFACT_OBJECT_BACKEND=vercel_blob when using Vercel Blob private storage
+BLOB_READ_WRITE_TOKEN or FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN when using Vercel Blob private storage
 FOUNDEROS_EXTERNAL_PREVIEW_EXPECTED_TEXT
 FOUNDEROS_EXTERNAL_DELIVERY_ALLOW_MUTATIONS=1
 ```
@@ -735,3 +737,52 @@ Independent critic gate `critic_p0_be_14_protection_storage_guard` returned
 `GO` for this local guard slice and `BLOCKER` for overall P0-BE-14 until the
 hosted route/storage path is real and the mutating smoke produces external PR,
 preview, CI, signed object manifest, and artifact download evidence.
+
+## 2026-04-25 Vercel Blob Backend Slice
+
+The next local slice replaced the staging-only object mirror requirement with a
+real hosted-readable backend for Vercel staging:
+
+- `FOUNDEROS_ARTIFACT_OBJECT_BACKEND=vercel_blob` selects a private Vercel Blob
+  artifact backend;
+- the backend uses `@vercel/blob` with `BLOB_READ_WRITE_TOKEN` or
+  `FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN`;
+- artifact uploads no longer require `FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT`
+  when the Vercel Blob backend is configured;
+- signed artifact downloads read bytes back through the deployed app route and
+  verify the signed URL HMAC plus SHA256 checksum;
+- `/api/control/orchestration/artifacts/download` is exempted from
+  control-plane actor auth in the proxy because the expiring signed artifact URL
+  is the artifact authorization boundary. Browser CORS restrictions still apply.
+
+Local staging resources created:
+
+```text
+Vercel project: infinity-web
+linked Blob store: infinity-artifacts-staging-web
+local ignored env: .env.external-delivery-staging
+```
+
+No secrets are committed. The Vercel link metadata and pulled env files remain
+ignored under `apps/shell/apps/web/.vercel` and `apps/shell/apps/web/.env*.local`.
+
+Verification so far for this slice:
+
+```text
+cd /Users/martin/infinity/apps/shell/apps/web
+npx vitest run proxy.test.ts lib/server/orchestration/artifacts.test.ts app/api/control/orchestration/delivery/route.test.ts --testTimeout 120000
+# 3 files / 29 tests passed
+```
+
+The latest protected preview route could be reached with the automation bypass,
+but the old deployed code still answered before this proxy exemption was pushed.
+Next steps:
+
+1. run typecheck, focused script/config tests, and `git diff --check`;
+2. run an independent critic gate for this Blob/proxy slice;
+3. commit and push the branch so Vercel builds a preview with the Blob backend
+   and signed-download proxy exemption;
+4. set `FOUNDEROS_ARTIFACT_SIGNED_URL_BASE` in the ignored staging env to that
+   new preview route;
+5. rerun `npm run external-delivery:preflight --workspace @founderos/web`, then
+   the mutating smoke with `FOUNDEROS_EXTERNAL_DELIVERY_ALLOW_MUTATIONS=1`.

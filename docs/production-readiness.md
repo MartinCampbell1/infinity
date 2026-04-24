@@ -57,7 +57,9 @@ FOUNDEROS_ARTIFACT_STORE_MODE=s3|gcs|r2|object
 FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX
 FOUNDEROS_ARTIFACT_SIGNED_URL_BASE
 FOUNDEROS_ARTIFACT_SIGNING_SECRET
-FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT
+FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT unless FOUNDEROS_ARTIFACT_OBJECT_BACKEND=vercel_blob
+FOUNDEROS_ARTIFACT_OBJECT_BACKEND=vercel_blob when using Vercel Blob private storage
+BLOB_READ_WRITE_TOKEN or FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN when using Vercel Blob private storage
 FOUNDEROS_EXTERNAL_PREVIEW_EXPECTED_TEXT
 FOUNDEROS_EXTERNAL_DELIVERY_ALLOW_MUTATIONS=1
 ```
@@ -86,12 +88,22 @@ route is behind Vercel Deployment Protection and the smoke needs
 Either failure stops the smoke before creating a GitHub delivery PR or Vercel
 preview deployment.
 
+The signed artifact download endpoint is intentionally reachable without a
+control-plane actor token. The expiring HMAC URL is the authorization boundary
+for artifact bytes; CORS checks still apply for browser requests with an
+`Origin` header. This keeps UI downloads and external smoke downloads working
+after deploy, including protected Vercel previews where automation supplies the
+Vercel bypass header.
+
 `FOUNDEROS_ARTIFACT_STORE_MODE=local` is never valid for this smoke. The live
 test also rejects `file://`, localhost, `127.0.0.1`, `0.0.0.0`, and `/Users/`
 paths in the hosted preview and signed artifact evidence. The staging launcher
 also rejects object mirror roots under `/tmp`, `/var/tmp`, `/var/folders`, or
 `/Users`; those are local scratch locations that a hosted runtime cannot read
-after deploy. Before it creates or updates a GitHub delivery branch/PR, it also
+after deploy. For Vercel-hosted staging, set
+`FOUNDEROS_ARTIFACT_OBJECT_BACKEND=vercel_blob` with a private Vercel Blob store
+and a Blob read/write token; that backend does not use a local mirror root.
+Before it creates or updates a GitHub delivery branch/PR, the smoke also
 downloads the signed manifest and at least one signed artifact through
 `FOUNDEROS_ARTIFACT_SIGNED_URL_BASE`, verifies the returned checksum header, and
 rejects local path leaks in the downloaded bytes.

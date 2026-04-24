@@ -288,7 +288,7 @@ async function corruptFinalIntegrationProof(
   expect(finalIntegrationUnit).toBeTruthy();
   expect(finalIntegrationUnit.latestAttemptId).toBeTruthy();
 
-  const attemptArtifacts = materializeAttemptArtifacts({
+  const attemptArtifacts = await materializeAttemptArtifacts({
     initiativeId,
     taskGraphId,
     batchId: null,
@@ -344,7 +344,7 @@ async function rewriteFinalIntegrationAsLegacyRunnableResult(
   expect(finalIntegrationUnit).toBeTruthy();
   expect(finalIntegrationUnit.latestAttemptId).toBeTruthy();
 
-  const attemptArtifacts = materializeAttemptArtifacts({
+  const attemptArtifacts = await materializeAttemptArtifacts({
     initiativeId,
     taskGraphId,
     batchId: null,

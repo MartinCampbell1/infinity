@@ -15,7 +15,6 @@ const requiredEnvKeys = [
   "FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX",
   "FOUNDEROS_ARTIFACT_SIGNED_URL_BASE",
   "FOUNDEROS_ARTIFACT_SIGNING_SECRET",
-  "FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT",
   "FOUNDEROS_EXTERNAL_PREVIEW_EXPECTED_TEXT",
 ];
 
@@ -44,6 +43,14 @@ function redactProviderErrorDetail(value) {
 
 function assertPreflightEnv() {
   const missing = requiredEnvKeys.filter((key) => !envValue(key));
+  const artifactObjectBackend = envValue("FOUNDEROS_ARTIFACT_OBJECT_BACKEND")?.toLowerCase();
+  if (artifactObjectBackend === "vercel_blob") {
+    if (!envValue("BLOB_READ_WRITE_TOKEN") && !envValue("FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN")) {
+      missing.push("BLOB_READ_WRITE_TOKEN");
+    }
+  } else if (!envValue("FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT")) {
+    missing.push("FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT");
+  }
   if (missing.length) {
     throw new Error(
       `external delivery preflight missing required env keys: ${missing.join(", ")}`,
@@ -62,6 +69,16 @@ function assertPreflightEnv() {
       "external delivery preflight requires FOUNDEROS_ARTIFACT_STORE_MODE to be s3, gcs, r2, or object",
     );
   }
+  if (artifactObjectBackend && artifactObjectBackend !== "vercel_blob") {
+    throw new Error(
+      "external delivery preflight requires FOUNDEROS_ARTIFACT_OBJECT_BACKEND to be vercel_blob when configured",
+    );
+  }
+  if (artifactObjectBackend === "vercel_blob" && artifactStoreMode !== "object") {
+    throw new Error(
+      "external delivery preflight requires FOUNDEROS_ARTIFACT_STORE_MODE=object when FOUNDEROS_ARTIFACT_OBJECT_BACKEND=vercel_blob",
+    );
+  }
   assertArtifactStorageUriPrefix(artifactStoreMode);
 
   const deploymentEnv = envValue("FOUNDEROS_DEPLOYMENT_ENV")?.toLowerCase();
@@ -72,7 +89,9 @@ function assertPreflightEnv() {
   }
 
   assertHostedSignedUrlBase();
-  assertObjectMirrorRoot();
+  if (artifactObjectBackend !== "vercel_blob") {
+    assertObjectMirrorRoot();
+  }
 }
 
 function isLocalLookingUri(value) {
@@ -116,8 +135,12 @@ function assertArtifactStorageUriPrefix(mode) {
     );
   }
   if (mode === "object" && !(value.startsWith("object://") || value.startsWith("https://"))) {
+    const objectBackend = envValue("FOUNDEROS_ARTIFACT_OBJECT_BACKEND")?.toLowerCase();
+    if (objectBackend === "vercel_blob" && value.startsWith("vercel-blob://")) {
+      return;
+    }
     throw new Error(
-      "external delivery preflight requires FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX to start with object:// or https:// when FOUNDEROS_ARTIFACT_STORE_MODE=object",
+      "external delivery preflight requires FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX to start with object://, vercel-blob://, or https:// when FOUNDEROS_ARTIFACT_STORE_MODE=object",
     );
   }
 }

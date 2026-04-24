@@ -204,7 +204,7 @@ async function findRunnableAttemptTarget(
       continue;
     }
 
-    materializeAttemptArtifacts({
+    await materializeAttemptArtifacts({
       initiativeId,
       taskGraphId,
       batchId: null,
@@ -274,7 +274,7 @@ function sanitizeHostedPreviewHtml(params: {
     .replace(/\b0\.0\.0\.0\b/g, "local-preview");
 }
 
-function packageDeliveryArtifacts(params: {
+async function packageDeliveryArtifacts(params: {
   initiativeId: string;
   deliveryId: string;
   localOutputPath: string;
@@ -315,7 +315,7 @@ function packageDeliveryArtifacts(params: {
     return Buffer.from(content, "utf8");
   };
 
-  const addArtifact = (
+  const addArtifact = async (
     role: string,
     filePath: string,
     contentType = "application/octet-stream"
@@ -327,8 +327,8 @@ function packageDeliveryArtifacts(params: {
         : `${artifactPrefix}/${relative}`;
     const stored =
       store.mode === "local"
-        ? storeFileArtifact({ key, filePath, contentType })
-        : store.putArtifact({
+        ? await storeFileArtifact({ key, filePath, contentType })
+        : await store.putArtifact({
             key,
             content: sanitizeObjectArtifactContent(filePath),
             contentType,
@@ -338,14 +338,14 @@ function packageDeliveryArtifacts(params: {
     return stored;
   };
 
-  addArtifact("preview", params.previewPath, "text/html; charset=utf-8");
-  addArtifact("delivery-summary", path.join(params.localOutputPath, "delivery-summary.json"), "application/json");
-  addArtifact("handoff", path.join(params.localOutputPath, "HANDOFF.md"), "text/markdown; charset=utf-8");
-  addArtifact("launch-manifest", params.launchManifestPath, "application/json");
-  addArtifact("handoff-summary", params.handoffSummaryPath, "text/markdown; charset=utf-8");
-  addArtifact("handoff-manifest", params.handoffManifestPath, "application/json");
+  await addArtifact("preview", params.previewPath, "text/html; charset=utf-8");
+  await addArtifact("delivery-summary", path.join(params.localOutputPath, "delivery-summary.json"), "application/json");
+  await addArtifact("handoff", path.join(params.localOutputPath, "HANDOFF.md"), "text/markdown; charset=utf-8");
+  await addArtifact("launch-manifest", params.launchManifestPath, "application/json");
+  await addArtifact("handoff-summary", params.handoffSummaryPath, "text/markdown; charset=utf-8");
+  await addArtifact("handoff-manifest", params.handoffManifestPath, "application/json");
 
-  const signedManifest = writeSignedArtifactManifest({
+  const signedManifest = await writeSignedArtifactManifest({
     key: `${artifactPrefix}/signed-artifact-manifest.json`,
     subject: {
       kind: "delivery",
@@ -1525,7 +1525,7 @@ async function buildDeliveryFields(
           runnableTarget.entryPath.replace(/^\/+/, "")
         )
       : previewPath;
-  const artifactPackage = packageDeliveryArtifacts({
+  const artifactPackage = await packageDeliveryArtifacts({
     initiativeId,
     deliveryId,
     localOutputPath,

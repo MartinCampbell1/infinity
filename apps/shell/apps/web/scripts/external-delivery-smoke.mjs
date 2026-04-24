@@ -19,11 +19,22 @@ const requiredEnvKeys = [
   "FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX",
   "FOUNDEROS_ARTIFACT_SIGNED_URL_BASE",
   "FOUNDEROS_ARTIFACT_SIGNING_SECRET",
-  "FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT",
   "FOUNDEROS_EXTERNAL_PREVIEW_EXPECTED_TEXT",
 ];
 
 const missing = requiredEnvKeys.filter((key) => !process.env[key]?.trim());
+const artifactObjectBackend =
+  process.env.FOUNDEROS_ARTIFACT_OBJECT_BACKEND?.trim().toLowerCase() || null;
+if (artifactObjectBackend === "vercel_blob") {
+  if (
+    !process.env.BLOB_READ_WRITE_TOKEN?.trim() &&
+    !process.env.FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN?.trim()
+  ) {
+    missing.push("BLOB_READ_WRITE_TOKEN");
+  }
+} else if (!process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT?.trim()) {
+  missing.push("FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT");
+}
 if (missing.length) {
   console.error(
     `external delivery smoke missing required env keys: ${missing.join(", ")}`,
@@ -43,6 +54,18 @@ const artifactStoreMode =
 if (!["s3", "gcs", "r2", "object"].includes(artifactStoreMode)) {
   console.error(
     "external delivery smoke requires FOUNDEROS_ARTIFACT_STORE_MODE to be s3, gcs, r2, or object",
+  );
+  process.exit(1);
+}
+if (artifactObjectBackend && artifactObjectBackend !== "vercel_blob") {
+  console.error(
+    "external delivery smoke requires FOUNDEROS_ARTIFACT_OBJECT_BACKEND to be vercel_blob when configured",
+  );
+  process.exit(1);
+}
+if (artifactObjectBackend === "vercel_blob" && artifactStoreMode !== "object") {
+  console.error(
+    "external delivery smoke requires FOUNDEROS_ARTIFACT_STORE_MODE=object when FOUNDEROS_ARTIFACT_OBJECT_BACKEND=vercel_blob",
   );
   process.exit(1);
 }
@@ -97,11 +120,13 @@ if (
   artifactStoreMode === "object" &&
   !(
     artifactStorageUriPrefix.startsWith("object://") ||
+    (artifactObjectBackend === "vercel_blob" &&
+      artifactStorageUriPrefix.startsWith("vercel-blob://")) ||
     artifactStorageUriPrefix.startsWith("https://")
   )
 ) {
   console.error(
-    "external delivery smoke requires FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX to start with object:// or https:// when FOUNDEROS_ARTIFACT_STORE_MODE=object",
+    "external delivery smoke requires FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX to start with object://, vercel-blob://, or https:// when FOUNDEROS_ARTIFACT_STORE_MODE=object",
   );
   process.exit(1);
 }
@@ -159,6 +184,7 @@ function objectMirrorRootIsLocalScratch(value) {
 }
 
 if (
+  artifactObjectBackend !== "vercel_blob" &&
   objectMirrorRootIsLocalScratch(
     process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT ?? "",
   )

@@ -100,7 +100,7 @@ describeLive("external delivery live smoke", () => {
     const signedUrlBase = requireEnv(
       "FOUNDEROS_ARTIFACT_SIGNED_URL_BASE",
     ).replace(/\/+$/, "");
-    const artifact = storeJsonArtifact({
+    const artifact = await storeJsonArtifact({
       key: `live-smoke/${deliveryId}/runnable-result.json`,
       payload: {
         deliveryId,
@@ -109,7 +109,7 @@ describeLive("external delivery live smoke", () => {
         generatedAt: new Date().toISOString(),
       },
     });
-    const signedManifest = writeSignedArtifactManifest({
+    const signedManifest = await writeSignedArtifactManifest({
       key: `live-smoke/${deliveryId}/signed-artifact-manifest.json`,
       subject: {
         kind: "external-delivery-live-smoke",

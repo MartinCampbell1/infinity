@@ -2,11 +2,11 @@ import { readSignedArtifactDownload } from "../../../../../../lib/server/orchest
 
 export async function GET(request: Request) {
   try {
-    const artifact = readSignedArtifactDownload(new URL(request.url).searchParams);
-    return new Response(artifact.bytes, {
+    const artifact = await readSignedArtifactDownload(new URL(request.url).searchParams);
+    return new Response(new Uint8Array(artifact.bytes), {
       status: 200,
       headers: {
-        "content-type": "application/octet-stream",
+        "content-type": artifact.contentType,
         "cache-control": "private, max-age=0, no-store",
         "x-artifact-sha256": artifact.sha256,
         "x-artifact-key": artifact.key,

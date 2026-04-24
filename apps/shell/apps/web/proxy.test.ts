@@ -71,6 +71,18 @@ describe("privileged API proxy auth gate", () => {
     expect(response.status).toBe(200);
   });
 
+  test("allows signed artifact downloads without a control-plane actor token", () => {
+    process.env[REQUIRE_CONTROL_PLANE_AUTH_ENV_KEY] = "1";
+
+    const response = proxy(
+      nextRequest(
+        "/api/control/orchestration/artifacts/download?key=artifact&sha256=0&expires=2099-01-01T00%3A00%3A00.000Z&signature=probe",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
   test("allows credentialed workspace session revoke preflight", () => {
     process.env[REQUIRE_CONTROL_PLANE_AUTH_ENV_KEY] = "1";
 

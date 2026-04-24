@@ -101,18 +101,18 @@ function attemptArtifactKey(initiativeId: string, attemptId: string, relativePat
   return `attempt-artifacts/${initiativeId}/${attemptId}/${relativePath}`;
 }
 
-function storedArtifactUri(params: {
+async function storedArtifactUri(params: {
   initiativeId: string;
   attemptId: string;
   relativePath: string;
   filePath: string;
   contentType?: string;
 }) {
-  return storeFileArtifact({
+  return (await storeFileArtifact({
     key: attemptArtifactKey(params.initiativeId, params.attemptId, params.relativePath),
     filePath: params.filePath,
     contentType: params.contentType,
-  }).uri;
+  })).uri;
 }
 
 function isRunnableWorkUnit(workUnit: WorkUnitRecord) {
@@ -235,7 +235,7 @@ function buildAttemptIndexHtml(params: {
   ].join("\n");
 }
 
-export function materializeAttemptArtifacts(params: {
+export async function materializeAttemptArtifacts(params: {
   initiativeId: string;
   taskGraphId: string;
   batchId?: string | null;
@@ -266,7 +266,7 @@ export function materializeAttemptArtifacts(params: {
   );
 
   const artifactUris = [
-    storedArtifactUri({
+    await storedArtifactUri({
       initiativeId: params.initiativeId,
       attemptId: params.attemptId,
       relativePath: "attempt-summary.json",
@@ -295,14 +295,14 @@ export function materializeAttemptArtifacts(params: {
       existingManifest.expectedMarker === target.expectedMarker
     ) {
       artifactUris.push(
-        storedArtifactUri({
+        await storedArtifactUri({
           initiativeId: params.initiativeId,
           attemptId: params.attemptId,
           relativePath: "runnable-result/launch-manifest.json",
           filePath: launchManifestPath,
           contentType: "application/json",
         }),
-        storedArtifactUri({
+        await storedArtifactUri({
           initiativeId: params.initiativeId,
           attemptId: params.attemptId,
           relativePath: "runnable-result/result-manifest.json",
@@ -312,7 +312,7 @@ export function materializeAttemptArtifacts(params: {
       );
       if (existsSync(indexPath)) {
         artifactUris.push(
-          storedArtifactUri({
+          await storedArtifactUri({
             initiativeId: params.initiativeId,
             attemptId: params.attemptId,
             relativePath: "runnable-result/index.html",
@@ -376,21 +376,21 @@ export function materializeAttemptArtifacts(params: {
     );
 
     artifactUris.push(
-      storedArtifactUri({
+      await storedArtifactUri({
         initiativeId: params.initiativeId,
         attemptId: params.attemptId,
         relativePath: "runnable-result/launch-manifest.json",
         filePath: launchManifestPath,
         contentType: "application/json",
       }),
-      storedArtifactUri({
+      await storedArtifactUri({
         initiativeId: params.initiativeId,
         attemptId: params.attemptId,
         relativePath: "runnable-result/result-manifest.json",
         filePath: resultManifestPath,
         contentType: "application/json",
       }),
-      storedArtifactUri({
+      await storedArtifactUri({
         initiativeId: params.initiativeId,
         attemptId: params.attemptId,
         relativePath: "runnable-result/index.html",

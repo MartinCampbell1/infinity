@@ -2,7 +2,89 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
+const blobMockState = vi.hoisted(() => ({
+  blobs: new Map<
+    string,
+    {
+      bytes: Buffer;
+      contentType: string;
+      token: string | undefined;
+    }
+  >(),
+}));
+
+vi.mock("@vercel/blob", () => ({
+  put: vi.fn(async (
+    pathname: string,
+    body: string | Buffer | Uint8Array,
+    options: { contentType?: string; token?: string },
+  ) => {
+    blobMockState.blobs.set(pathname, {
+      bytes: Buffer.from(body),
+      contentType: options.contentType ?? "application/octet-stream",
+      token: options.token,
+    });
+    return {
+      pathname,
+      url: `https://blob.example/${pathname}`,
+      downloadUrl: `https://blob.example/${pathname}?download=1`,
+      contentType: options.contentType ?? "application/octet-stream",
+      contentDisposition: "inline",
+    };
+  }),
+  get: vi.fn(async (
+    pathname: string,
+    options: { token?: string },
+  ) => {
+    const blob = blobMockState.blobs.get(pathname);
+    if (!blob || blob.token !== options.token) {
+      return null;
+    }
+    return {
+      statusCode: 200,
+      stream: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(blob.bytes));
+          controller.close();
+        },
+      }),
+      headers: new Headers(),
+      blob: {
+        url: `https://blob.example/${pathname}`,
+        downloadUrl: `https://blob.example/${pathname}?download=1`,
+        pathname,
+        contentDisposition: "inline",
+        cacheControl: "no-store",
+        uploadedAt: new Date(),
+        etag: "test-etag",
+        contentType: blob.contentType,
+        size: blob.bytes.byteLength,
+      },
+    };
+  }),
+  head: vi.fn(async (
+    pathname: string,
+    options: { token?: string },
+  ) => {
+    const blob = blobMockState.blobs.get(pathname);
+    if (!blob || blob.token !== options.token) {
+      throw new Error("Blob not found");
+    }
+    return {
+      pathname,
+      url: `https://blob.example/${pathname}`,
+      downloadUrl: `https://blob.example/${pathname}?download=1`,
+      contentType: blob.contentType,
+      contentDisposition: "inline",
+      cacheControl: "no-store",
+      uploadedAt: new Date(),
+      etag: "test-etag",
+      size: blob.bytes.byteLength,
+    };
+  }),
+}));
 
 import {
   artifactEvidenceExists,
@@ -25,6 +107,11 @@ const ORIGINAL_ARTIFACT_SIGNING_SECRET =
   process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET;
 const ORIGINAL_ARTIFACT_OBJECT_MIRROR_ROOT =
   process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT;
+const ORIGINAL_ARTIFACT_OBJECT_BACKEND =
+  process.env.FOUNDEROS_ARTIFACT_OBJECT_BACKEND;
+const ORIGINAL_BLOB_READ_WRITE_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+const ORIGINAL_FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN =
+  process.env.FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN;
 
 let tempRoot = "";
 
@@ -46,6 +133,10 @@ beforeEach(() => {
   delete process.env.FOUNDEROS_ARTIFACT_SIGNED_URL_BASE;
   delete process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET;
   delete process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT;
+  delete process.env.FOUNDEROS_ARTIFACT_OBJECT_BACKEND;
+  delete process.env.BLOB_READ_WRITE_TOKEN;
+  delete process.env.FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN;
+  blobMockState.blobs.clear();
 });
 
 afterEach(() => {
@@ -63,6 +154,12 @@ afterEach(() => {
     "FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT",
     ORIGINAL_ARTIFACT_OBJECT_MIRROR_ROOT,
   );
+  restoreEnv("FOUNDEROS_ARTIFACT_OBJECT_BACKEND", ORIGINAL_ARTIFACT_OBJECT_BACKEND);
+  restoreEnv("BLOB_READ_WRITE_TOKEN", ORIGINAL_BLOB_READ_WRITE_TOKEN);
+  restoreEnv(
+    "FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN",
+    ORIGINAL_FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN,
+  );
   if (tempRoot) {
     rmSync(tempRoot, { recursive: true, force: true });
     tempRoot = "";
@@ -70,12 +167,12 @@ afterEach(() => {
 });
 
 describe("ArtifactStore", () => {
-  test("local mode preserves file-backed artifacts with checksums and signed manifests", () => {
-    const stored = storeJsonArtifact({
+  test("local mode preserves file-backed artifacts with checksums and signed manifests", async () => {
+    const stored = await storeJsonArtifact({
       key: "assemblies/initiative-1/task-1/work-units/attempt-1.json",
       payload: { ok: true },
     });
-    const manifest = writeSignedArtifactManifest({
+    const manifest = await writeSignedArtifactManifest({
       key: "assemblies/initiative-1/task-1/signed-artifact-manifest.json",
       subject: { kind: "assembly", initiativeId: "initiative-1" },
       artifacts: [stored],
@@ -84,7 +181,7 @@ describe("ArtifactStore", () => {
     expect(stored.uri).toMatch(/^file:\/\//);
     expect(stored.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(existsSync(stored.localPath ?? "")).toBe(true);
-    expect(artifactEvidenceExists(stored.uri)).toBe(true);
+    await expect(artifactEvidenceExists(stored.uri)).resolves.toBe(true);
     expect(manifest.manifest.signature.value).toMatch(/^[a-f0-9]{64}$/);
     expect(readFileSync(manifest.stored.localPath ?? "", "utf8")).toContain(
       "initiative-1",
@@ -103,11 +200,11 @@ describe("ArtifactStore", () => {
       "mirror",
     );
 
-    const stored = storeJsonArtifact({
+    const stored = await storeJsonArtifact({
       key: "deliveries/delivery-1/manifest.json",
       payload: { deliveryId: "delivery-1" },
     });
-    const manifest = writeSignedArtifactManifest({
+    const manifest = await writeSignedArtifactManifest({
       key: "deliveries/delivery-1/signed-artifact-manifest.json",
       subject: { kind: "delivery", deliveryId: "delivery-1" },
       artifacts: [stored],
@@ -122,7 +219,7 @@ describe("ArtifactStore", () => {
       /^https:\/\/shell\.infinity\.example\/api\/control\/orchestration\/artifacts\/download\?/,
     );
     expect(stored.signedUrl).toContain("signature=");
-    expect(artifactEvidenceExists(stored.uri)).toBe(true);
+    await expect(artifactEvidenceExists(stored.uri)).resolves.toBe(true);
     const response = await downloadArtifact(new Request(stored.signedUrl));
     expect(response.status).toBe(200);
     expect(response.headers.get("x-artifact-sha256")).toBe(stored.sha256);
@@ -135,6 +232,49 @@ describe("ArtifactStore", () => {
         uri: stored.uri,
         sha256: stored.sha256,
       }),
+    );
+  });
+
+  test("vercel blob object backend stores and downloads without a local mirror", async () => {
+    process.env.FOUNDEROS_DEPLOYMENT_ENV = "staging";
+    process.env.FOUNDEROS_ARTIFACT_STORE_MODE = "object";
+    process.env.FOUNDEROS_ARTIFACT_OBJECT_BACKEND = "vercel_blob";
+    process.env.FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX =
+      "vercel-blob://infinity-staging";
+    process.env.FOUNDEROS_ARTIFACT_SIGNED_URL_BASE =
+      "https://shell.infinity.example/api/control/orchestration/artifacts/download";
+    process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET = "test-signing-secret";
+    process.env.BLOB_READ_WRITE_TOKEN = "blob-rw-token";
+
+    const stored = await storeJsonArtifact({
+      key: "deliveries/delivery-1/manifest.json",
+      payload: { deliveryId: "delivery-1", hosted: true },
+    });
+    const manifest = await writeSignedArtifactManifest({
+      key: "deliveries/delivery-1/signed-artifact-manifest.json",
+      subject: { kind: "delivery", deliveryId: "delivery-1" },
+      artifacts: [stored],
+    });
+
+    expect(stored.uri).toBe(
+      "vercel-blob://infinity-staging/deliveries/delivery-1/manifest.json",
+    );
+    expect(stored.localPath).toBeNull();
+    expect(stored.uri).not.toContain("file://");
+    expect(stored.uri).not.toContain("/tmp/");
+    expect(blobMockState.blobs.get(stored.key)?.token).toBe("blob-rw-token");
+    await expect(artifactEvidenceExists(stored.uri)).resolves.toBe(true);
+
+    const response = await downloadArtifact(new Request(stored.signedUrl));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json");
+    expect(response.headers.get("x-artifact-sha256")).toBe(stored.sha256);
+    await expect(response.json()).resolves.toEqual({
+      deliveryId: "delivery-1",
+      hosted: true,
+    });
+    expect(manifest.stored.uri).toBe(
+      "vercel-blob://infinity-staging/deliveries/delivery-1/signed-artifact-manifest.json",
     );
   });
 

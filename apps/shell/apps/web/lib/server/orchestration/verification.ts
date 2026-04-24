@@ -93,11 +93,13 @@ async function buildChecks(
     (assembly?.outputLocation
       ? path.join(assembly.outputLocation, "assembly-manifest.json")
       : null);
-  const manifestPresent = manifestPath ? artifactEvidenceExists(manifestPath) : false;
+  const manifestPresent = manifestPath ? await artifactEvidenceExists(manifestPath) : false;
   const artifactEvidencePresent =
     !!assembly &&
     assembly.artifactUris.length === workUnits.length &&
-    assembly.artifactUris.every((artifactUri) => artifactEvidenceExists(artifactUri));
+    (await Promise.all(
+      assembly.artifactUris.map((artifactUri) => artifactEvidenceExists(artifactUri))
+    )).every(Boolean);
 
   const checks: VerificationCheck[] = [
     {

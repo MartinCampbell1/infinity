@@ -21,6 +21,10 @@ function responseWithCors(
   return headers ? applyHeaders(response, headers) : response;
 }
 
+function isSignedArtifactDownloadPath(pathname: string) {
+  return pathname === "/api/control/orchestration/artifacts/download";
+}
+
 function applyPrivilegedApiGate(request: NextRequest) {
   if (!isPrivilegedApiPath(request.nextUrl.pathname)) {
     return NextResponse.next();
@@ -45,6 +49,10 @@ function applyPrivilegedApiGate(request: NextRequest) {
       { detail: getPrivilegedApiCorsRejectionDetail() },
       { status: 403 },
     );
+  }
+
+  if (isSignedArtifactDownloadPath(request.nextUrl.pathname)) {
+    return responseWithCors(NextResponse.next(), corsHeaders);
   }
 
   const auth = authorizeControlPlaneRequest(request);

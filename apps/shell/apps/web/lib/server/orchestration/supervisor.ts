@@ -50,17 +50,17 @@ function workUnitStatusForRuntimeAttempt(status: string) {
   return "failed" as const;
 }
 
-function buildSyntheticExecutorProof(params: {
+async function buildSyntheticExecutorProof(params: {
   initiativeId: string;
   taskGraphId: string;
   batchId: string;
   workUnit: Awaited<ReturnType<typeof findOrchestrationWorkUnit>>;
   attemptId: string;
-}): ExecutorProofBundle {
+}): Promise<ExecutorProofBundle> {
   if (!params.workUnit) {
     throw new Error("work unit is required to build synthetic executor proof");
   }
-  const artifacts = materializeAttemptArtifacts({
+  const artifacts = await materializeAttemptArtifacts({
     initiativeId: params.initiativeId,
     taskGraphId: params.taskGraphId,
     batchId: params.batchId,
@@ -91,13 +91,13 @@ function buildSyntheticExecutorProof(params: {
   };
 }
 
-function resolveCompletionProof(params: {
+async function resolveCompletionProof(params: {
   input: SupervisorActionRequest & { actionKind: "complete_attempt" };
   batchId: string;
   initiativeId: string;
   taskGraphId: string;
   workUnit: NonNullable<Awaited<ReturnType<typeof findOrchestrationWorkUnit>>>;
-}): ExecutorProofBundle {
+}): Promise<ExecutorProofBundle> {
   const proof = params.input.executorProof ?? null;
   if (proof) {
     if (proof.exitCode !== 0) {
@@ -227,7 +227,7 @@ export async function performSupervisorAction(
       );
     }
 
-    const executorProof = resolveCompletionProof({
+    const executorProof = await resolveCompletionProof({
       input,
       batchId: batch.id,
       initiativeId: batch.initiativeId,

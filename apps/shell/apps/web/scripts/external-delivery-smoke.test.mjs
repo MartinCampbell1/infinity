@@ -172,6 +172,63 @@ describe("external delivery smoke launcher", () => {
     );
   });
 
+  test("requires a blob token for the Vercel Blob object backend before provider smoke starts", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["./scripts/external-delivery-smoke.mjs"],
+      {
+        cwd: appRoot,
+        env: smokeEnv({
+          FOUNDEROS_ARTIFACT_STORE_MODE: "object",
+          FOUNDEROS_ARTIFACT_OBJECT_BACKEND: "vercel_blob",
+          FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX:
+            "vercel-blob://infinity-staging",
+          FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT: "",
+        }),
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain("BLOB_READ_WRITE_TOKEN");
+  });
+
+  test("accepts Vercel Blob object backend without a local mirror root", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        `data:text/javascript,${encodeURIComponent(`
+          globalThis.fetch = async () =>
+            new Response("<!doctype html>not found", { status: 404 });
+        `)}`,
+        "./scripts/external-delivery-smoke.mjs",
+      ],
+      {
+        cwd: appRoot,
+        env: smokeEnv({
+          FOUNDEROS_EXTERNAL_DELIVERY_ALLOW_MUTATIONS: "1",
+          FOUNDEROS_ARTIFACT_STORE_MODE: "object",
+          FOUNDEROS_ARTIFACT_OBJECT_BACKEND: "vercel_blob",
+          FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX:
+            "vercel-blob://infinity-staging",
+          FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT: "",
+          BLOB_READ_WRITE_TOKEN: "blob-token",
+        }),
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain(
+      "deployed artifact download route",
+    );
+    expect(`${result.stdout}${result.stderr}`).not.toContain(
+      "hosted-readable durable artifact mount",
+    );
+    expect(`${result.stdout}${result.stderr}`).not.toContain("RUN  v");
+  });
+
   test("rejects local artifact mode before provider smoke starts", () => {
     const result = spawnSync(
       process.execPath,

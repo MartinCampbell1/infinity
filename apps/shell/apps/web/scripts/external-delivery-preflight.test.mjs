@@ -216,6 +216,45 @@ describe("external delivery preflight", () => {
     expect(result.stderr).not.toContain("Unexpected fetch");
   });
 
+  test("requires a blob token for the Vercel Blob object backend before provider requests", () => {
+    const result = runPreflightWithFetch(
+      preflightEnv({
+        FOUNDEROS_ARTIFACT_STORE_MODE: "object",
+        FOUNDEROS_ARTIFACT_OBJECT_BACKEND: "vercel_blob",
+        FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX:
+          "vercel-blob://infinity-staging",
+        FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT: "",
+      }),
+      `
+        globalThis.fetch = async (url) => {
+          throw new Error("Unexpected fetch " + url);
+        };
+      `,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("BLOB_READ_WRITE_TOKEN");
+    expect(result.stderr).not.toContain("Unexpected fetch");
+  });
+
+  test("accepts Vercel Blob object backend without a local mirror root", () => {
+    const result = runPreflightWithFetch(
+      preflightEnv({
+        FOUNDEROS_EXTERNAL_DELIVERY_ALLOW_MUTATIONS: "1",
+        FOUNDEROS_ARTIFACT_STORE_MODE: "object",
+        FOUNDEROS_ARTIFACT_OBJECT_BACKEND: "vercel_blob",
+        FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX:
+          "vercel-blob://infinity-staging",
+        FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT: "",
+        BLOB_READ_WRITE_TOKEN: "blob-token",
+      }),
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Signed artifact download route preflight passed.");
+    expect(result.stdout).toContain("external delivery preflight passed");
+  });
+
   test("rejects invalid GitHub repository format before provider requests", () => {
     const result = runPreflightWithFetch(
       preflightEnv({
