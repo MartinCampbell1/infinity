@@ -51,7 +51,6 @@ const CONTROL_PLANE_ITEMS: ShellNavItem[] = [
     href: "/execution/runs",
     description: "Canonical autonomous lifecycle",
     icon: LayoutGrid,
-    count: "14",
     match: (pathname) =>
       pathname === "/" || pathname === "/execution" || pathname.startsWith("/execution/runs"),
   },
@@ -70,7 +69,6 @@ const CONTROL_PLANE_ITEMS: ShellNavItem[] = [
     href: "/execution/tasks",
     description: "Work-item ownership",
     icon: Boxes,
-    count: "28",
     match: (pathname) => pathname.startsWith("/execution/tasks"),
   },
 ];
@@ -81,7 +79,6 @@ const OPERATOR_ITEMS: ShellNavItem[] = [
     href: "/execution/recoveries",
     description: "Retry and failover actions",
     icon: TimerReset,
-    count: "2",
     match: (pathname) => pathname.startsWith("/execution/recoveries"),
   },
   {
@@ -89,7 +86,6 @@ const OPERATOR_ITEMS: ShellNavItem[] = [
     href: "/execution/approvals",
     description: "Pending operator decisions",
     icon: BadgeCheck,
-    count: "1",
     match: (pathname) => pathname.startsWith("/execution/approvals"),
   },
   {
@@ -114,7 +110,6 @@ const AUTONOMOUS_ITEMS: ShellNavItem[] = [
     href: "/execution/agents",
     description: "Worker session state",
     icon: Bot,
-    count: "6",
     match: (pathname) => pathname.startsWith("/execution/agents"),
   },
   {

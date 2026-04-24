@@ -114,6 +114,7 @@ export function RecoveryActionStrip({
   canFailover,
   canResolve,
   canReopen,
+  retryLabel,
 }: {
   recoveryId: string;
   fallbackAccountId?: string | null;
@@ -122,6 +123,7 @@ export function RecoveryActionStrip({
   canFailover: boolean;
   canResolve: boolean;
   canReopen: boolean;
+  retryLabel?: string;
 }) {
   const router = useRouter();
   const [busyAction, setBusyAction] = useState<RecoveryActionKind | null>(null);
@@ -181,7 +183,7 @@ export function RecoveryActionStrip({
   }
 
   const actions = [
-    canRetry ? { key: "retry" as const, label: "Retry", tone: "primary" as const } : null,
+    canRetry ? { key: "retry" as const, label: retryLabel ?? "Retry", tone: "primary" as const } : null,
     canFailover
       ? {
           key: "failover" as const,

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   buildApprovalRequestDetailResponse,
-} from "@/lib/server/control-plane/approvals";
+} from "../../../../../../lib/server/control-plane/approvals";
 
 export const dynamic = "force-dynamic";
 

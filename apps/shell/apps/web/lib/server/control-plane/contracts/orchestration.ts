@@ -429,6 +429,7 @@ export interface VerificationCheck {
   status: VerificationCheckStatus;
   details?: string | null;
   command?: string | null;
+  cwd?: string | null;
   exitCode?: number | null;
   stdoutSnippet?: string | null;
   stderrSnippet?: string | null;

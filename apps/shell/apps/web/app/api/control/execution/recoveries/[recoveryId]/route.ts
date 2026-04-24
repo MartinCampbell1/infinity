@@ -13,6 +13,7 @@ import {
 } from "../../../../../../lib/server/control-plane/state/store";
 import { buildWorkspaceRuntimeSnapshot } from "../../../../../../lib/server/control-plane/workspace/runtime-ingest";
 import type { SessionWorkspaceHostContext } from "../../../../../../lib/server/control-plane/contracts/workspace-launch";
+import { retryOrchestrationRecovery } from "../../../../../../lib/server/orchestration/retry";
 
 export const dynamic = "force-dynamic";
 
@@ -85,18 +86,26 @@ export async function POST(
     );
   }
 
+  const orchestrationRetry =
+    result.accepted && !result.idempotent && body.actionKind === "retry"
+      ? await retryOrchestrationRecovery(result.recoveryIncident)
+      : null;
   const statusCode = result.accepted ? 200 : 409;
   const state = await readControlPlaneState();
+  const responseRecoveryIncident =
+    state.recoveries.incidents.find(
+      (incident) => incident.id === result.recoveryIncident.id
+    ) ?? result.recoveryIncident;
   const runtimeSnapshot = buildWorkspaceRuntimeSnapshot(
     state,
     {
-      projectId: result.recoveryIncident.projectId,
-      projectName: result.recoveryIncident.projectName,
-      sessionId: result.recoveryIncident.sessionId,
-      externalSessionId: result.recoveryIncident.externalSessionId ?? null,
-      groupId: result.recoveryIncident.groupId ?? null,
-      accountId: result.recoveryIncident.accountId ?? null,
-      workspaceId: result.recoveryIncident.workspaceId ?? null,
+      projectId: responseRecoveryIncident.projectId,
+      projectName: responseRecoveryIncident.projectName,
+      sessionId: responseRecoveryIncident.sessionId,
+      externalSessionId: responseRecoveryIncident.externalSessionId ?? null,
+      groupId: responseRecoveryIncident.groupId ?? null,
+      accountId: responseRecoveryIncident.accountId ?? null,
+      workspaceId: responseRecoveryIncident.workspaceId ?? null,
       openedFrom: "execution_board",
     } satisfies SessionWorkspaceHostContext
   );
@@ -107,11 +116,12 @@ export async function POST(
     storageKind: getControlPlaneStorageKind(),
     integrationState: result.integrationState,
     canonicalTruth: "sessionId",
-    recoveryIncident: result.recoveryIncident,
+    recoveryIncident: responseRecoveryIncident,
     operatorAction: result.operatorAction,
     idempotent: result.idempotent,
     accepted: result.accepted,
     rejectedReason: result.rejectedReason ?? null,
+    orchestrationRetry,
     runtimeSnapshot,
     notes: [
       getControlPlaneStorageKind() === "postgres"

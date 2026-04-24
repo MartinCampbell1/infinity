@@ -20,6 +20,7 @@
     "shell:typecheck": "npm run typecheck --workspace @founderos/web",
     "shell:test": "npm run test --workspace @founderos/web",
     "validate:full": "python3 scripts/validation/run_infinity_validation.py --require-runnable-result",
+    "browser:e2e:solo": "python3 scripts/validation/run_browser_e2e_solo.py",
     "validate:quick": "python3 scripts/validation/run_infinity_validation.py --skip-static-checks",
     "work-ui:dev": "WORK_UI_HOST=127.0.0.1 WORK_UI_PORT=3101 npm run dev --workspace open-webui",
     "work-ui:build": "npm run build --workspace open-webui",

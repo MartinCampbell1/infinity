@@ -4,6 +4,7 @@ import path from "node:path";
 import type {
   AssemblyRecord,
   CreateVerificationRequest,
+  InitiativeRecord,
   TaskGraphRecord,
   VerificationCheck,
   VerificationMutationResponse,
@@ -11,6 +12,8 @@ import type {
   VerificationRunsDirectoryResponse,
   WorkUnitRecord,
 } from "../control-plane/contracts/orchestration";
+import type { RecoveryIncident } from "../control-plane/contracts/recoveries";
+import type { ControlPlaneState } from "../control-plane/state/types";
 import { readControlPlaneState, updateControlPlaneState } from "../control-plane/state/store";
 import {
   appendAutonomousRunEvent,
@@ -158,6 +161,92 @@ async function buildChecks(
   return [...checks, ...validationChecks.checks];
 }
 
+function summarizeFailedChecks(checks: readonly VerificationCheck[]) {
+  const failedChecks = checks.filter((check) => check.status === "failed");
+  if (failedChecks.length === 0) {
+    return "Verification failed without a failed check payload.";
+  }
+
+  return failedChecks
+    .map((check) => {
+      const details = check.details ? `: ${check.details}` : "";
+      const command = check.command ? ` Command: ${check.command}.` : "";
+      const cwd = check.cwd ? ` Cwd: ${check.cwd}.` : "";
+      const exitCode =
+        typeof check.exitCode === "number" ? ` Exit: ${check.exitCode}.` : "";
+      return `${check.name}${details}${command}${cwd}${exitCode}`;
+    })
+    .join("\n");
+}
+
+function upsertVerificationRecoveryIncident(
+  state: ControlPlaneState,
+  initiative: InitiativeRecord | null,
+  verification: VerificationRunRecord,
+  occurredAt: string
+) {
+  if (verification.overallStatus !== "failed") {
+    return null;
+  }
+
+  const failedChecks = verification.checks.filter(
+    (check) => check.status === "failed"
+  );
+  const recoveryId = `orchestration-recovery-${verification.id}`;
+  const existingIndex = state.recoveries.incidents.findIndex(
+    (incident) => incident.id === recoveryId
+  );
+  const existing =
+    existingIndex >= 0 ? state.recoveries.incidents[existingIndex] ?? null : null;
+  const incident: RecoveryIncident = {
+    id: existing?.id ?? recoveryId,
+    sessionId: initiative?.workspaceSessionId ?? verification.initiativeId,
+    externalSessionId: null,
+    projectId: verification.initiativeId,
+    projectName: initiative?.title ?? verification.initiativeId,
+    groupId: null,
+    accountId: null,
+    workspaceId: null,
+    status: "retryable",
+    severity: "high",
+    recoveryActionKind: "retry",
+    summary: `Verification ${verification.id} failed and blocked delivery.`,
+    rootCause: summarizeFailedChecks(verification.checks),
+    recommendedAction:
+      "Inspect the failed verification checks, fix the run artifacts or state, then retry verification.",
+    retryCount: existing?.retryCount ?? 0,
+    openedAt: existing?.openedAt ?? occurredAt,
+    lastObservedAt: occurredAt,
+    updatedAt: occurredAt,
+    resolvedAt: null,
+    revision: existing ? existing.revision + 1 : 1,
+    raw: {
+      source: "orchestration.verification",
+      verificationId: verification.id,
+      initiativeId: verification.initiativeId,
+      assemblyId: verification.assemblyId || null,
+      failedChecks: failedChecks.map((check) => ({
+        name: check.name,
+        details: check.details ?? null,
+        command: check.command ?? null,
+        cwd: check.cwd ?? null,
+        exitCode: check.exitCode ?? null,
+        artifactPath: check.artifactPath ?? null,
+        stdoutSnippet: check.stdoutSnippet ?? null,
+        stderrSnippet: check.stderrSnippet ?? null,
+      })),
+    },
+  };
+
+  if (existingIndex >= 0) {
+    state.recoveries.incidents[existingIndex] = incident;
+  } else {
+    state.recoveries.incidents = [incident, ...state.recoveries.incidents];
+  }
+
+  return incident;
+}
+
 export async function createVerification(
   input: CreateVerificationRequest
 ): Promise<VerificationMutationResponse | null> {
@@ -195,6 +284,10 @@ export async function createVerification(
   };
 
   await updateControlPlaneState((draft) => {
+    const initiative =
+      draft.orchestration.initiatives.find(
+        (candidate) => candidate.id === input.initiativeId
+      ) ?? null;
     draft.orchestration.verifications = [verification, ...draft.orchestration.verifications];
     draft.orchestration.initiatives = draft.orchestration.initiatives.map((initiative) =>
       initiative.id === input.initiativeId
@@ -233,6 +326,25 @@ export async function createVerification(
         })),
       },
     });
+    const recoveryIncident = upsertVerificationRecoveryIncident(
+      draft,
+      initiative,
+      verification,
+      occurredAt
+    );
+    if (recoveryIncident) {
+      appendAutonomousRunEvent(draft, input.initiativeId, {
+        kind: "recovery.opened",
+        stage: "blocked",
+        summary: `Recovery ${recoveryIncident.id} opened for failed verification ${verification.id}.`,
+        payload: {
+          recoveryId: recoveryIncident.id,
+          verificationId: verification.id,
+          status: recoveryIncident.status,
+          recoveryActionKind: recoveryIncident.recoveryActionKind,
+        },
+      });
+    }
   });
 
   const nextState = await readControlPlaneState();

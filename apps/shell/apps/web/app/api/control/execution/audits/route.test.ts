@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "vitest";
 
 import { createIsolatedControlPlaneStateDir } from "../../../../../lib/server/control-plane/state/test-helpers";
 import { POST as postApprovalRespond } from "../approvals/[approvalId]/respond/route";
+import { POST as postRecoveryAction } from "../recoveries/[recoveryId]/route";
 
 import { GET as getAuditsDirectory } from "./route";
 
@@ -49,6 +50,48 @@ describe("/api/control/execution/audits", () => {
           id: approvalBody.operatorAction.id,
           targetKind: "approval_request",
           targetId: "approval-001",
+          outcome: "applied",
+        }),
+      ])
+    );
+  });
+
+  test("returns operator audits after a recovery retry action is applied", async () => {
+    const { restore } = createIsolatedControlPlaneStateDir();
+    restoreStateDir = restore;
+
+    const recoveryResponse = await postRecoveryAction(
+      new Request("http://localhost/api/control/execution/recoveries/recovery-001", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          actionKind: "retry",
+        }),
+      }),
+      { params: Promise.resolve({ recoveryId: "recovery-001" }) }
+    );
+    const recoveryBody = await recoveryResponse.json();
+
+    const response = await getAuditsDirectory();
+    const body = await response.json();
+
+    expect(recoveryResponse.status).toBe(200);
+    expect(response.status).toBe(200);
+    expect(body.summary).toEqual(
+      expect.objectContaining({
+        total: 1,
+        approvals: 0,
+        recoveries: 1,
+        applied: 1,
+      })
+    );
+    expect(body.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: recoveryBody.operatorAction.id,
+          targetKind: "recovery_incident",
+          targetId: "recovery-001",
+          kind: "recovery.retry_requested",
           outcome: "applied",
         }),
       ])

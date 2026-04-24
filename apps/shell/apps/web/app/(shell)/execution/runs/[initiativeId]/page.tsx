@@ -78,6 +78,20 @@ export default async function ExecutionRunPage({
   const currentTaskGraphDetail = currentTaskGraphId
     ? await buildTaskGraphDetailResponse(currentTaskGraphId)
     : null;
+  const assemblies = Array.isArray(state.orchestration.assemblies)
+    ? state.orchestration.assemblies
+    : [];
+  const refusals = Array.isArray(state.orchestration.refusals)
+    ? state.orchestration.refusals
+    : [];
+  const currentAssembly =
+    [...assemblies]
+      .filter(
+        (assembly) =>
+          assembly.initiativeId === initiative.id &&
+          (!currentTaskGraphId || assembly.taskGraphId === currentTaskGraphId)
+      )
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null;
   const currentPreviewTarget =
     (currentRun
       ? state.orchestration.previewTargets.find((target) => target.runId === currentRun.id)
@@ -128,9 +142,15 @@ export default async function ExecutionRunPage({
       currentPreviewTarget={currentPreviewTarget}
       latestRunEvent={latestRunEvent}
       currentHandoffPacket={currentHandoffPacket}
+      currentAssembly={currentAssembly}
       plannerNotes={currentTaskGraphDetail?.notes ?? []}
       workUnits={currentTaskGraphDetail?.workUnits ?? []}
       agentSessions={agentSessions}
+      refusals={
+        currentRun
+          ? refusals.filter((refusal) => refusal.runId === currentRun.id)
+          : []
+      }
       recoveryIncidents={scopedRecoveries}
       approvalRequests={scopedApprovals}
       workspaceHostContext={workspaceHostContext}

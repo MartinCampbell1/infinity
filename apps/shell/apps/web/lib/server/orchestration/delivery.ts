@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type {
@@ -7,6 +7,7 @@ import type {
   DeliveryLaunchProofKind,
   AssemblyRecord,
   DeliveryMutationResponse,
+  WorkUnitRecord,
 } from "../control-plane/contracts/orchestration";
 import { readControlPlaneState, updateControlPlaneState } from "../control-plane/state/store";
 
@@ -51,13 +52,29 @@ type LaunchTarget = {
 };
 
 type DeliveryLaunchManifest = {
+  version?: 1;
   launcher: "python_static_site";
   scriptPath: string;
   workingDirectory: string;
-  entryPath: "/preview.html";
+  entryPath: string;
+  entrypoint?: string;
   expectedMarker: string;
   targetKind: DeliveryLaunchProofKind;
   targetLabel: string;
+  proofKind?: DeliveryLaunchProofKind;
+  prompt?: string;
+  generatedAt?: string;
+  launchCommand?: string;
+  previewUrl?: string | null;
+  previewUrlObservedAt?: string | null;
+  files?: string[];
+  sourceWorkUnits?: Array<{
+    id: string;
+    title: string;
+    attemptId: string;
+    scopePaths: string[];
+    acceptanceCriteria: string[];
+  }>;
   command: string[];
   shellCommand: string;
   proof: {
@@ -69,6 +86,47 @@ type DeliveryLaunchManifest = {
 
 function cloneDelivery(value: DeliveryRecord) {
   return JSON.parse(JSON.stringify(value)) as DeliveryRecord;
+}
+
+export type DeliveryPromotionState =
+  | "attempt_scaffold"
+  | "assembly_ready"
+  | "verification_passed"
+  | "runnable_result"
+  | "delivery.ready";
+
+export type DeliveryPromotionInput = {
+  assemblyReady: boolean;
+  verificationPassed: boolean;
+  launchProofKind?: DeliveryLaunchProofKind | null;
+  launchProofUrl?: string | null;
+  launchProofAt?: string | null;
+};
+
+export function resolveDeliveryPromotionState(
+  input: DeliveryPromotionInput
+): DeliveryPromotionState {
+  if (!input.assemblyReady) {
+    return "attempt_scaffold";
+  }
+
+  if (!input.verificationPassed) {
+    return "assembly_ready";
+  }
+
+  if (input.launchProofKind !== "runnable_result") {
+    return "verification_passed";
+  }
+
+  if (!input.launchProofUrl || !input.launchProofAt) {
+    return "runnable_result";
+  }
+
+  return "delivery.ready";
+}
+
+export function canPersistReadyDelivery(input: DeliveryPromotionInput) {
+  return resolveDeliveryPromotionState(input) === "delivery.ready";
 }
 
 export async function listDeliveries(filters?: { initiativeId?: string | null }) {
@@ -233,10 +291,215 @@ function escapeHtml(value: string | null | undefined) {
     .replaceAll("'", "&#39;");
 }
 
+function normalizePrompt(value: string | null | undefined) {
+  return (value ?? "").trim() || "Build a small local web app.";
+}
+
+function deriveRunnableAppKind(prompt: string) {
+  const normalized = prompt.toLowerCase();
+  if (normalized.includes("invoice")) {
+    return "invoice_generator" as const;
+  }
+  if (
+    normalized.includes("tip") ||
+    normalized.includes("gratuity") ||
+    normalized.includes("bill amount")
+  ) {
+    return "tip_calculator" as const;
+  }
+  return "prompt_calculator" as const;
+}
+
+function buildTipCalculatorScript() {
+  return [
+    "(() => {",
+    "  const amountInput = document.getElementById('bill-amount');",
+    "  const tipInput = document.getElementById('tip-percent');",
+    "  const tipOutput = document.getElementById('tip-amount');",
+    "  const totalOutput = document.getElementById('tip-result');",
+    "  const formatMoney = (value) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });",
+    "  function calculateTip() {",
+    "    const amount = Number.parseFloat(amountInput.value || '0');",
+    "    const tipPercent = Number.parseFloat(tipInput.value || '0');",
+    "    const safeAmount = Number.isFinite(amount) ? amount : 0;",
+    "    const safePercent = Number.isFinite(tipPercent) ? tipPercent : 0;",
+    "    const tip = safeAmount * safePercent / 100;",
+    "    const total = safeAmount + tip;",
+    "    tipOutput.textContent = formatMoney(tip);",
+    "    totalOutput.textContent = formatMoney(total);",
+    "    return { amount: safeAmount, tipPercent: safePercent, tip, total };",
+    "  }",
+    "  amountInput.addEventListener('input', calculateTip);",
+    "  tipInput.addEventListener('input', calculateTip);",
+    "  window.__INFINITY_RUNNABLE_APP__ = { kind: 'tip_calculator', calculateTip };",
+    "  calculateTip();",
+    "})();",
+  ].join("\n");
+}
+
+function buildInvoiceGeneratorScript() {
+  return [
+    "(() => {",
+    "  const clientInput = document.getElementById('client-name');",
+    "  const amountInput = document.getElementById('line-item-amount');",
+    "  const taxInput = document.getElementById('tax-percent');",
+    "  const clientOutput = document.getElementById('invoice-client-output');",
+    "  const taxOutput = document.getElementById('invoice-tax-output');",
+    "  const totalOutput = document.getElementById('invoice-total');",
+    "  const formatMoney = (value) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });",
+    "  function calculateInvoice() {",
+    "    const amount = Number.parseFloat(amountInput.value || '0');",
+    "    const taxPercent = Number.parseFloat(taxInput.value || '0');",
+    "    const safeAmount = Number.isFinite(amount) ? amount : 0;",
+    "    const safeTaxPercent = Number.isFinite(taxPercent) ? taxPercent : 0;",
+    "    const tax = safeAmount * safeTaxPercent / 100;",
+    "    const total = safeAmount + tax;",
+    "    clientOutput.textContent = clientInput.value.trim() || 'Draft client';",
+    "    taxOutput.textContent = formatMoney(tax);",
+    "    totalOutput.textContent = formatMoney(total);",
+    "    return { amount: safeAmount, taxPercent: safeTaxPercent, tax, total };",
+    "  }",
+    "  clientInput.addEventListener('input', calculateInvoice);",
+    "  amountInput.addEventListener('input', calculateInvoice);",
+    "  taxInput.addEventListener('input', calculateInvoice);",
+    "  window.__INFINITY_RUNNABLE_APP__ = { kind: 'invoice_generator', calculateInvoice };",
+    "  calculateInvoice();",
+    "})();",
+  ].join("\n");
+}
+
+function buildGenericCalculatorScript() {
+  return [
+    "(() => {",
+    "  const valueInput = document.getElementById('prompt-value');",
+    "  const multiplierInput = document.getElementById('prompt-multiplier');",
+    "  const resultOutput = document.getElementById('prompt-result');",
+    "  function calculatePromptResult() {",
+    "    const value = Number.parseFloat(valueInput.value || '0');",
+    "    const multiplier = Number.parseFloat(multiplierInput.value || '1');",
+    "    const result = (Number.isFinite(value) ? value : 0) * (Number.isFinite(multiplier) ? multiplier : 1);",
+    "    resultOutput.textContent = result.toFixed(2);",
+    "    return { value, multiplier, result };",
+    "  }",
+    "  valueInput.addEventListener('input', calculatePromptResult);",
+    "  multiplierInput.addEventListener('input', calculatePromptResult);",
+    "  window.__INFINITY_RUNNABLE_APP__ = { kind: 'prompt_calculator', calculatePromptResult };",
+    "  calculatePromptResult();",
+    "})();",
+  ].join("\n");
+}
+
+function buildRunnableAppScript(appKind: ReturnType<typeof deriveRunnableAppKind>) {
+  if (appKind === "tip_calculator") {
+    return buildTipCalculatorScript();
+  }
+  if (appKind === "invoice_generator") {
+    return buildInvoiceGeneratorScript();
+  }
+  return buildGenericCalculatorScript();
+}
+
+function buildRunnableAppForm(appKind: ReturnType<typeof deriveRunnableAppKind>) {
+  if (appKind === "tip_calculator") {
+    return [
+      '<label><span>Bill amount</span><input id="bill-amount" type="number" inputmode="decimal" min="0" step="0.01" value="42" /></label>',
+      '<label><span>Tip percent</span><input id="tip-percent" type="number" inputmode="decimal" min="0" step="0.1" value="18" /></label>',
+      '<div class="result-grid">',
+      '  <div><span>Tip amount</span><strong id="tip-amount">$0.00</strong></div>',
+      '  <div><span>Total with tip</span><strong id="tip-result">$0.00</strong></div>',
+      "</div>",
+    ].join("\n");
+  }
+  if (appKind === "invoice_generator") {
+    return [
+      '<label><span>Client name</span><input id="client-name" type="text" value="Acme Studio" /></label>',
+      '<label><span>Line item amount</span><input id="line-item-amount" type="number" inputmode="decimal" min="0" step="0.01" value="240" /></label>',
+      '<label><span>Tax percent</span><input id="tax-percent" type="number" inputmode="decimal" min="0" step="0.1" value="8.5" /></label>',
+      '<div class="result-grid">',
+      '  <div><span>Client</span><strong id="invoice-client-output">Draft client</strong></div>',
+      '  <div><span>Tax</span><strong id="invoice-tax-output">$0.00</strong></div>',
+      '  <div><span>Printable total</span><strong id="invoice-total">$0.00</strong></div>',
+      "</div>",
+    ].join("\n");
+  }
+  return [
+    '<label><span>Value</span><input id="prompt-value" type="number" inputmode="decimal" value="12" /></label>',
+    '<label><span>Multiplier</span><input id="prompt-multiplier" type="number" inputmode="decimal" value="3" /></label>',
+    '<div class="result-grid"><div><span>Result</span><strong id="prompt-result">0.00</strong></div></div>',
+  ].join("\n");
+}
+
+function buildPromptDerivedIndexHtml(params: {
+  appKind: ReturnType<typeof deriveRunnableAppKind>;
+  appScript: string;
+  expectedMarker: string;
+  prompt: string;
+  title: string;
+}) {
+  const productLabel =
+    params.appKind === "tip_calculator"
+      ? "Tip calculator"
+      : params.appKind === "invoice_generator"
+        ? "Invoice generator"
+        : "Prompt calculator";
+
+  return [
+    "<!doctype html>",
+    '<html lang="en">',
+    "<head>",
+    '  <meta charset="utf-8" />',
+    `  <title>${escapeHtml(params.title)}</title>`,
+    '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+    "  <style>",
+    "    * { box-sizing: border-box; }",
+    "    body { margin: 0; min-height: 100vh; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #101316; color: #f5f7f8; }",
+    "    main { min-height: 100vh; display: grid; place-items: center; padding: 28px; }",
+    "    .app { width: min(760px, 100%); display: grid; gap: 18px; }",
+    "    .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: #9eddbf; }",
+    "    h1 { margin: 8px 0 0; font-size: 34px; line-height: 1.08; }",
+    "    p { margin: 10px 0 0; color: rgba(245,247,248,0.72); line-height: 1.65; }",
+    "    .panel { border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); border-radius: 8px; padding: 22px; }",
+    "    form { display: grid; gap: 14px; }",
+    "    label { display: grid; gap: 7px; color: rgba(245,247,248,0.72); font-size: 13px; }",
+    "    input { width: 100%; border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; background: #0b0d0f; color: #fff; padding: 12px 13px; font-size: 15px; }",
+    "    .result-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }",
+    "    .result-grid > div { border: 1px solid rgba(158,221,191,0.22); border-radius: 8px; background: rgba(158,221,191,0.08); padding: 14px; }",
+    "    .result-grid span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(245,247,248,0.58); }",
+    "    .result-grid strong { display: block; margin-top: 8px; font-size: 24px; }",
+    "    .prompt { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: rgba(245,247,248,0.64); word-break: break-word; }",
+    "    .marker { position: absolute; opacity: 0; pointer-events: none; }",
+    "    @media (max-width: 680px) { .result-grid { grid-template-columns: 1fr; } h1 { font-size: 28px; } }",
+    "  </style>",
+    "</head>",
+    "<body>",
+    "  <main>",
+    '    <section class="app">',
+    '      <div class="panel">',
+    `        <div class="eyebrow">${escapeHtml(productLabel)} - prompt-derived runnable result</div>`,
+    `        <h1>${escapeHtml(params.title)}</h1>`,
+    `        <p class="prompt">${escapeHtml(params.prompt)}</p>`,
+    "      </div>",
+    '      <form class="panel" onsubmit="return false;">',
+    buildRunnableAppForm(params.appKind),
+    "      </form>",
+    `      <div class="marker">${escapeHtml(params.expectedMarker)}</div>`,
+    "    </section>",
+    "  </main>",
+    "  <script>",
+    params.appScript,
+    "  </script>",
+    "</body>",
+    "</html>",
+  ].join("\n");
+}
+
 async function materializeAssemblyRunnableTarget(params: {
   assembly: AssemblyRecord;
   initiativeId: string;
   verificationId: string;
+  prompt: string;
+  title: string;
+  sourceWorkUnits: readonly WorkUnitRecord[];
 }) {
   if (!params.assembly.outputLocation) {
     return null;
@@ -249,70 +512,63 @@ async function materializeAssemblyRunnableTarget(params: {
   const launchManifestPath = path.join(outputDir, "launch-manifest.json");
   const resultManifestPath = path.join(outputDir, "result-manifest.json");
   const indexPath = path.join(outputDir, "index.html");
+  const appScriptPath = path.join(outputDir, "app.js");
   const command = [DELIVERY_PYTHON_BIN, launchScriptPath, "--port", "0", "--entry", "/index.html"];
   const shellCommand = `${DELIVERY_PYTHON_BIN} ${shellQuote(launchScriptPath)} --port 0 --entry /index.html`;
+  const generatedAt = nowIso();
+  const prompt = normalizePrompt(params.prompt);
+  const appKind = deriveRunnableAppKind(prompt);
+  const title = params.title.trim() || "Generated runnable result";
+  const appScript = buildRunnableAppScript(appKind);
+  const sourceWorkUnits = params.sourceWorkUnits.map((workUnit) => ({
+    id: workUnit.id,
+    title: workUnit.title,
+    attemptId: workUnit.latestAttemptId ?? "",
+    scopePaths: workUnit.scopePaths,
+    acceptanceCriteria: workUnit.acceptanceCriteria,
+  }));
 
   await writeFile(
     indexPath,
-    [
-      "<!doctype html>",
-      '<html lang="en">',
-      "<head>",
-      '  <meta charset="utf-8" />',
-      "  <title>Integrated Assembly Result</title>",
-      '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
-      "  <style>",
-      "    :root { color-scheme: dark; }",
-      "    * { box-sizing: border-box; }",
-      "    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f12; color: #edf0f3; }",
-      "    main { min-height: 100vh; display: grid; place-items: center; padding: 24px; }",
-      "    .card { width: min(860px, 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: 22px; background: rgba(255,255,255,0.03); padding: 28px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }",
-      "    .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: rgba(190,240,214,0.7); }",
-      "    h1 { margin: 12px 0 0; font-size: 32px; line-height: 1.08; letter-spacing: -0.05em; }",
-      "    p { margin: 12px 0 0; font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.7); }",
-      "    .grid { margin-top: 20px; display: grid; gap: 10px; }",
-      "    .row { display: grid; grid-template-columns: 180px 1fr; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); }",
-      "    .k { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: rgba(255,255,255,0.52); text-transform: uppercase; letter-spacing: 0.12em; }",
-      "    .v { font-size: 13px; color: #fff; word-break: break-word; }",
-      "    .marker { position: absolute; opacity: 0; pointer-events: none; }",
-      "    @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }",
-      "  </style>",
-      "</head>",
-      "<body>",
-      "  <main>",
-      '    <section class="card">',
-      '      <div class="eyebrow">Integrated Assembly Result</div>',
-      "      <h1>Truthful runnable delivery bundle</h1>",
-      "      <p>This localhost bundle is derived from the assembled Infinity output package and its passed verification record. It is the delivery-stage runnable result for the current initiative, not a canned placeholder.</p>",
-      '      <div class="grid">',
-      `        <div class="row"><div class="k">Initiative</div><div class="v">${escapeHtml(params.initiativeId)}</div></div>`,
-      `        <div class="row"><div class="k">Assembly</div><div class="v">${escapeHtml(params.assembly.id)}</div></div>`,
-      `        <div class="row"><div class="k">Verification</div><div class="v">${escapeHtml(params.verificationId)}</div></div>`,
-      `        <div class="row"><div class="k">Task graph</div><div class="v">${escapeHtml(params.assembly.taskGraphId)}</div></div>`,
-      `        <div class="row"><div class="k">Assembly output</div><div class="v">${escapeHtml(params.assembly.outputLocation ?? "n/a")}</div></div>`,
-      `        <div class="row"><div class="k">Artifacts</div><div class="v">${String(params.assembly.artifactUris.length)} evidence file(s)</div></div>`,
-      "      </div>",
-      `      <div class="marker">${DELIVERY_RESULT_MARKER}</div>`,
-      "    </section>",
-      "  </main>",
-      "</body>",
-      "</html>",
-    ].join("\n")
+    buildPromptDerivedIndexHtml({
+      appKind,
+      appScript,
+      expectedMarker: DELIVERY_RESULT_MARKER,
+      prompt,
+      title,
+    })
   );
+  await writeFile(appScriptPath, appScript);
   await writeFile(launchScriptPath, buildLaunchScript());
   await writeFile(
     launchManifestPath,
     JSON.stringify(
       {
+        version: 1,
         launcher: "python_static_site",
         scriptPath: launchScriptPath,
         workingDirectory: outputDir,
         entryPath: "/index.html",
+        entrypoint: "/index.html",
         expectedMarker: DELIVERY_RESULT_MARKER,
         targetKind: "runnable_result",
         targetLabel: "Integrated assembly result",
+        proofKind: "runnable_result",
+        prompt,
+        generatedAt,
+        launchCommand: shellCommand,
+        previewUrl: null,
+        previewUrlObservedAt: null,
+        files: ["index.html", "app.js", "launch-localhost.py", "result-manifest.json"],
+        sourceWorkUnits,
+        appKind,
         command,
         shellCommand,
+        proof: {
+          status: "failed",
+          url: null,
+          observedAt: null,
+        },
       },
       null,
       2
@@ -327,6 +583,14 @@ async function materializeAssemblyRunnableTarget(params: {
         verificationId: params.verificationId,
         targetKind: "runnable_result",
         targetLabel: "Integrated assembly result",
+        proofKind: "runnable_result",
+        prompt,
+        generatedAt,
+        appKind,
+        entrypoint: "/index.html",
+        launchCommand: shellCommand,
+        files: ["index.html", "app.js", "launch-localhost.py", "launch-manifest.json"],
+        sourceWorkUnits,
         outputDir,
         entryPath: "/index.html",
       },
@@ -425,11 +689,56 @@ async function proveLocalhostLaunch(
   });
 }
 
+async function updateLaunchManifestProof(params: {
+  manifestPath: string;
+  launchProof: DeliveryLaunchProof | null;
+}) {
+  try {
+    const raw = JSON.parse(await readFile(params.manifestPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    if (raw.targetKind !== "runnable_result") {
+      return;
+    }
+
+    await writeFile(
+      params.manifestPath,
+      JSON.stringify(
+        {
+          ...raw,
+          previewUrl: params.launchProof?.url ?? null,
+          previewUrlObservedAt: params.launchProof?.observedAt ?? null,
+          proof: params.launchProof
+            ? {
+                status: "passed",
+                url: params.launchProof.url,
+                observedAt: params.launchProof.observedAt,
+              }
+            : {
+                status: "failed",
+                url: null,
+                observedAt: null,
+              },
+        },
+        null,
+        2
+      )
+    );
+  } catch {
+    return;
+  }
+}
+
 async function buildDeliveryFields(
   initiativeId: string,
   deliveryId: string,
   assembly: AssemblyRecord | null,
-  verificationId: string
+  verificationId: string,
+  productContext: {
+    prompt: string;
+    title: string;
+  }
 ): Promise<{
   localOutputPath: string;
   launchReady: boolean;
@@ -454,6 +763,9 @@ async function buildDeliveryFields(
     assembly?.taskGraphId
       ? await findRunnableAttemptTarget(initiativeId, assembly.taskGraphId)
       : null;
+  const sourceWorkUnits = assembly?.taskGraphId
+    ? await listOrchestrationWorkUnits({ taskGraphId: assembly.taskGraphId })
+    : [];
   const scaffoldOnlyTarget =
     attemptRunnableTarget && attemptRunnableTarget.launchProofKind === "attempt_scaffold";
   const attemptRunnableTargetBacked =
@@ -466,6 +778,9 @@ async function buildDeliveryFields(
             assembly,
             initiativeId,
             verificationId,
+            prompt: productContext.prompt,
+            title: productContext.title,
+            sourceWorkUnits,
           })
         : attemptRunnableTarget;
   const usedAssemblyRunnableTarget =
@@ -620,6 +935,12 @@ async function buildDeliveryFields(
   const launchProof = runnableTarget
     ? await proveLocalhostLaunch(launchCommand, runnableTarget.expectedMarker)
     : wrapperLaunchProof;
+  if (runnableTarget) {
+    await updateLaunchManifestProof({
+      manifestPath: runnableTarget.launchManifestPath,
+      launchProof,
+    });
+  }
   const launchManifest: DeliveryLaunchManifest = {
     launcher: "python_static_site",
     scriptPath: launchScriptPath,
@@ -767,6 +1088,11 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
   if (!assembly) {
     return null;
   }
+  const state = await readControlPlaneState();
+  const initiative =
+    state.orchestration.initiatives.find(
+      (candidate) => candidate.id === input.initiativeId
+    ) ?? null;
   const existingDelivery =
     (await listDeliveries({ initiativeId: input.initiativeId })).find(
       (candidate) => candidate.verificationRunId === verification.id
@@ -788,9 +1114,21 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     input.initiativeId,
     deliveryId,
     assembly,
-    verification.id
+    verification.id,
+    {
+      prompt: initiative?.userRequest ?? input.initiativeId,
+      title: initiative?.title ?? "Generated runnable result",
+    }
   );
-  const launchReady = fields.launchReady;
+  const launchReady =
+    fields.launchReady &&
+    canPersistReadyDelivery({
+      assemblyReady: Boolean(assembly),
+      verificationPassed: verification.overallStatus === "passed",
+      launchProofKind: fields.launchProofKind,
+      launchProofUrl: fields.launchProofUrl,
+      launchProofAt: fields.launchProofAt,
+    });
   const delivery: DeliveryRecord = {
     id: deliveryId,
     initiativeId: input.initiativeId,

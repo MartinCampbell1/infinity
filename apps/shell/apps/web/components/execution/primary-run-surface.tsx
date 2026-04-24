@@ -3,8 +3,11 @@ import Link from "next/link";
 import {
   buildExecutionContinuityScopeHref,
   buildExecutionDeliveryScopeHref,
+  buildExecutionBatchScopeHref,
+  buildExecutionTaskGraphScopeHref,
   buildExecutionWorkspaceScopeHref,
   routeScopeFromExecutionBindingRef,
+  withShellRouteScope,
   type ShellRouteScope,
 } from "@/lib/route-scope";
 import {
@@ -12,9 +15,11 @@ import {
   PlaneProgressBar,
   PlaneStatusPill,
 } from "@/components/execution/plane-run-primitives";
+import { RecoveryActionStrip } from "@/components/execution/operator-action-controls";
 import { getClaudeDisplayRunId } from "@/lib/server/orchestration/claude-design-presentation";
 import type { ApprovalRequest } from "@/lib/server/control-plane/contracts/approvals";
 import type {
+  AssemblyRecord,
   DeliveryRecord,
   ExecutionBatchRecord,
   InitiativeRecord,
@@ -25,6 +30,7 @@ import type {
 import type { RecoveryIncident } from "@/lib/server/control-plane/contracts/recoveries";
 import type {
   AutonomousAgentSessionRecord,
+  AutonomousRefusalRecord,
   AutonomousHandoffPacketRecord,
   AutonomousPreviewTargetRecord,
   AutonomousRunEventRecord,
@@ -121,6 +127,85 @@ function workUnitAttemptLabel(status: WorkUnitStatus) {
   return "0/0";
 }
 
+function uniqueAttemptIds(
+  unit: WorkUnitRecord,
+  agentSessions: AutonomousAgentSessionRecord[]
+) {
+  const ids = new Set<string>();
+  if (unit.latestAttemptId) {
+    ids.add(unit.latestAttemptId);
+  }
+  agentSessions
+    .filter((session) => session.workItemId === unit.id && session.attemptId)
+    .forEach((session) => ids.add(String(session.attemptId)));
+  return [...ids];
+}
+
+function workUnitAttemptCount(
+  unit: WorkUnitRecord,
+  agentSessions: AutonomousAgentSessionRecord[]
+) {
+  const count = uniqueAttemptIds(unit, agentSessions).length;
+  if (count > 0) {
+    return String(count);
+  }
+  return workUnitAttemptLabel(unit.status).split("/")[0] ?? "0";
+}
+
+function artifactEvidenceForWorkUnit(
+  unit: WorkUnitRecord,
+  assembly: AssemblyRecord | null | undefined,
+  index: number
+) {
+  if (!assembly?.artifactUris.length) {
+    return null;
+  }
+  const latestAttemptId = unit.latestAttemptId ?? "";
+  return (
+    assembly.artifactUris.find((artifactUri) =>
+      Boolean(latestAttemptId && artifactUri.includes(latestAttemptId))
+    ) ??
+    assembly.artifactUris.find((artifactUri) => artifactUri.includes(unit.id)) ??
+    (assembly.inputWorkUnitIds[index] === unit.id
+      ? assembly.artifactUris[index]
+      : null) ??
+    null
+  );
+}
+
+function evidenceLabel(artifactUri: string) {
+  const lastSegment = artifactUri.split("/").filter(Boolean).at(-1);
+  return lastSegment ? decodeURIComponent(lastSegment) : artifactUri;
+}
+
+function failureReasonForWorkUnit(
+  unit: WorkUnitRecord,
+  refusals: AutonomousRefusalRecord[]
+) {
+  const refusal = refusals.find((candidate) => candidate.workItemId === unit.id);
+  if (refusal?.reason) {
+    return refusal.reason;
+  }
+  if (unit.status === "failed") {
+    return "Work unit failed without a recorded refusal reason.";
+  }
+  if (unit.status === "blocked" || unit.status === "retryable") {
+    return "Work unit is blocked and waiting for recovery.";
+  }
+  return null;
+}
+
+function buildBriefInspectionHref(
+  taskGraph: TaskGraphRecord,
+  scope?: Partial<ShellRouteScope> | null
+) {
+  const href = withShellRouteScope("/execution/planner", scope);
+  const url = new URL(href, "http://founderos-shell.local");
+  url.searchParams.set("brief_id", taskGraph.briefId);
+  url.searchParams.set("initiative_id", taskGraph.initiativeId);
+  return `${url.pathname}${url.search}`;
+}
+
 const PREFERRED_WORK_UNIT_SUFFIX_ORDER = [
   "final_integration",
   "qa_release_gate",
@@ -148,10 +233,12 @@ export function PrimaryRunSurface({
   currentTaskGraph,
   currentBatch,
   currentDelivery,
+  currentAssembly,
   latestRunEvent,
   plannerNotes,
   workUnits,
   agentSessions,
+  refusals,
   recoveryIncidents,
   approvalRequests,
   workspaceHostContext,
@@ -165,13 +252,16 @@ export function PrimaryRunSurface({
   currentPreviewTarget: AutonomousPreviewTargetRecord | null;
   latestRunEvent: AutonomousRunEventRecord | null;
   currentHandoffPacket: AutonomousHandoffPacketRecord | null;
+  currentAssembly?: AssemblyRecord | null;
   plannerNotes: string[];
   workUnits: WorkUnitRecord[];
   agentSessions: AutonomousAgentSessionRecord[];
+  refusals?: AutonomousRefusalRecord[];
   recoveryIncidents: RecoveryIncident[];
   approvalRequests: ApprovalRequest[];
   workspaceHostContext: SessionWorkspaceHostContext | null;
 }) {
+  const scopedRefusals = refusals ?? [];
   const workspaceSessionId =
     workspaceHostContext?.sessionId ?? initiative.workspaceSessionId ?? routeScope?.sessionId ?? null;
   const scopedRoute = routeScopeFromExecutionBindingRef(
@@ -191,6 +281,20 @@ export function PrimaryRunSurface({
     ? buildExecutionDeliveryScopeHref(currentDelivery.id, scopedRoute, {
         initiativeId: initiative.id,
       })
+    : null;
+  const taskGraphHref = currentTaskGraph
+    ? buildExecutionTaskGraphScopeHref(currentTaskGraph.id, scopedRoute, {
+        initiativeId: initiative.id,
+      })
+    : null;
+  const batchHref = currentBatch
+    ? buildExecutionBatchScopeHref(currentBatch.id, scopedRoute, {
+        initiativeId: initiative.id,
+        taskGraphId: currentBatch.taskGraphId,
+      })
+    : null;
+  const briefHref = currentTaskGraph
+    ? buildBriefInspectionHref(currentTaskGraph, scopedRoute)
     : null;
   const displayStage =
     currentRun?.currentStage === "preview_ready" || currentRun?.currentStage === "handed_off"
@@ -273,6 +377,27 @@ export function PrimaryRunSurface({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {briefHref ? (
+                <Link href={briefHref}>
+                  <PlaneButton variant="subtle" size="sm">
+                    Open brief
+                  </PlaneButton>
+                </Link>
+              ) : null}
+              {taskGraphHref ? (
+                <Link href={taskGraphHref}>
+                  <PlaneButton variant="subtle" size="sm">
+                    Open task graph
+                  </PlaneButton>
+                </Link>
+              ) : null}
+              {batchHref ? (
+                <Link href={batchHref}>
+                  <PlaneButton variant="subtle" size="sm">
+                    Open batch
+                  </PlaneButton>
+                </Link>
+              ) : null}
               <a href="#event-log">
                 <PlaneButton variant="subtle" size="sm">
                   Logs
@@ -288,7 +413,7 @@ export function PrimaryRunSurface({
               {deliveryHref ? (
                 <Link href={deliveryHref}>
                   <PlaneButton variant="primary" size="sm">
-                    Open result
+                    Open delivery
                   </PlaneButton>
                 </Link>
               ) : null}
@@ -381,7 +506,7 @@ export function PrimaryRunSurface({
             </span>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div data-task-board-layout="scan-list" className="space-y-3">
             {[
               {
                 label: "running",
@@ -401,9 +526,9 @@ export function PrimaryRunSurface({
             ].map((lane) => (
               <div
                 key={lane.label}
-                className="flex min-h-[240px] flex-col gap-3 rounded-[14px] border border-white/6 bg-white/[0.02] px-3 py-3"
+                className="rounded-[14px] border border-white/6 bg-white/[0.02] px-4 py-4"
               >
-                <div className="flex items-center justify-between px-1">
+                <div className="flex items-center justify-between">
                   <PlaneStatusPill status={lane.status} mono size="sm">
                     {lane.label}
                   </PlaneStatusPill>
@@ -411,48 +536,92 @@ export function PrimaryRunSurface({
                     {lane.items.length}
                   </span>
                 </div>
-                {lane.items.map((unit, index) => {
+                <div className="mt-3 space-y-2">
+                {lane.items.length > 0 ? lane.items.map((unit, index) => {
                   const workUnit = unit as WorkUnitRecord;
                   const selected = selectedWorkUnit?.id === workUnit.id;
                   const progress = workUnitProgress(workUnit.status);
                   const pct = Math.round((progress.value / progress.total) * 100);
+                  const attemptCount = workUnitAttemptCount(workUnit, agentSessions);
+                  const artifactUri = artifactEvidenceForWorkUnit(
+                    workUnit,
+                    currentAssembly,
+                    index
+                  );
+                  const failureReason = failureReasonForWorkUnit(workUnit, scopedRefusals);
 
                   return (
                     <div
                       key={workUnit.id}
-                      className={`rounded-[10px] border px-3 py-3 ${
+                      className={`grid gap-3 rounded-[10px] border px-4 py-3 md:grid-cols-[74px_minmax(0,1fr)_174px] md:items-center ${
                         selected
                           ? "border-[rgba(133,169,255,0.38)] bg-[rgba(133,169,255,0.06)]"
                           : "border-white/7 bg-white/[0.025]"
                       }`}
                     >
-                      <div className="font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
-                        {workUnitCode(index)}
-                        <span className="ml-2">{workUnitTag(workUnit)}</span>
+                      <div>
+                        <div className="font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
+                          Task {workUnitCode(index)}
+                        </div>
+                        <div className="mt-1 font-mono text-[9.5px] text-white/46">
+                          {workUnitTag(workUnit)}
+                        </div>
+                        <PlaneProgressBar
+                          className="mt-3"
+                          value={progress.value}
+                          total={progress.total}
+                          color={
+                            workUnit.status === "completed"
+                              ? "var(--status-running)"
+                              : workUnit.status === "running"
+                                ? "var(--status-planning)"
+                                : "rgba(255,255,255,0.18)"
+                          }
+                        />
                       </div>
-                      <div className="mt-2 text-[12px] leading-5 text-white">{workUnit.title}</div>
-                      <div className="mt-2 inline-flex rounded-[4px] bg-white/[0.03] px-2 py-1 font-mono text-[9px] text-[var(--shell-sidebar-muted)]">
-                        {workUnit.executorType}
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-medium leading-5 text-white">
+                          {workUnit.title}
+                        </div>
+                        <div className="mt-1 line-clamp-2 text-[11px] leading-5 text-white/58">
+                          {workUnit.acceptanceCriteria[0] ?? "Acceptance criteria pending."}
+                        </div>
+                        <div className="mt-1 truncate font-mono text-[10px] text-white/42">
+                          {workUnit.scopePaths[0] ?? "scope pending"}
+                        </div>
+                        {artifactUri ? (
+                          <a
+                            className="mt-1 block truncate font-mono text-[10px] text-sky-200/82 transition hover:text-sky-100"
+                            href={artifactUri}
+                          >
+                            Evidence {evidenceLabel(artifactUri)}
+                          </a>
+                        ) : (
+                          <div className="mt-1 font-mono text-[10px] text-white/38">Evidence pending</div>
+                        )}
+                        {failureReason ? (
+                          <div className="mt-1 text-[11px] text-rose-100/78">Failure {failureReason}</div>
+                        ) : null}
                       </div>
-                      <PlaneProgressBar
-                        className="mt-3"
-                        value={progress.value}
-                        total={progress.total}
-                        color={
-                          workUnit.status === "completed"
-                            ? "var(--status-running)"
-                            : workUnit.status === "running"
-                              ? "var(--status-planning)"
-                              : "rgba(255,255,255,0.18)"
-                        }
-                      />
-                      <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-[var(--shell-sidebar-muted)]">
-                        <span>attempt {workUnitAttemptLabel(workUnit.status)}</span>
-                        <span>{pct}%</span>
+                      <div className="flex flex-wrap gap-1.5 font-mono text-[9.5px] text-[var(--shell-sidebar-muted)] md:justify-end">
+                        <span className="inline-flex rounded-[4px] bg-white/[0.03] px-2 py-1">
+                          Executor {workUnit.executorType}
+                        </span>
+                        <span className="inline-flex rounded-[4px] bg-white/[0.03] px-2 py-1">
+                          Attempts {attemptCount}
+                        </span>
+                        <span className="inline-flex rounded-[4px] bg-white/[0.03] px-2 py-1">
+                          {pct}%
+                        </span>
                       </div>
                     </div>
                   );
-                })}
+                }) : (
+                  <div className="rounded-[10px] border border-dashed border-white/8 px-4 py-3 text-[12px] text-white/42">
+                    No {lane.label} tasks.
+                  </div>
+                )}
+                </div>
               </div>
             ))}
           </div>
@@ -520,6 +689,20 @@ export function PrimaryRunSurface({
         <div className="sticky top-0 h-[calc(100vh-56px)] overflow-auto border-l border-[color:var(--shell-sidebar-border)] bg-[rgba(8,11,15,0.6)] px-5 py-5">
           {selectedWorkUnit ? (
             <>
+              {(() => {
+                const selectedAttemptIds = uniqueAttemptIds(selectedWorkUnit, agentSessions);
+                const selectedArtifactUri = artifactEvidenceForWorkUnit(
+                  selectedWorkUnit,
+                  currentAssembly,
+                  orderedWorkUnits.findIndex((unit) => unit.id === selectedWorkUnit.id)
+                );
+                const selectedFailureReason = failureReasonForWorkUnit(
+                  selectedWorkUnit,
+                  scopedRefusals
+                );
+
+                return (
+                  <>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--shell-sidebar-muted)]">
@@ -546,7 +729,7 @@ export function PrimaryRunSurface({
                   {selectedWorkUnit.status}
                 </PlaneStatusPill>
                 <PlaneStatusPill status="neutral" mono size="sm">
-                  attempt {workUnitAttemptLabel(selectedWorkUnit.status)}
+                  Attempts {workUnitAttemptCount(selectedWorkUnit, agentSessions)}
                 </PlaneStatusPill>
                 <PlaneStatusPill status="neutral" mono size="sm">
                   {selectedWorkUnit.executorType}
@@ -565,6 +748,10 @@ export function PrimaryRunSurface({
                 <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Session</div>
                 <div className="truncate font-mono text-white/82">
                   {workspaceHostContext?.sessionId ?? "n/a"}
+                </div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">Attempt</div>
+                <div className="truncate font-mono text-white/82">
+                  {selectedAttemptIds[0] ?? selectedWorkUnit.latestAttemptId ?? "n/a"}
                 </div>
               </div>
 
@@ -593,8 +780,33 @@ export function PrimaryRunSurface({
                   <span>{currentBatch?.id ?? "n/a"}</span>
                   <span>criteria</span>
                   <span>{selectedWorkUnit.acceptanceCriteria[0] ?? "n/a"}</span>
+                  <span>evidence</span>
+                  <span>
+                    {selectedArtifactUri ? evidenceLabel(selectedArtifactUri) : "pending"}
+                  </span>
                 </div>
               </div>
+
+              {selectedArtifactUri || selectedFailureReason ? (
+                <div className="mt-5 rounded-[12px] border border-white/8 bg-white/[0.025] px-4 py-4 text-[11px] leading-6">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                    Attempt evidence
+                  </div>
+                  {selectedArtifactUri ? (
+                    <a
+                      className="mt-2 block truncate font-mono text-sky-200/82 transition hover:text-sky-100"
+                      href={selectedArtifactUri}
+                    >
+                      Evidence {evidenceLabel(selectedArtifactUri)}
+                    </a>
+                  ) : null}
+                  {selectedFailureReason ? (
+                    <div className="mt-2 text-rose-100/78">
+                      Failure {selectedFailureReason}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               {recoveries[0] ? (
                 <div className="mt-5 rounded-[12px] border border-amber-400/20 bg-amber-400/[0.05] px-4 py-4">
@@ -614,6 +826,14 @@ export function PrimaryRunSurface({
                       {recoveries[0].recoveryActionKind}
                     </PlaneStatusPill>
                   </div>
+                  <RecoveryActionStrip
+                    recoveryId={recoveries[0].id}
+                    canRetry={recoveries[0].status === "retryable" || recoveries[0].status === "open"}
+                    canFailover={false}
+                    canResolve={false}
+                    canReopen={false}
+                    retryLabel="Force retry"
+                  />
                 </div>
               ) : null}
 
@@ -674,6 +894,9 @@ export function PrimaryRunSurface({
                   </div>
                 </div>
               </div>
+                  </>
+                );
+              })()}
             </>
           ) : (
             <div className="rounded-[12px] border border-dashed border-white/10 px-4 py-4 text-[12px] text-white/48">

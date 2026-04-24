@@ -1,8 +1,22 @@
 <script lang="ts">
 	import '../../app.css';
-	import { DEFAULT_LOCAL_SHELL_ORIGIN } from '$lib/founderos/shell-origin';
+	import type { FounderosLaunchContext } from '$lib/founderos';
+	import { resolveFounderosShellOrigin } from '$lib/founderos/shell-origin';
 
-	const shellOrigin = DEFAULT_LOCAL_SHELL_ORIGIN;
+	const standaloneLaunchContext: FounderosLaunchContext = {
+		enabled: false,
+		embedded: false,
+		projectId: null,
+		sessionId: null,
+		groupId: null,
+		accountId: null,
+		workspaceId: null,
+		launchToken: null,
+		hostOrigin: null,
+		rawParams: {},
+		launchSource: 'standalone'
+	};
+	const shellOrigin = resolveFounderosShellOrigin(standaloneLaunchContext);
 </script>
 
 <svelte:head>

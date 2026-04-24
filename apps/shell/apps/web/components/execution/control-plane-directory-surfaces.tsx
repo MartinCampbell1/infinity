@@ -359,6 +359,25 @@ export function ExecutionApprovalsDirectorySurface({
       </section>
 
       <section className="space-y-3">
+        {directory.requests.length === 0 ? (
+          <article className="rounded-2xl border border-dashed border-white/12 bg-white/[0.02] p-5">
+            <div className="text-sm font-medium text-white">
+              No approval requests match the current scope.
+            </div>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/54">
+              The queue was checked against the durable approvals directory and
+              there are no pending operator decisions for this scope.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10.5px] text-white/42">
+              <span className="rounded-full border border-white/10 px-2.5 py-1">
+                source: {directory.storageKind}
+              </span>
+              <span className="rounded-full border border-white/10 px-2.5 py-1">
+                scope: {routeScope?.sessionId || routeScope?.projectId || "all"}
+              </span>
+            </div>
+          </article>
+        ) : null}
         {directory.requests.map((request) => {
           const scoped = approvalScope(request, routeScope);
           const lastAction = latestAction(directory.operatorActions, request.id);
@@ -552,6 +571,9 @@ export function ExecutionRecoveriesDirectorySurface({
                 <div className="space-y-1">
                   <div className="text-xs uppercase tracking-[0.16em] text-white/42">
                     {incident.projectName} · severity {incident.severity}
+                  </div>
+                  <div className="font-mono text-[11px] text-white/42">
+                    {incident.id}
                   </div>
                   <h2 className="text-lg font-medium text-white">
                     {incident.summary}

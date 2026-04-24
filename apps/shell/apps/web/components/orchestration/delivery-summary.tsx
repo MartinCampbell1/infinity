@@ -16,6 +16,7 @@ import type {
   AssemblyRecord,
   DeliveryRecord,
   VerificationRunRecord,
+  WorkUnitRecord,
 } from "@/lib/server/control-plane/contracts/orchestration";
 
 function titleCase(value: string | null | undefined) {
@@ -51,6 +52,42 @@ function shortRunId(value: string | null | undefined) {
   return getClaudeDisplayRunId(value);
 }
 
+function compactEvidenceValue(value: string) {
+  if (value.length <= 44) {
+    return value;
+  }
+
+  try {
+    const url = new URL(value);
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    const lastPart = pathParts.at(-1);
+    if (lastPart && pathParts.length > 1) {
+      return `${url.origin}/.../${lastPart}`;
+    }
+  } catch {
+    // Not a URL; handle local paths and commands below.
+  }
+
+  const pathParts = value.split("/").filter(Boolean);
+  const lastPart = pathParts.at(-1);
+  if (value.startsWith("/") && lastPart && pathParts.length > 2) {
+    return `/${pathParts.slice(0, 2).join("/")}/.../${lastPart}`;
+  }
+
+  return `${value.slice(0, 28)}...${value.slice(-18)}`;
+}
+
+type DeliverySourceWorkUnit = Pick<
+  WorkUnitRecord,
+  | "id"
+  | "title"
+  | "latestAttemptId"
+  | "executorType"
+  | "scopePaths"
+  | "acceptanceCriteria"
+  | "status"
+>;
+
 export function DeliverySummary({
   delivery,
   initiativeTitle,
@@ -60,6 +97,7 @@ export function DeliverySummary({
   taskGraphId,
   runId,
   handoffId,
+  sourceWorkUnits,
   routeScope,
 }: {
   delivery: DeliveryRecord;
@@ -70,6 +108,7 @@ export function DeliverySummary({
   taskGraphId?: string | null;
   runId?: string | null;
   handoffId?: string | null;
+  sourceWorkUnits?: DeliverySourceWorkUnit[];
   routeScope?: Partial<ShellRouteScope> | null;
 }) {
   const previewHref = delivery.previewUrl ?? null;
@@ -174,23 +213,36 @@ export function DeliverySummary({
   ];
   const artifactRows = [
     {
-      label: "Preview",
+      label: "Preview URL",
       value: displayPreviewHref ?? "pending",
     },
     {
-      label: "Output",
+      label: "Local output path",
       value: delivery.localOutputPath ?? "n/a",
     },
     {
-      label: "Manifest",
+      label: "Manifest path",
       value: delivery.manifestPath ?? "pending",
     },
     {
-      label: "Launch",
-      value: delivery.launchProofUrl ?? delivery.launchManifestPath ?? "pending",
+      label: "Launch manifest",
+      value: delivery.launchManifestPath ?? "pending",
+    },
+    {
+      label: "Launch proof URL",
+      value: delivery.launchProofUrl ?? "pending",
+    },
+    {
+      label: "Launch command",
+      value: delivery.command ?? "pending",
+    },
+    {
+      label: "Proof kind",
+      value: delivery.launchProofKind ?? "pending",
     },
   ];
   const displayPreviewLabel = displayPreviewHref ?? "preview pending";
+  const visibleSourceWorkUnits = sourceWorkUnits ?? [];
 
   return (
     <main className="mx-auto grid max-w-[1520px] gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -323,8 +375,11 @@ export function DeliverySummary({
                       <div
                         key={item}
                         className="rounded-[10px] border border-white/6 bg-white/[0.02] px-4 py-3"
+                        title={item}
                       >
-                        <div className="font-mono text-[11px] leading-6 text-white/76">{item}</div>
+                        <div className="truncate font-mono text-[11px] leading-6 text-white/76">
+                          {compactEvidenceValue(item)}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -360,7 +415,7 @@ export function DeliverySummary({
 
                   <div className="rounded-[14px] border border-white/8 bg-white/[0.025] px-5 py-5">
                     <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
-                      Delivery summary
+                      Result summary
                     </div>
                     <div className="mt-3 text-[15px] font-medium tracking-[-0.02em] text-white">
                       {launchReady ? "Handoff-ready result" : scaffoldOnly ? "Attempt scaffold evidence" : "Wrapper evidence"}
@@ -369,6 +424,74 @@ export function DeliverySummary({
                       {delivery.resultSummary}
                     </p>
                   </div>
+
+                  <div className="rounded-[14px] border border-white/8 bg-white/[0.025] px-5 py-5">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                      Runnable proof
+                    </div>
+                    <div className="mt-4 grid grid-cols-[150px_minmax(0,1fr)] gap-x-4 gap-y-3 text-[11px]">
+                      {artifactRows.map((row) => (
+                        <React.Fragment key={row.label}>
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                            {row.label}
+                          </div>
+                          <div
+                            className="truncate font-mono text-white/82"
+                            title={row.value}
+                          >
+                            {compactEvidenceValue(row.value)}
+                          </div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[14px] border border-white/8 bg-white/[0.025] px-5 py-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                    Source work units
+                  </div>
+                  <span className="font-mono text-[11px] text-white/48">
+                    {visibleSourceWorkUnits.length} linked
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {visibleSourceWorkUnits.length ? (
+                    visibleSourceWorkUnits.map((workUnit) => (
+                      <div
+                        key={workUnit.id}
+                        className="rounded-[10px] border border-white/6 bg-white/[0.02] px-4 py-3"
+                      >
+                        <div className="font-mono text-[11px] text-white/48">{workUnit.id}</div>
+                        <div className="mt-1 text-[13px] font-medium text-white">{workUnit.title}</div>
+                        <div className="mt-2 grid grid-cols-[82px_minmax(0,1fr)] gap-x-3 gap-y-1 text-[10.5px] text-white/52">
+                          <span>attempt</span>
+                          <span className="truncate font-mono text-white/78">
+                            {workUnit.latestAttemptId ?? "pending"}
+                          </span>
+                          <span>executor</span>
+                          <span className="font-mono text-white/78">{workUnit.executorType}</span>
+                          <span>status</span>
+                          <span className="font-mono text-white/78">{workUnit.status}</span>
+                          <span>scope</span>
+                          <span className="truncate font-mono text-white/78">
+                            {workUnit.scopePaths[0] ?? "n/a"}
+                          </span>
+                        </div>
+                        {workUnit.acceptanceCriteria[0] ? (
+                          <div className="mt-2 text-[11px] leading-5 text-white/54">
+                            {workUnit.acceptanceCriteria[0]}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-[10px] border border-dashed border-white/8 px-4 py-3 text-[12px] text-white/48">
+                      No source work units were attached to this delivery.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -434,34 +557,17 @@ export function DeliverySummary({
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
               Artifacts
             </div>
-            <div className="mt-4 grid grid-cols-[90px_1fr] gap-x-4 gap-y-3">
+            <div className="mt-4 grid grid-cols-[120px_1fr] gap-x-4 gap-y-3">
               {artifactRows.map((row) => (
                 <React.Fragment key={row.label}>
                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
                     {row.label}
                   </div>
-                  <div className="truncate font-mono text-white/82">{row.value}</div>
+                  <div className="truncate font-mono text-white/82" title={row.value}>
+                    {compactEvidenceValue(row.value)}
+                  </div>
                 </React.Fragment>
               ))}
-              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
-                Launch
-              </div>
-              <div>
-                <PlaneStatusPill
-                  status={
-                    delivery.launchProofKind === "runnable_result" && delivery.launchProofAt
-                      ? "completed"
-                      : delivery.launchProofKind === "attempt_scaffold" ||
-                          delivery.launchProofKind === "synthetic_wrapper"
-                        ? "pending"
-                        : "neutral"
-                  }
-                  mono
-                  size="sm"
-                >
-                  {delivery.launchProofKind ?? "pending"}
-                </PlaneStatusPill>
-              </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-white/54">
               {displayPreviewHref ? (

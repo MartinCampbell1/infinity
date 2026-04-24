@@ -62,6 +62,28 @@ export interface ApprovalRequestsDirectory extends ControlPlaneDirectoryMeta {
   operatorActions: OperatorActionAuditEvent[];
 }
 
+export interface ApprovalCreateRequest {
+  id?: string | null;
+  sessionId: string;
+  externalSessionId?: string | null;
+  projectId: string;
+  projectName: string;
+  groupId?: string | null;
+  accountId?: string | null;
+  workspaceId?: string | null;
+  requestKind: ApprovalRequestKind;
+  title: string;
+  summary: string;
+  reason?: string | null;
+  expiresAt?: string | null;
+  raw?: Record<string, unknown> | null;
+}
+
+export interface ApprovalCreateResponse extends ControlPlaneDirectoryMeta {
+  approvalRequest: ApprovalRequest;
+  summary: ApprovalRequestsSummary;
+}
+
 export interface ApprovalRequestDetailResponse extends ControlPlaneDirectoryMeta {
   approvalRequest: ApprovalRequest;
   operatorActions: OperatorActionAuditEvent[];
@@ -96,6 +118,17 @@ export function isApprovalDecision(value: unknown): value is ApprovalDecision {
     value === "approve_session" ||
     value === "approve_always" ||
     value === "deny"
+  );
+}
+
+export function isApprovalRequestKind(value: unknown): value is ApprovalRequestKind {
+  return (
+    value === "tool_call" ||
+    value === "command" ||
+    value === "file_write" ||
+    value === "workspace_action" ||
+    value === "model_switch" ||
+    value === "unknown"
   );
 }
 

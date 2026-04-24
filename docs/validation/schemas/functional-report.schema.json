@@ -2,11 +2,98 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Infinity Functional Report",
   "type": "object",
-  "required": ["run_id", "generated_at", "status", "checks", "scenarios"],
+  "required": [
+    "run_id",
+    "generated_at",
+    "status",
+    "release_status",
+    "repo_checks",
+    "browser_product_e2e",
+    "critic",
+    "release_readiness",
+    "tracked_state",
+    "checks",
+    "scenarios"
+  ],
   "properties": {
     "run_id": { "type": "string" },
     "generated_at": { "type": "string" },
     "status": { "type": "string", "enum": ["passed", "failed"] },
+    "release_status": {
+      "type": "string",
+      "enum": ["passed-final-release", "functional-only", "failed"]
+    },
+    "repo_checks": {
+      "type": "object",
+      "required": ["status", "total", "passed", "failed", "skipped"],
+      "properties": {
+        "status": { "type": "string", "enum": ["passed", "failed", "skipped"] },
+        "total": { "type": "integer" },
+        "passed": { "type": "integer" },
+        "failed": { "type": "integer" },
+        "skipped": { "type": "integer" }
+      }
+    },
+    "browser_product_e2e": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["passed", "failed", "skipped", "unknown"] },
+        "report_path": { "type": ["string", "null"] },
+        "run_dir": { "type": ["string", "null"] },
+        "skipped_reason": { "type": ["string", "null"] }
+      }
+    },
+    "critic": {
+      "type": "object",
+      "required": ["status", "pass"],
+      "properties": {
+        "status": { "type": "string" },
+        "report_path": { "type": ["string", "null"] },
+        "pass": { "type": "boolean" },
+        "overall_score": { "type": ["number", "null"] },
+        "min_core_cluster_score": { "type": ["number", "null"] },
+        "unresolved_must_fix": { "type": ["integer", "null"] }
+      }
+    },
+    "release_readiness": {
+      "type": "object",
+      "required": ["status", "legacy_status", "blocking_reasons"],
+      "properties": {
+        "status": { "type": "string", "enum": ["final_ready", "not_final"] },
+        "legacy_status": {
+          "type": "string",
+          "enum": ["passed-final-release", "functional-only", "failed"]
+        },
+        "blocking_reasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "tracked_state": {
+      "type": "object",
+      "required": [
+        "unchanged",
+        "before_line_count",
+        "after_line_count",
+        "added_lines",
+        "removed_lines"
+      ],
+      "properties": {
+        "unchanged": { "type": "boolean" },
+        "before_line_count": { "type": "integer" },
+        "after_line_count": { "type": "integer" },
+        "added_lines": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "removed_lines": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
     "checks": {
       "type": "array",
       "items": {
@@ -14,7 +101,7 @@
         "required": ["name", "status"],
         "properties": {
           "name": { "type": "string" },
-          "status": { "type": "string", "enum": ["passed", "failed"] },
+          "status": { "type": "string", "enum": ["passed", "failed", "skipped"] },
           "detail": { "type": ["string", "null"] }
         }
       }

@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 
 def now_iso() -> str:
@@ -60,6 +63,114 @@ def render_fix_log(critic: dict) -> str:
     return "\n".join(lines)
 
 
+def load_validation_module() -> Any:
+    module_path = Path(__file__).with_name("run_infinity_validation.py")
+    spec = importlib.util.spec_from_file_location("run_infinity_validation", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load validation module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def refresh_release_readiness(run_dir: Path, critic_report_path: Path) -> None:
+    functional_report_path = run_dir / "functional-report.json"
+    if not functional_report_path.is_file():
+        return
+
+    validation = load_validation_module()
+    report = json.loads(functional_report_path.read_text(encoding="utf-8"))
+    checks = [
+        validation.CheckResult(
+            name=str(item.get("name", "unknown")),
+            status=str(item.get("status", "unknown")),
+            detail=item.get("detail") if isinstance(item.get("detail"), str) else None,
+        )
+        for item in report.get("checks", [])
+        if isinstance(item, dict)
+    ]
+
+    critic_state = json.loads(critic_report_path.read_text(encoding="utf-8"))
+    critic_state["report_path"] = str(critic_report_path)
+    release_layers = validation.build_release_readiness(
+        functional_status=str(report.get("status", "unknown")),
+        checks=checks,
+        browser_e2e=report.get("browser_e2e")
+        if isinstance(report.get("browser_e2e"), dict)
+        else {},
+        critic=critic_state,
+    )
+
+    report["release_status"] = release_layers["release_readiness"]["legacy_status"]
+    report["repo_checks"] = release_layers["repo_checks"]
+    report["browser_product_e2e"] = release_layers["browser_product_e2e"]
+    report["critic"] = release_layers["critic"]
+    report["release_readiness"] = release_layers["release_readiness"]
+    report["critic_finalized_at"] = now_iso()
+    functional_report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+    refresh_markdown_summary(
+        run_dir / "functional-report.md",
+        {
+            "Release status:": f"Release status: `{report['release_status']}`",
+            "Release readiness:": (
+                f"Release readiness: `{release_layers['release_readiness']['status']}`"
+            ),
+            "- critic:": f"- critic: `{release_layers['critic']['status']}`",
+            "- release_readiness:": (
+                f"- release_readiness: `{release_layers['release_readiness']['status']}`"
+            ),
+            "- blocking reasons:": (
+                "- blocking reasons: "
+                f"`{', '.join(release_layers['release_readiness']['blocking_reasons']) or 'none'}`"
+            ),
+        },
+    )
+    refresh_markdown_summary(
+        run_dir / "final-validation-summary.md",
+        {
+            "Status:": f"Status: `{report['release_status']}`",
+            "Critic status:": f"Critic status: `{release_layers['critic']['status']}`",
+            "Release readiness:": (
+                f"Release readiness: `{release_layers['release_readiness']['status']}`"
+            ),
+            "Release blocking reasons:": (
+                "Release blocking reasons: "
+                f"`{', '.join(release_layers['release_readiness']['blocking_reasons']) or 'none'}`"
+            ),
+        },
+    )
+
+
+def refresh_markdown_summary(path: Path, replacements: dict[str, str]) -> None:
+    if not path.is_file():
+        return
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    seen: set[str] = set()
+    next_lines: list[str] = []
+    for line in lines:
+        matched_prefix = next(
+            (prefix for prefix in replacements if line.startswith(prefix)),
+            None,
+        )
+        if matched_prefix is None:
+            next_lines.append(line)
+            continue
+        next_lines.append(replacements[matched_prefix])
+        seen.add(matched_prefix)
+
+    missing_lines = [
+        replacements[prefix] for prefix in replacements if prefix not in seen
+    ]
+    if missing_lines:
+        if next_lines and next_lines[-1] != "":
+            next_lines.append("")
+        next_lines.extend(missing_lines)
+    path.write_text("\n".join(next_lines) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", required=True)
@@ -82,7 +193,8 @@ def main() -> int:
         "critic": critic,
     }
 
-    (run_dir / "critic-report-iteration-0.json").write_text(
+    critic_report_path = run_dir / "critic-report-iteration-0.json"
+    critic_report_path.write_text(
         json.dumps(report_payload, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -94,6 +206,7 @@ def main() -> int:
         render_fix_log(critic),
         encoding="utf-8",
     )
+    refresh_release_readiness(run_dir, critic_report_path)
 
     print(
         json.dumps(

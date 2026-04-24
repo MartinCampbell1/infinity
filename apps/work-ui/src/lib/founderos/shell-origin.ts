@@ -20,7 +20,10 @@ export const resolveFounderosShellOrigin = (
 		return hostOrigin;
 	}
 
-	const configuredOrigin = trimOrigin(import.meta.env.PUBLIC_FOUNDEROS_SHELL_ORIGIN);
+	const configuredOrigin = trimOrigin(
+		import.meta.env.VITE_FOUNDEROS_SHELL_ORIGIN ??
+			import.meta.env.PUBLIC_FOUNDEROS_SHELL_ORIGIN
+	);
 	if (configuredOrigin) {
 		return configuredOrigin;
 	}

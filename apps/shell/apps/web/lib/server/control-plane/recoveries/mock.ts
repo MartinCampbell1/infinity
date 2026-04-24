@@ -4,6 +4,7 @@ import type {
   RecoveryActionContext,
   RecoveryActionKind,
   RecoveryIncidentDetailResponse,
+  RecoveryIncidentsDirectoryFilters,
   RecoveryRecordActionResult,
   RecoveryIncident,
   RecoveryIncidentStatus,
@@ -45,6 +46,59 @@ function cloneAction(value: OperatorActionAuditEvent) {
 function nowIso() {
   const value = new Date();
   return Number.isNaN(value.getTime()) ? DEFAULT_MUTATION_AT : value.toISOString();
+}
+
+function normalizeFilterValue(value: string | null | undefined) {
+  return (value || "").trim();
+}
+
+function incidentInitiativeId(incident: RecoveryIncident) {
+  const rawInitiativeId = incident.raw?.initiativeId;
+  return typeof rawInitiativeId === "string" ? rawInitiativeId : "";
+}
+
+function matchesRecoveryIncidentFilters(
+  incident: RecoveryIncident,
+  filters?: RecoveryIncidentsDirectoryFilters | null
+) {
+  const sessionId = normalizeFilterValue(filters?.sessionId);
+  const projectId = normalizeFilterValue(filters?.projectId);
+  const initiativeId = normalizeFilterValue(filters?.initiativeId);
+  const groupId = normalizeFilterValue(filters?.groupId);
+  const accountId = normalizeFilterValue(filters?.accountId);
+  const workspaceId = normalizeFilterValue(filters?.workspaceId);
+
+  if (sessionId && incident.sessionId !== sessionId) {
+    return false;
+  }
+  if (projectId && incident.projectId !== projectId) {
+    return false;
+  }
+  if (
+    initiativeId &&
+    incident.projectId !== initiativeId &&
+    incidentInitiativeId(incident) !== initiativeId
+  ) {
+    return false;
+  }
+  if (groupId && (incident.groupId ?? "") !== groupId) {
+    return false;
+  }
+  if (accountId && (incident.accountId ?? "") !== accountId) {
+    return false;
+  }
+  if (workspaceId && (incident.workspaceId ?? "") !== workspaceId) {
+    return false;
+  }
+
+  return true;
+}
+
+function filterRecoveryIncidents(
+  incidents: readonly RecoveryIncident[],
+  filters?: RecoveryIncidentsDirectoryFilters | null
+) {
+  return incidents.filter((incident) => matchesRecoveryIncidentFilters(incident, filters));
 }
 
 function buildRecoveryActionEvent(
@@ -174,8 +228,7 @@ async function directoryMeta(notes?: string[]): Promise<ControlPlaneDirectoryMet
   };
 }
 
-async function summary() {
-  const incidents = await listMockRecoveryIncidents();
+function summarizeRecoveryIncidents(incidents: readonly RecoveryIncident[]) {
   return {
     total: incidents.length,
     open: incidents.filter((incident) => incident.status === "open").length,
@@ -206,12 +259,20 @@ export async function listMockRecoveryOperatorActions() {
 export const listRecoveryOperatorActions = listMockRecoveryOperatorActions;
 export const listRecoveryIncidents = listMockRecoveryIncidents;
 
-export async function buildMockRecoveryIncidentsDirectory(): Promise<RecoveryIncidentsDirectory> {
+export async function buildMockRecoveryIncidentsDirectory(
+  filters?: RecoveryIncidentsDirectoryFilters | null
+): Promise<RecoveryIncidentsDirectory> {
+  const incidents = filterRecoveryIncidents(await listMockRecoveryIncidents(), filters);
+  const incidentIds = new Set(incidents.map((incident) => incident.id));
+  const operatorActions = (await listMockRecoveryOperatorActions()).filter((action) =>
+    incidentIds.has(action.targetId)
+  );
+
   return {
     ...await directoryMeta(),
-    incidents: await listMockRecoveryIncidents(),
-    summary: await summary(),
-    operatorActions: await listMockRecoveryOperatorActions(),
+    incidents,
+    summary: summarizeRecoveryIncidents(incidents),
+    operatorActions,
   };
 }
 

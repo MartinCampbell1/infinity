@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { readControlPlaneState, resetControlPlaneStateForTests } from "../../../../../lib/server/control-plane/state/store";
+import {
+  readControlPlaneState,
+  resetControlPlaneStateForTests,
+} from "../../../../../lib/server/control-plane/state/store";
 
 import { POST as postInitiatives } from "../initiatives/route";
 import { POST as postBriefs } from "../briefs/route";
@@ -14,11 +17,21 @@ import { PATCH as patchWorkUnit } from "../work-units/[workUnitId]/route";
 import { POST as postAssembly } from "../assembly/route";
 import { GET as getVerification, POST as postVerification } from "./route";
 
-const ORIGINAL_CONTROL_PLANE_STATE_DIR = process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR;
-const ORIGINAL_CONTROL_PLANE_DATABASE_URL = process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
-const ORIGINAL_EXECUTION_HANDOFF_DATABASE_URL = process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
+const ORIGINAL_CONTROL_PLANE_STATE_DIR =
+  process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR;
+const ORIGINAL_CONTROL_PLANE_DATABASE_URL =
+  process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
+const ORIGINAL_EXECUTION_HANDOFF_DATABASE_URL =
+  process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
 const ORIGINAL_VALIDATION_COMMANDS =
   process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
+const ORIGINAL_VALIDATION_COMMANDS_ALLOWED =
+  process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
+const ORIGINAL_WORK_UI_BASE_URL = process.env.FOUNDEROS_WORK_UI_BASE_URL;
+const ORIGINAL_SHELL_PUBLIC_ORIGIN = process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN;
+const ORIGINAL_WEB_PORT = process.env.FOUNDEROS_WEB_PORT;
+const ORIGINAL_NEXT_PUBLIC_WORK_UI_BASE_URL =
+  process.env.NEXT_PUBLIC_FOUNDEROS_WORK_UI_BASE_URL;
 
 let tempStateDir = "";
 
@@ -31,20 +44,23 @@ beforeEach(async () => {
   process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR = tempStateDir;
   delete process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
   delete process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
-  process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON = JSON.stringify([
-    {
-      name: "static-smoke",
-      bucket: "static",
-      cwd: "/Users/martin/infinity",
-      command: ["node", "-e", "process.exit(0)"],
-    },
-    {
-      name: "test-smoke",
-      bucket: "test",
-      cwd: "/Users/martin/infinity",
-      command: ["node", "-e", "process.exit(0)"],
-    },
-  ]);
+  process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON = "1";
+  process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON = JSON.stringify(
+    [
+      {
+        name: "static-smoke",
+        bucket: "static",
+        cwd: "/Users/martin/infinity",
+        command: ["node", "-e", "process.exit(0)"],
+      },
+      {
+        name: "test-smoke",
+        bucket: "test",
+        cwd: "/Users/martin/infinity",
+        command: ["node", "-e", "process.exit(0)"],
+      },
+    ],
+  );
   await resetControlPlaneStateForTests();
 });
 
@@ -53,12 +69,14 @@ afterEach(async () => {
   if (ORIGINAL_CONTROL_PLANE_STATE_DIR === undefined) {
     delete process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR;
   } else {
-    process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR = ORIGINAL_CONTROL_PLANE_STATE_DIR;
+    process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR =
+      ORIGINAL_CONTROL_PLANE_STATE_DIR;
   }
   if (ORIGINAL_CONTROL_PLANE_DATABASE_URL === undefined) {
     delete process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
   } else {
-    process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL = ORIGINAL_CONTROL_PLANE_DATABASE_URL;
+    process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL =
+      ORIGINAL_CONTROL_PLANE_DATABASE_URL;
   }
   if (ORIGINAL_EXECUTION_HANDOFF_DATABASE_URL === undefined) {
     delete process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
@@ -71,6 +89,33 @@ afterEach(async () => {
   } else {
     process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON =
       ORIGINAL_VALIDATION_COMMANDS;
+  }
+  if (ORIGINAL_VALIDATION_COMMANDS_ALLOWED === undefined) {
+    delete process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
+  } else {
+    process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON =
+      ORIGINAL_VALIDATION_COMMANDS_ALLOWED;
+  }
+  if (ORIGINAL_WORK_UI_BASE_URL === undefined) {
+    delete process.env.FOUNDEROS_WORK_UI_BASE_URL;
+  } else {
+    process.env.FOUNDEROS_WORK_UI_BASE_URL = ORIGINAL_WORK_UI_BASE_URL;
+  }
+  if (ORIGINAL_SHELL_PUBLIC_ORIGIN === undefined) {
+    delete process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN;
+  } else {
+    process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN = ORIGINAL_SHELL_PUBLIC_ORIGIN;
+  }
+  if (ORIGINAL_WEB_PORT === undefined) {
+    delete process.env.FOUNDEROS_WEB_PORT;
+  } else {
+    process.env.FOUNDEROS_WEB_PORT = ORIGINAL_WEB_PORT;
+  }
+  if (ORIGINAL_NEXT_PUBLIC_WORK_UI_BASE_URL === undefined) {
+    delete process.env.NEXT_PUBLIC_FOUNDEROS_WORK_UI_BASE_URL;
+  } else {
+    process.env.NEXT_PUBLIC_FOUNDEROS_WORK_UI_BASE_URL =
+      ORIGINAL_NEXT_PUBLIC_WORK_UI_BASE_URL;
   }
   if (tempStateDir) {
     rmSync(tempStateDir, { recursive: true, force: true });
@@ -88,7 +133,7 @@ async function createPlannedInitiative() {
         userRequest: "Build the Infinity-native project factory.",
         requestedBy: "martin",
       }),
-    })
+    }),
   );
   const initiativeBody = await initiativeResponse.json();
   const initiativeId = initiativeBody.initiative.id as string;
@@ -114,7 +159,7 @@ async function createPlannedInitiative() {
         authoredBy: "droid-spec-writer",
         status: "approved",
       }),
-    })
+    }),
   );
   const briefBody = await briefResponse.json();
   const briefId = briefBody.brief.id as string;
@@ -124,12 +169,13 @@ async function createPlannedInitiative() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ briefId }),
-    })
+    }),
   );
   const taskGraphBody = await taskGraphResponse.json();
 
   return {
     initiativeId,
+    workspaceSessionId: initiativeBody.initiative.workspaceSessionId as string,
     taskGraphId: taskGraphBody.taskGraph.id as string,
   };
 }
@@ -137,8 +183,8 @@ async function createPlannedInitiative() {
 async function completeAllWorkUnits(taskGraphId: string) {
   const workUnitsResponse = await getWorkUnits(
     new Request(
-      `http://localhost/api/control/orchestration/work-units?task_graph_id=${taskGraphId}`
-    )
+      `http://localhost/api/control/orchestration/work-units?task_graph_id=${taskGraphId}`,
+    ),
   );
   const workUnitsBody = await workUnitsResponse.json();
 
@@ -153,9 +199,9 @@ async function completeAllWorkUnits(taskGraphId: string) {
             status: "completed",
             latestAttemptId: `attempt-verify-${index + 1}`,
           }),
-        }
+        },
       ),
-      { params: Promise.resolve({ workUnitId: workUnit.id }) }
+      { params: Promise.resolve({ workUnitId: workUnit.id }) },
     );
     expect(response.status).toBe(200);
   }
@@ -171,7 +217,7 @@ describe("/api/control/orchestration/verification", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ initiativeId }),
-      })
+      }),
     );
     expect(assemblyResponse.status).toBe(201);
 
@@ -180,21 +226,27 @@ describe("/api/control/orchestration/verification", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ initiativeId }),
-      })
+      }),
     );
     const verificationBody = await verificationResponse.json();
 
     expect(verificationResponse.status).toBe(201);
     expect(verificationBody.verification.overallStatus).toBe("passed");
-    expect(verificationBody.verification.checks.every((check: { status: string }) => check.status === "passed")).toBe(true);
     expect(
-      verificationBody.verification.checks.map((check: { name: string }) => check.name)
+      verificationBody.verification.checks.every(
+        (check: { status: string }) => check.status === "passed",
+      ),
+    ).toBe(true);
+    expect(
+      verificationBody.verification.checks.map(
+        (check: { name: string }) => check.name,
+      ),
     ).toContain("assembly_manifest_present");
 
     const listResponse = await getVerification(
       new Request(
-        `http://localhost/api/control/orchestration/verification?initiative_id=${initiativeId}`
-      )
+        `http://localhost/api/control/orchestration/verification?initiative_id=${initiativeId}`,
+      ),
     );
     const listBody = await listResponse.json();
 
@@ -207,15 +259,140 @@ describe("/api/control/orchestration/verification", () => {
     ]);
   });
 
-  test("failed verification does not create a delivery record", async () => {
-    const { initiativeId } = await createPlannedInitiative();
+  test("verification commands run with isolated runtime env instead of dev-server pollution", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL = "http://127.0.0.1:8798";
+    process.env.FOUNDEROS_WORK_UI_BASE_URL = "http://127.0.0.1:3101";
+    process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN = "http://127.0.0.1:3737";
+    process.env.FOUNDEROS_WEB_PORT = "9999";
+    process.env.NEXT_PUBLIC_FOUNDEROS_WORK_UI_BASE_URL =
+      "http://127.0.0.1:9997";
+    const script = [
+      "const expectedState = process.argv[1];",
+      "if (process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR !== expectedState) process.exit(11);",
+      "if (process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL !== 'http://127.0.0.1:8798') process.exit(12);",
+      "if (process.env.FOUNDEROS_WORK_UI_BASE_URL !== 'http://127.0.0.1:3101') process.exit(13);",
+      "if (process.env.FOUNDEROS_SHELL_PUBLIC_ORIGIN !== 'http://127.0.0.1:3737') process.exit(14);",
+      "if (process.env.FOUNDEROS_WEB_PORT) process.exit(15);",
+      "if (process.env.NEXT_PUBLIC_FOUNDEROS_WORK_UI_BASE_URL) process.exit(16);",
+      "if (process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON) process.exit(17);",
+    ].join(" ");
+    process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON =
+      JSON.stringify([
+        {
+          name: "env-static",
+          bucket: "static",
+          cwd: "/Users/martin/infinity",
+          command: ["node", "-e", script, tempStateDir],
+        },
+        {
+          name: "env-test",
+          bucket: "test",
+          cwd: "/Users/martin/infinity",
+          command: ["node", "-e", script, tempStateDir],
+        },
+      ]);
 
     const verificationResponse = await postVerification(
       new Request("http://localhost/api/control/orchestration/verification", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ initiativeId }),
-      })
+      }),
+    );
+    const verificationBody = await verificationResponse.json();
+
+    expect(verificationResponse.status).toBe(201);
+    expect(verificationBody.verification.overallStatus).toBe("passed");
+    expect(
+      verificationBody.verification.checks.find(
+        (check: { name: string }) => check.name === "targeted_tests_passed",
+      )?.status,
+    ).toBe("passed");
+  });
+
+  test("failed validation details are persisted with exact command, cwd, snippets, and artifact path", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const assemblyBody = await assemblyResponse.json();
+    expect(assemblyResponse.status).toBe(201);
+
+    process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON =
+      JSON.stringify([
+        {
+          name: "static-ok",
+          bucket: "static",
+          cwd: "/Users/martin/infinity",
+          command: ["node", "-e", "process.exit(0)"],
+        },
+        {
+          name: "test-fail",
+          bucket: "test",
+          cwd: "/Users/martin/infinity/apps/shell",
+          command: [
+            "node",
+            "-e",
+            "process.stdout.write('operator stdout'); process.stderr.write('operator stderr'); process.exit(9)",
+          ],
+        },
+      ]);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const verificationBody = await verificationResponse.json();
+
+    const failedCheck = verificationBody.verification.checks.find(
+      (check: { name: string }) => check.name === "targeted_tests_passed",
+    );
+    expect(verificationResponse.status).toBe(201);
+    expect(verificationBody.verification.overallStatus).toBe("failed");
+    expect(failedCheck).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        command:
+          "node -e process.stdout.write('operator stdout'); process.stderr.write('operator stderr'); process.exit(9)",
+        cwd: "/Users/martin/infinity/apps/shell",
+        exitCode: 9,
+        stdoutSnippet: "operator stdout",
+        stderrSnippet: "operator stderr",
+        artifactPath: assemblyBody.assembly.manifestPath,
+      }),
+    );
+  });
+
+  test("failed verification does not create a delivery record", async () => {
+    const { initiativeId, workspaceSessionId } = await createPlannedInitiative();
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
     );
     const verificationBody = await verificationResponse.json();
 
@@ -225,6 +402,29 @@ describe("/api/control/orchestration/verification", () => {
 
     const state = await readControlPlaneState();
     expect(state.orchestration.deliveries).toEqual([]);
+
+    const recoveryIncident = state.recoveries.incidents.find(
+      (incident) =>
+        incident.raw?.source === "orchestration.verification" &&
+        incident.raw?.verificationId === verificationBody.verification.id,
+    );
+    expect(recoveryIncident).toEqual(
+      expect.objectContaining({
+        sessionId: workspaceSessionId,
+        projectId: initiativeId,
+        projectName: "Atlas Factory",
+        status: "retryable",
+        severity: "high",
+        recoveryActionKind: "retry",
+        retryCount: 0,
+        resolvedAt: null,
+      }),
+    );
+    expect(recoveryIncident?.summary).toContain(
+      verificationBody.verification.id,
+    );
+    expect(recoveryIncident?.rootCause).toContain("assembly_present");
+    expect(recoveryIncident?.recommendedAction).toMatch(/retry verification/i);
   });
 
   test("verification fails when the latest assembly belongs to an older task graph generation", async () => {
@@ -236,7 +436,7 @@ describe("/api/control/orchestration/verification", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ initiativeId }),
-      })
+      }),
     );
     expect(assemblyResponse.status).toBe(201);
 
@@ -261,7 +461,7 @@ describe("/api/control/orchestration/verification", () => {
           authoredBy: "droid-spec-writer",
           status: "approved",
         }),
-      })
+      }),
     );
     const secondBriefBody = await secondBriefResponse.json();
     const secondTaskGraphResponse = await postTaskGraphs(
@@ -269,7 +469,7 @@ describe("/api/control/orchestration/verification", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ briefId: secondBriefBody.brief.id }),
-      })
+      }),
     );
     const secondTaskGraphBody = await secondTaskGraphResponse.json();
     const secondTaskGraphId = secondTaskGraphBody.taskGraph.id as string;
@@ -281,7 +481,7 @@ describe("/api/control/orchestration/verification", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ initiativeId }),
-      })
+      }),
     );
     const verificationBody = await verificationResponse.json();
 
@@ -289,8 +489,9 @@ describe("/api/control/orchestration/verification", () => {
     expect(verificationBody.verification.overallStatus).toBe("failed");
     expect(
       verificationBody.verification.checks.find(
-        (check: { name: string }) => check.name === "assembly_matches_task_graph"
-      )?.status
+        (check: { name: string }) =>
+          check.name === "assembly_matches_task_graph",
+      )?.status,
     ).toBe("failed");
   });
 
@@ -303,20 +504,23 @@ describe("/api/control/orchestration/verification", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ initiativeId }),
-      })
+      }),
     );
     const assemblyBody = await assemblyResponse.json();
     expect(assemblyResponse.status).toBe(201);
-    rmSync(normalizeArtifactPath(assemblyBody.assembly.artifactUris[0] as string), {
-      force: true,
-    });
+    rmSync(
+      normalizeArtifactPath(assemblyBody.assembly.artifactUris[0] as string),
+      {
+        force: true,
+      },
+    );
 
     const verificationResponse = await postVerification(
       new Request("http://localhost/api/control/orchestration/verification", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ initiativeId }),
-      })
+      }),
     );
     const verificationBody = await verificationResponse.json();
 
@@ -324,8 +528,8 @@ describe("/api/control/orchestration/verification", () => {
     expect(verificationBody.verification.overallStatus).toBe("failed");
     expect(
       verificationBody.verification.checks.find(
-        (check: { name: string }) => check.name === "artifact_evidence_present"
-      )?.status
+        (check: { name: string }) => check.name === "artifact_evidence_present",
+      )?.status,
     ).toBe("failed");
   });
 });

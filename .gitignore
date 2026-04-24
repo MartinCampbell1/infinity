@@ -17,3 +17,4 @@ coverage/
 output/
 .tmp_*.png
 handoff-packets/validation/
+handoff-packets/browser-e2e/

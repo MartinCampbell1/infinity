@@ -1,4 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
@@ -13,12 +17,18 @@ import {
 import { POST as postBriefs } from "./briefs/route";
 import { POST as postInitiatives } from "./initiatives/route";
 
-const ORIGINAL_CONTROL_PLANE_STATE_DIR = process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR;
-const ORIGINAL_CONTROL_PLANE_DATABASE_URL = process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
-const ORIGINAL_EXECUTION_HANDOFF_DATABASE_URL = process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
-const ORIGINAL_EXECUTION_KERNEL_BASE_URL = process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
+const ORIGINAL_CONTROL_PLANE_STATE_DIR =
+  process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR;
+const ORIGINAL_CONTROL_PLANE_DATABASE_URL =
+  process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
+const ORIGINAL_EXECUTION_HANDOFF_DATABASE_URL =
+  process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
+const ORIGINAL_EXECUTION_KERNEL_BASE_URL =
+  process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
 const ORIGINAL_VALIDATION_COMMANDS =
   process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
+const ORIGINAL_VALIDATION_COMMANDS_ALLOWED =
+  process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
 
 let tempStateDir = "";
 
@@ -71,20 +81,23 @@ beforeEach(async () => {
   delete process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
   delete process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
   delete process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
-  process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON = JSON.stringify([
-    {
-      name: "static-smoke",
-      bucket: "static",
-      cwd: "/Users/martin/infinity",
-      command: ["node", "-e", "process.exit(0)"],
-    },
-    {
-      name: "test-smoke",
-      bucket: "test",
-      cwd: "/Users/martin/infinity",
-      command: ["node", "-e", "process.exit(0)"],
-    },
-  ]);
+  process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON = "1";
+  process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON = JSON.stringify(
+    [
+      {
+        name: "static-smoke",
+        bucket: "static",
+        cwd: "/Users/martin/infinity",
+        command: ["node", "-e", "process.exit(0)"],
+      },
+      {
+        name: "test-smoke",
+        bucket: "test",
+        cwd: "/Users/martin/infinity",
+        command: ["node", "-e", "process.exit(0)"],
+      },
+    ],
+  );
   await resetControlPlaneStateForTests();
 });
 
@@ -94,13 +107,15 @@ afterEach(async () => {
   if (ORIGINAL_CONTROL_PLANE_STATE_DIR === undefined) {
     delete process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR;
   } else {
-    process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR = ORIGINAL_CONTROL_PLANE_STATE_DIR;
+    process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR =
+      ORIGINAL_CONTROL_PLANE_STATE_DIR;
   }
 
   if (ORIGINAL_CONTROL_PLANE_DATABASE_URL === undefined) {
     delete process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
   } else {
-    process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL = ORIGINAL_CONTROL_PLANE_DATABASE_URL;
+    process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL =
+      ORIGINAL_CONTROL_PLANE_DATABASE_URL;
   }
 
   if (ORIGINAL_EXECUTION_HANDOFF_DATABASE_URL === undefined) {
@@ -113,7 +128,8 @@ afterEach(async () => {
   if (ORIGINAL_EXECUTION_KERNEL_BASE_URL === undefined) {
     delete process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
   } else {
-    process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL = ORIGINAL_EXECUTION_KERNEL_BASE_URL;
+    process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL =
+      ORIGINAL_EXECUTION_KERNEL_BASE_URL;
   }
 
   if (ORIGINAL_VALIDATION_COMMANDS === undefined) {
@@ -121,6 +137,12 @@ afterEach(async () => {
   } else {
     process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON =
       ORIGINAL_VALIDATION_COMMANDS;
+  }
+  if (ORIGINAL_VALIDATION_COMMANDS_ALLOWED === undefined) {
+    delete process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
+  } else {
+    process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON =
+      ORIGINAL_VALIDATION_COMMANDS_ALLOWED;
   }
 
   if (tempStateDir) {
@@ -134,128 +156,140 @@ describe("autonomous one-prompt orchestration", () => {
     const batches = new Map<string, KernelBatchRecord>();
     const attempts = new Map<string, KernelAttemptRecord>();
 
-    const kernelServer = createServer(async (request: IncomingMessage, response: ServerResponse) => {
-      if (request.method === "POST" && request.url === "/api/v1/batches") {
-        const body = await readJsonBody(request);
-        const batchId = String(body.batchId);
-        const startedAt = "2026-04-19T00:00:00.000Z";
-        const workUnits = Array.isArray(body.workUnits)
-          ? (body.workUnits as Array<Record<string, unknown>>)
-          : [];
-        const batch: KernelBatchRecord = {
-          id: batchId,
-          initiativeId: String(body.initiativeId),
-          taskGraphId: String(body.taskGraphId),
-          workUnitIds: workUnits.map((workUnit) => String(workUnit.id)),
-          concurrencyLimit: Number(body.concurrencyLimit ?? 1),
-          status: "running",
-          startedAt,
-          finishedAt: null,
-        };
-        batches.set(batchId, batch);
-
-        const launchedAttempts = workUnits.map((workUnit) => {
-          const attempt: KernelAttemptRecord = {
-            id: `attempt-${batchId}-${String(workUnit.id)}`,
-            workUnitId: String(workUnit.id),
-            batchId,
-            executorType: String(workUnit.executorType ?? "codex"),
-            status: "started",
+    const kernelServer = createServer(
+      async (request: IncomingMessage, response: ServerResponse) => {
+        if (request.method === "POST" && request.url === "/api/v1/batches") {
+          const body = await readJsonBody(request);
+          const batchId = String(body.batchId);
+          const startedAt = "2026-04-19T00:00:00.000Z";
+          const workUnits = Array.isArray(body.workUnits)
+            ? (body.workUnits as Array<Record<string, unknown>>)
+            : [];
+          const batch: KernelBatchRecord = {
+            id: batchId,
+            initiativeId: String(body.initiativeId),
+            taskGraphId: String(body.taskGraphId),
+            workUnitIds: workUnits.map((workUnit) => String(workUnit.id)),
+            concurrencyLimit: Number(body.concurrencyLimit ?? 1),
+            status: "running",
             startedAt,
             finishedAt: null,
-            summary: null,
-            artifactUris: [],
-            errorCode: null,
-            errorSummary: null,
           };
-          attempts.set(attempt.id, attempt);
-          return attempt;
-        });
+          batches.set(batchId, batch);
 
-        response.writeHead(201, { "content-type": "application/json" });
-        response.end(
-          JSON.stringify({
-            batch,
-            attempts: launchedAttempts,
-          })
-        );
-        return;
-      }
+          const launchedAttempts = workUnits.map((workUnit) => {
+            const attempt: KernelAttemptRecord = {
+              id: `attempt-${batchId}-${String(workUnit.id)}`,
+              workUnitId: String(workUnit.id),
+              batchId,
+              executorType: String(workUnit.executorType ?? "codex"),
+              status: "started",
+              startedAt,
+              finishedAt: null,
+              summary: null,
+              artifactUris: [],
+              errorCode: null,
+              errorSummary: null,
+            };
+            attempts.set(attempt.id, attempt);
+            return attempt;
+          });
 
-      if (request.method === "GET" && request.url?.startsWith("/api/v1/batches/")) {
-        const batchId = request.url.split("/").at(-1) ?? "";
-        const batch = batches.get(batchId);
-        if (!batch) {
-          response.writeHead(404, { "content-type": "application/json" });
-          response.end(JSON.stringify({ detail: "batch not found" }));
+          response.writeHead(201, { "content-type": "application/json" });
+          response.end(
+            JSON.stringify({
+              batch,
+              attempts: launchedAttempts,
+            }),
+          );
           return;
         }
 
-        response.writeHead(200, { "content-type": "application/json" });
-        response.end(
-          JSON.stringify({
-            batch,
-            attempts: [...attempts.values()].filter((attempt) => attempt.batchId === batchId),
-          })
-        );
-        return;
-      }
+        if (
+          request.method === "GET" &&
+          request.url?.startsWith("/api/v1/batches/")
+        ) {
+          const batchId = request.url.split("/").at(-1) ?? "";
+          const batch = batches.get(batchId);
+          if (!batch) {
+            response.writeHead(404, { "content-type": "application/json" });
+            response.end(JSON.stringify({ detail: "batch not found" }));
+            return;
+          }
 
-      if (request.method === "POST" && request.url?.startsWith("/api/v1/attempts/")) {
-        const [, attemptId, action] =
-          request.url.match(/^\/api\/v1\/attempts\/([^/]+)\/([^/]+)$/) ?? [];
-        const attempt = attemptId ? attempts.get(attemptId) : null;
-        if (!attempt || action !== "complete") {
-          response.writeHead(404, { "content-type": "application/json" });
-          response.end(JSON.stringify({ detail: "attempt not found" }));
+          response.writeHead(200, { "content-type": "application/json" });
+          response.end(
+            JSON.stringify({
+              batch,
+              attempts: [...attempts.values()].filter(
+                (attempt) => attempt.batchId === batchId,
+              ),
+            }),
+          );
           return;
         }
 
-        const finishedAt = "2026-04-19T00:00:05.000Z";
-        const nextAttempt: KernelAttemptRecord = {
-          ...attempt,
-          status: "succeeded",
-          finishedAt,
-          summary: "completed",
-        };
-        attempts.set(nextAttempt.id, nextAttempt);
+        if (
+          request.method === "POST" &&
+          request.url?.startsWith("/api/v1/attempts/")
+        ) {
+          const [, attemptId, action] =
+            request.url.match(/^\/api\/v1\/attempts\/([^/]+)\/([^/]+)$/) ?? [];
+          const attempt = attemptId ? attempts.get(attemptId) : null;
+          if (!attempt || action !== "complete") {
+            response.writeHead(404, { "content-type": "application/json" });
+            response.end(JSON.stringify({ detail: "attempt not found" }));
+            return;
+          }
 
-        const batch = batches.get(attempt.batchId);
-        if (!batch) {
-          response.writeHead(404, { "content-type": "application/json" });
-          response.end(JSON.stringify({ detail: "batch not found" }));
+          const finishedAt = "2026-04-19T00:00:05.000Z";
+          const nextAttempt: KernelAttemptRecord = {
+            ...attempt,
+            status: "succeeded",
+            finishedAt,
+            summary: "completed",
+          };
+          attempts.set(nextAttempt.id, nextAttempt);
+
+          const batch = batches.get(attempt.batchId);
+          if (!batch) {
+            response.writeHead(404, { "content-type": "application/json" });
+            response.end(JSON.stringify({ detail: "batch not found" }));
+            return;
+          }
+
+          const batchAttempts = [...attempts.values()].filter(
+            (candidate) => candidate.batchId === batch.id,
+          );
+          const nextBatch: KernelBatchRecord = batchAttempts.every(
+            (candidate) => candidate.status === "succeeded",
+          )
+            ? {
+                ...batch,
+                status: "completed",
+                finishedAt,
+              }
+            : batch;
+          batches.set(batch.id, nextBatch);
+
+          response.writeHead(200, { "content-type": "application/json" });
+          response.end(
+            JSON.stringify({
+              batch: nextBatch,
+              attempt: nextAttempt,
+            }),
+          );
           return;
         }
 
-        const batchAttempts = [...attempts.values()].filter(
-          (candidate) => candidate.batchId === batch.id
-        );
-        const nextBatch: KernelBatchRecord = batchAttempts.every(
-          (candidate) => candidate.status === "succeeded"
-        )
-          ? {
-              ...batch,
-              status: "completed",
-              finishedAt,
-            }
-          : batch;
-        batches.set(batch.id, nextBatch);
+        response.writeHead(404, { "content-type": "application/json" });
+        response.end(JSON.stringify({ detail: "route not found" }));
+      },
+    );
 
-        response.writeHead(200, { "content-type": "application/json" });
-        response.end(
-          JSON.stringify({
-            batch: nextBatch,
-            attempt: nextAttempt,
-          })
-        );
-        return;
-      }
-
-      response.writeHead(404, { "content-type": "application/json" });
-      response.end(JSON.stringify({ detail: "route not found" }));
-    });
-
-    await new Promise<void>((resolve) => kernelServer.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) =>
+      kernelServer.listen(0, "127.0.0.1", resolve),
+    );
     const address = kernelServer.address();
     if (!address || typeof address === "string") {
       throw new Error("Kernel test server did not bind to an ephemeral port.");
@@ -273,7 +307,7 @@ describe("autonomous one-prompt orchestration", () => {
             requestedBy: "martin",
             workspaceSessionId: "session-autonomy-001",
           }),
-        })
+        }),
       );
       const initiativeBody = await initiativeResponse.json();
       const initiativeId = initiativeBody.initiative.id as string;
@@ -296,7 +330,7 @@ describe("autonomous one-prompt orchestration", () => {
             authoredBy: "hermes-intake",
             status: "clarifying",
           }),
-        })
+        }),
       );
       const briefBody = await briefResponse.json();
 
@@ -305,12 +339,12 @@ describe("autonomous one-prompt orchestration", () => {
       expect(briefBody.taskGraph).toEqual(
         expect.objectContaining({
           initiativeId,
-        })
+        }),
       );
 
       const state = await readControlPlaneState();
       const initiative = state.orchestration.initiatives.find(
-        (candidate) => candidate.id === initiativeId
+        (candidate) => candidate.id === initiativeId,
       );
       const delivery = state.orchestration.deliveries[0] ?? null;
       const verification = state.orchestration.verifications[0] ?? null;
@@ -326,7 +360,9 @@ describe("autonomous one-prompt orchestration", () => {
       expect(state.orchestration.runEvents.length).toBeGreaterThan(0);
       expect(state.orchestration.workUnits.length).toBeGreaterThan(0);
       expect(
-        state.orchestration.workUnits.every((workUnit) => workUnit.status === "completed")
+        state.orchestration.workUnits.every(
+          (workUnit) => workUnit.status === "completed",
+        ),
       ).toBe(true);
       expect(assembly?.status).toBe("assembled");
       expect(verification?.overallStatus).toBe("passed");
@@ -335,9 +371,13 @@ describe("autonomous one-prompt orchestration", () => {
       expect(run?.currentStage).toBe("handed_off");
       expect(run?.previewStatus).toBe("ready");
       expect(run?.handoffStatus).toBe("ready");
-      expect(delivery?.previewUrl).toMatch(/\/api\/control\/orchestration\/previews\//);
+      expect(delivery?.previewUrl).toMatch(
+        /\/api\/control\/orchestration\/previews\//,
+      );
       expect(delivery?.launchManifestPath).toMatch(/launch-manifest\.json$/);
-      expect(delivery?.launchProofUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/index\.html$/);
+      expect(delivery?.launchProofUrl).toMatch(
+        /^http:\/\/127\.0\.0\.1:\d+\/index\.html$/,
+      );
       expect(delivery?.launchProofAt).toBeTruthy();
       expect(delivery?.localOutputPath).toBeTruthy();
       expect(preview?.healthStatus).toBe("ready");
@@ -348,20 +388,26 @@ describe("autonomous one-prompt orchestration", () => {
       expect(proof?.launchReady).toBe(true);
       expect(proof?.handoffReady).toBe(true);
       expect(proof?.launchManifestPath).toMatch(/launch-manifest\.json$/);
-      expect(proof?.launchProofUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/index\.html$/);
+      expect(proof?.launchProofUrl).toMatch(
+        /^http:\/\/127\.0\.0\.1:\d+\/index\.html$/,
+      );
 
       expect(existsSync(preview?.sourcePath ?? "")).toBe(true);
-      expect(existsSync(path.join(delivery?.localOutputPath ?? "", "HANDOFF.md"))).toBe(true);
-      expect(existsSync(path.join(delivery?.localOutputPath ?? "", "delivery-manifest.json"))).toBe(
-        true
-      );
+      expect(
+        existsSync(path.join(delivery?.localOutputPath ?? "", "HANDOFF.md")),
+      ).toBe(true);
+      expect(
+        existsSync(
+          path.join(delivery?.localOutputPath ?? "", "delivery-manifest.json"),
+        ),
+      ).toBe(true);
       expect(existsSync(delivery?.launchManifestPath ?? "")).toBe(true);
       expect(existsSync(handoff?.finalSummaryPath ?? "")).toBe(true);
       expect(existsSync(handoff?.manifestPath ?? "")).toBe(true);
       expect(existsSync(proof?.eventTimelinePath ?? "")).toBe(true);
     } finally {
       await new Promise<void>((resolve, reject) =>
-        kernelServer.close((error) => (error ? reject(error) : resolve()))
+        kernelServer.close((error) => (error ? reject(error) : resolve())),
       );
     }
   });

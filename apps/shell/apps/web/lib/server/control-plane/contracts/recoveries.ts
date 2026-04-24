@@ -60,6 +60,15 @@ export interface RecoveryIncidentsSummary {
   dead: number;
 }
 
+export interface RecoveryIncidentsDirectoryFilters {
+  sessionId?: string | null;
+  projectId?: string | null;
+  initiativeId?: string | null;
+  groupId?: string | null;
+  accountId?: string | null;
+  workspaceId?: string | null;
+}
+
 export interface RecoveryIncidentsDirectory extends ControlPlaneDirectoryMeta {
   incidents: RecoveryIncident[];
   summary: RecoveryIncidentsSummary;
@@ -89,12 +98,24 @@ export interface RecoveryRecordActionResult {
   integrationState: ControlPlaneIntegrationState;
 }
 
+export interface OrchestrationRetryResult {
+  initiativeId: string;
+  recoveryId: string;
+  verificationId: string | null;
+  verificationStatus: string | null;
+  deliveryId: string | null;
+  deliveryStatus: string | null;
+  launchProofKind: string | null;
+  newRecoveryIncidentId: string | null;
+}
+
 export interface RecoveryRecordActionResponse extends ControlPlaneDirectoryMeta {
   recoveryIncident: RecoveryIncident;
   operatorAction: OperatorActionAuditEvent;
   idempotent: boolean;
   accepted: boolean;
   rejectedReason?: string | null;
+  orchestrationRetry?: OrchestrationRetryResult | null;
   runtimeSnapshot: WorkspaceRuntimeSnapshot;
 }
 

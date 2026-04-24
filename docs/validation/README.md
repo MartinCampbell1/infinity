@@ -4,17 +4,47 @@ This directory defines the repo-local validation system for Infinity.
 
 ## Purpose
 
-The validation loop has two separate outputs:
+The validation loop has four separate evidence layers. They must stay separate in
+validation packets and release notes:
 
-- **functional validation**
+- **repo checks**
+  - package/type/test/build checks run from the repository
+  - kernel/service health checks
+  - clean-tree proof before and after release validation
+- **functional validator**
   - root-entry proof from `/` into the current shell operator surface
   - route coverage
   - end-to-end user/operator scenarios
   - backend capability exposure
-- **UI/UX criticism**
+- **screenshot critic**
   - screenshot-based review
   - FounderOS-fit scoring
   - iteration until the score is above the target threshold
+- **browser product E2E**
+  - fresh prompt submitted from `/`
+  - observed autonomous flow from brief to delivery
+  - generated localhost preview opened and interacted with
+  - generated manual browser checklist tied to the E2E snapshots and report
+
+No single layer is a substitute for the others. In particular, a green repo check
+or functional validator packet is not final-release-ready evidence if the
+screenshot critic is pending or the browser product E2E proof is missing.
+
+## Current Browser E2E Release Gate
+
+As of the 2026-04-24 audit, a validation packet is not enough to claim that the
+product works from idea to finished localhost app unless it includes a real
+browser product E2E proof:
+
+- submit a fresh prompt from `/`;
+- observe brief, task graph, work units, executor attempts, assembly,
+  verification, delivery, and preview;
+- prove `delivery.ready` with `launch_kind = runnable_result`;
+- open and interact with the generated localhost preview.
+- write `manual-browser-checklist.md` into the final validation packet, with
+  every checklist item tied to browser/API evidence.
+
+The active remediation TZ is `docs/plans/2026-04-24-browser-e2e-runnable-result-remediation-tz.md`.
 
 ## Main assets
 
@@ -36,6 +66,44 @@ From the repo root:
 ```bash
 npm run validate:full
 ```
+
+`npm run validate:full` runs the browser product E2E gate and links the browser
+packet from `functional-report.json` and `final-validation-summary.md`. It also
+writes `manual-browser-checklist.md` into the validation packet so the
+human-readable checklist and machine-readable browser report stay together.
+
+The release packet keeps four layers explicit:
+
+- `repo_checks`
+- `browser_product_e2e`
+- `critic`
+- `release_readiness`
+
+The final packet is only `passed-final-release` when the functional validation,
+browser E2E, and completed passing critic all pass. A named browser skip is
+allowed with `--skip-browser-e2e "<reason>"`, but that downgrades the packet to
+`functional-only`; it is not final-release-ready. If the external critic is
+`pending_external_critic`, skipped, or not finalized, `release_readiness.status`
+is `not_final`.
+
+Fixture-only no-op validation command overrides remain allowed in unit tests,
+but release validation does not inject `node -e process.exit(0)` as product
+proof. The user-facing autonomous proof comes from the browser product E2E and
+the managed functional scenarios.
+
+The validator starts only the services it owns. If canonical local ports are
+already occupied, it uses nearby fallback ports and records the requested and
+actual ports in the final packet instead of terminating existing services.
+
+Generated validation packets are local evidence, not source files. The
+repo-local ignore policy covers `handoff-packets/validation/`,
+`handoff-packets/browser-e2e/`, and `.local-state/` so validation runs do not
+leave new untracked packet directories in `git status --short`. The tracked
+`apps/shell/apps/web/next-env.d.ts` file intentionally includes Next typed
+routes via `import "./.next/types/routes.d.ts";`; validation should not rewrite
+that canonical state. Each validation packet also writes `git-status-before.txt`,
+`git-status-after.txt`, and `tracked_state` in `functional-report.json` so this
+claim is auditable.
 
 Or, if the external screenshot critic JSON is already available:
 

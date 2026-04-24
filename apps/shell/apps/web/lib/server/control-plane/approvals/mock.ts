@@ -1,4 +1,5 @@
 import type {
+  ApprovalCreateRequest,
   ApprovalDecision,
   ApprovalRequest,
   ApprovalRequestStatus,
@@ -184,6 +185,105 @@ export const findApprovalRequest = findMockApprovalRequest;
 export async function listApprovalOperatorActionsForRequest(approvalId: string) {
   return (await listApprovalOperatorActions()).filter((event) => event.targetId === approvalId);
 }
+
+export async function createMockApprovalRequest(
+  input: ApprovalCreateRequest
+): Promise<ApprovalRequest | null> {
+  const requestedAt = nowIso();
+  const id =
+    typeof input.id === "string" && input.id.trim()
+      ? input.id.trim()
+      : `approval-${requestedAt.replace(/[^0-9]/g, "")}`;
+  let created: ApprovalRequest | null = null;
+  let appendedEvent: NormalizedExecutionEvent | null = null;
+
+  await updateControlPlaneState(
+    (draft) => {
+      if (draft.approvals.requests.some((request) => request.id === id)) {
+        created = null;
+        return;
+      }
+
+      created = {
+        id,
+        sessionId: input.sessionId,
+        externalSessionId: input.externalSessionId ?? null,
+        projectId: input.projectId,
+        projectName: input.projectName,
+        groupId: input.groupId ?? null,
+        accountId: input.accountId ?? null,
+        workspaceId: input.workspaceId ?? null,
+        requestKind: input.requestKind,
+        title: input.title,
+        summary: input.summary,
+        reason: input.reason ?? null,
+        status: "pending",
+        decision: null,
+        requestedAt,
+        updatedAt: requestedAt,
+        resolvedAt: null,
+        resolvedBy: null,
+        expiresAt: input.expiresAt ?? null,
+        revision: 1,
+        raw: {
+          ...(input.raw ?? {}),
+          source: "control_plane_api",
+          storage: getControlPlaneStorageKind(),
+        },
+      };
+
+      draft.approvals.requests = [...draft.approvals.requests, created];
+      appendedEvent = appendOperatorSessionEvent(draft, {
+        sessionId: created.sessionId,
+        projectId: created.projectId,
+        groupId: created.groupId ?? null,
+        source: "manual",
+        provider: resolveSessionProvider(draft.sessions.events, created.sessionId),
+        kind: "approval.requested",
+        status: "in_progress",
+        phase: "review",
+        summary: created.summary,
+        payload: {
+          approvalId: created.id,
+          requestKind: created.requestKind,
+          title: created.title,
+          summary: created.summary,
+          reason: created.reason ?? null,
+          sessionId: created.sessionId,
+          projectId: created.projectId,
+          groupId: created.groupId ?? null,
+          accountId: created.accountId ?? null,
+          workspaceId: created.workspaceId ?? null,
+          requestedAt,
+          projectName: created.projectName,
+        },
+        raw: {
+          source: getControlPlaneStorageSource(),
+          storage: getControlPlaneStorageKind(),
+        },
+      });
+    },
+    {
+      buildRelationalDelta(nextState) {
+        if (!created) {
+          return null;
+        }
+        const session = materializeSessionProjections(nextState.sessions.events)[created.sessionId];
+
+        return {
+          sessions: session ? [session] : [],
+          events: appendedEvent ? [appendedEvent] : [],
+          approvals: [created],
+          operatorActions: [],
+        };
+      },
+    }
+  );
+
+  return created ? cloneRequest(created) : null;
+}
+
+export const createApprovalRequest = createMockApprovalRequest;
 
 export async function respondToMockApprovalRequest(
   approvalId: string,

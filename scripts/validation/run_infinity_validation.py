@@ -49,6 +49,27 @@ def assert_port_available(port: int) -> None:
             ) from error
 
 
+def port_available(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
+def choose_available_port(preferred: int, *, span: int = 40) -> int:
+    if port_available(preferred):
+        return preferred
+    for port in range(preferred + 1, preferred + span + 1):
+        if port_available(port):
+            return port
+    raise ValidationFailure(
+        f"No free localhost port found near {preferred}; stop conflicting services and retry."
+    )
+
+
 def kill_known_listener(port: int, allowed_commands: tuple[str, ...]) -> None:
     pid_result = subprocess.run(
         ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
@@ -88,6 +109,35 @@ def write_json(path: Path, payload: Any) -> None:
 def write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def git_status_short() -> str:
+    result = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout
+
+
+def status_lines(status: str) -> list[str]:
+    return [line for line in status.splitlines() if line.strip()]
+
+
+def summarize_tracked_state(before: str, after: str) -> dict[str, Any]:
+    before_lines = status_lines(before)
+    after_lines = status_lines(after)
+    before_set = set(before_lines)
+    after_set = set(after_lines)
+    return {
+        "unchanged": before_lines == after_lines,
+        "before_line_count": len(before_lines),
+        "after_line_count": len(after_lines),
+        "added_lines": sorted(after_set - before_set),
+        "removed_lines": sorted(before_set - after_set),
+    }
 
 
 @dataclass
@@ -823,7 +873,7 @@ def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, m
     initiative_id = None
     landed_on = None
     started = time.time()
-    while time.time() - started < 20:
+    while time.time() - started < 90:
         current_url = page.url
         match_run = re.search(r"/execution/runs/([^?]+)", current_url)
         if match_run:
@@ -838,7 +888,11 @@ def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, m
         page.wait_for_timeout(500)
 
     if not initiative_id:
-        raise ValidationFailure("Start run did not navigate to either the primary run route or continuity detail.")
+        body_text = page.locator("body").inner_text(timeout=5000)
+        raise ValidationFailure(
+            "Start run did not navigate to either the primary run route or continuity detail. "
+            f"Current URL: {page.url}. Body excerpt: {body_text[:500]}"
+        )
 
     if landed_on != "primary_run":
         page.goto(f"{shell_origin}/execution/runs/{initiative_id}", wait_until="networkidle")
@@ -912,6 +966,7 @@ def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, m
 
     return {
         "initiative_id": initiative_id,
+        "session_id": session_id,
         "brief_id": brief_id,
         "task_graph_id": task_graph_id,
         "batch_ids": batch_ids,
@@ -937,7 +992,7 @@ def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, m
     }
 
 
-def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, manifest: list[ScreenshotRecord], screenshots_dir: Path) -> dict[str, Any]:
+def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, manifest: list[ScreenshotRecord], screenshots_dir: Path, api_snapshots_dir: Path) -> dict[str, Any]:
     initiative = request_json(
         "POST",
         f"{shell_origin}/api/control/orchestration/initiatives",
@@ -1004,10 +1059,67 @@ def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, man
         },
     )
 
+    failed_verification = request_json(
+        "POST",
+        f"{shell_origin}/api/control/orchestration/verification",
+        {"initiativeId": initiative_id},
+        timeout=(2, 120),
+    )["verification"]
+    if failed_verification.get("overallStatus") != "failed":
+        raise ValidationFailure(
+            "Failure path expected an incomplete blocked run to create a failed verification recovery incident."
+        )
+    write_json(api_snapshots_dir / "failure-path-verification-failed.json", failed_verification)
+
+    recoveries_url = (
+        f"{shell_origin}/api/control/execution/recoveries"
+        f"?session_id={session_id}&initiative_id={initiative_id}"
+    )
+    recoveries_directory = request_json("GET", recoveries_url)
+    write_json(api_snapshots_dir / "failure-path-recoveries-scoped.json", recoveries_directory)
+    recovery_incidents = [
+        incident
+        for incident in recoveries_directory.get("incidents", [])
+        if isinstance(incident, dict)
+        and incident.get("sessionId") == session_id
+        and incident.get("projectId") == initiative_id
+    ]
+    if len(recovery_incidents) != 1:
+        raise ValidationFailure(
+            f"Failure path expected exactly one scoped recovery incident for session {session_id} and initiative {initiative_id}; got {len(recovery_incidents)}."
+        )
+    recovery_incident = recovery_incidents[0]
+    recovery_id = str(recovery_incident.get("id") or "")
+    if not recovery_id or recovery_incident.get("status") != "retryable":
+        raise ValidationFailure("Failure path scoped recovery incident was not retryable.")
+
     shell_batch_url = f"{shell_origin}/execution/batches/{batch_id}?initiative_id={initiative_id}&task_graph_id={task_graph_id}"
     page.goto(shell_batch_url, wait_until="networkidle")
     page.wait_for_selector("text=Batch Supervision", timeout=15000)
     capture_screenshot(page, "shell_retryable_recovery", str(screenshots_dir / "shell_retryable_recovery.png"), manifest, page.url, "failure_path")
+
+    shell_run_url = f"{shell_origin}/execution/runs/{initiative_id}?session_id={session_id}"
+    page.goto(shell_run_url, wait_until="networkidle")
+    page.wait_for_selector("text=Primary run", timeout=15000)
+    shell_run_body = page.locator("body").inner_text(timeout=5000)
+    if recovery_id not in shell_run_body and str(recovery_incident.get("summary") or "") not in shell_run_body:
+        raise ValidationFailure("Blocked run page did not show the scoped recovery incident.")
+    if "Force retry" not in shell_run_body:
+        raise ValidationFailure("Blocked run page did not keep the recovery retry action visible.")
+    capture_screenshot(page, "shell_run_blocked_recovery", str(screenshots_dir / "shell_run_blocked_recovery.png"), manifest, page.url, "failure_path")
+
+    shell_recoveries_url = f"{shell_origin}/execution/recoveries?session_id={session_id}&initiative_id={initiative_id}"
+    page.goto(shell_recoveries_url, wait_until="networkidle")
+    page.wait_for_selector("text=Recoveries", timeout=15000)
+    page.wait_for_selector(f"text={recovery_id}", timeout=15000)
+    recoveries_body = page.locator("body").inner_text(timeout=5000)
+    if "Retry" not in recoveries_body:
+        raise ValidationFailure("Scoped recoveries board did not expose the retry action.")
+    workspace_link = page.locator('a:has-text("Open workspace")').first
+    workspace_href = workspace_link.get_attribute("href") if workspace_link.count() else None
+    if not workspace_href or session_id not in workspace_href:
+        raise ValidationFailure("Scoped recoveries board did not preserve the workspace link for the blocked run.")
+    capture_screenshot(page, "shell_recoveries_scoped_failure", str(screenshots_dir / "shell_recoveries_scoped_failure.png"), manifest, page.url, "failure_path")
 
     run_url = build_embedded_url(work_origin, shell_origin, session_id, f"/project-run/{initiative_id}")
     page.goto(run_url, wait_until="networkidle")
@@ -1104,6 +1216,29 @@ def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, man
         {"initiativeId": initiative_id},
     )["delivery"]
 
+    retry_response = request_json(
+        "POST",
+        f"{shell_origin}/api/control/execution/recoveries/{recovery_id}",
+        {"actionKind": "retry"},
+        timeout=(2, 120),
+    )
+    write_json(api_snapshots_dir / "failure-path-recovery-retry-response.json", retry_response)
+    operator_action = retry_response.get("operatorAction")
+    if not isinstance(operator_action, dict) or operator_action.get("kind") != "recovery.retry_requested":
+        raise ValidationFailure("Recovery retry action did not return a recovery.retry_requested audit event.")
+
+    audits = request_json("GET", f"{shell_origin}/api/control/execution/audits")
+    write_json(api_snapshots_dir / "failure-path-audit-after-retry.json", audits)
+    audit_events = audits.get("events") if isinstance(audits.get("events"), list) else []
+    if not any(
+        isinstance(event, dict)
+        and event.get("id") == operator_action.get("id")
+        and event.get("targetId") == recovery_id
+        and event.get("kind") == "recovery.retry_requested"
+        for event in audit_events
+    ):
+        raise ValidationFailure("Audit API did not expose the recovery retry operator action.")
+
     page.goto(result_url, wait_until="networkidle")
     page.wait_for_selector("text=Return to shell workspace", timeout=30000)
 
@@ -1111,8 +1246,13 @@ def run_failure_and_recovery_path(page, shell_origin: str, work_origin: str, man
         "initiative_id": initiative_id,
         "task_graph_id": task_graph_id,
         "delivery_id": delivery["id"],
+        "recovery_id": recovery_id,
+        "recovery_retry_audit_id": operator_action.get("id"),
         "recovered_batches": recovered_batches,
         "recovery_override_used": True,
+        "recoveries_board_scoped": True,
+        "workspace_link_preserved": True,
+        "audit_event_verified": True,
     }
 
 
@@ -1146,10 +1286,376 @@ def validate_api_exposure(shell_origin: str, evidence: dict[str, Any]) -> list[d
     return checklist
 
 
+def parse_json_stdout(stdout: str) -> dict[str, Any] | None:
+    start = stdout.find("{")
+    end = stdout.rfind("}")
+    if start < 0 or end < start:
+        return None
+    try:
+        payload = json.loads(stdout[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def run_browser_e2e_solo_check(logs_dir: Path) -> tuple[CheckResult, dict[str, Any]]:
+    command = [sys.executable, str(ROOT / "scripts" / "validation" / "run_browser_e2e_solo.py")]
+    started = time.time()
+    result = subprocess.run(
+        command,
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        timeout=1800,
+        check=False,
+    )
+    duration = time.time() - started
+    log_path = logs_dir / "browser_e2e_solo.log"
+    write_text(
+        log_path,
+        "\n".join(
+            [
+                "$ " + " ".join(command),
+                "",
+                "## stdout",
+                result.stdout,
+                "",
+                "## stderr",
+                result.stderr,
+                "",
+            ]
+        ),
+    )
+
+    payload = parse_json_stdout(result.stdout)
+    report_path = payload.get("report") if isinstance(payload, dict) else None
+    run_dir = payload.get("run_dir") if isinstance(payload, dict) else None
+    browser_status = payload.get("status") if isinstance(payload, dict) else "unknown"
+    record = {
+        "status": browser_status,
+        "run_dir": run_dir,
+        "report_path": report_path,
+        "log_path": str(log_path),
+        "duration_seconds": round(duration, 2),
+        "exit_code": result.returncode,
+        "skipped_reason": None,
+    }
+
+    if result.returncode == 0 and browser_status == "passed" and report_path:
+        return (
+            CheckResult(
+                "browser_e2e_solo",
+                "passed",
+                f"Browser E2E passed in {duration:.2f}s. Report: {report_path}",
+            ),
+            record,
+        )
+
+    detail = (
+        f"Browser E2E failed with exit {result.returncode} after {duration:.2f}s. "
+        f"Report: {report_path or 'not emitted'}. Log: {log_path}"
+    )
+    return CheckResult("browser_e2e_solo", "failed", detail), record
+
+
+def skipped_browser_e2e_check(reason: str) -> tuple[CheckResult, dict[str, Any]]:
+    normalized = reason.strip()
+    if not normalized:
+        raise ValidationFailure("--skip-browser-e2e requires a non-empty reason.")
+    return (
+        CheckResult("browser_e2e_solo", "skipped", normalized),
+        {
+            "status": "skipped",
+            "run_dir": None,
+            "report_path": None,
+            "log_path": None,
+            "duration_seconds": 0,
+            "exit_code": None,
+            "skipped_reason": normalized,
+        },
+    )
+
+
+def compute_functional_status(results: list[CheckResult]) -> str:
+    for result in results:
+        if result.status not in {"passed", "skipped"}:
+            return "failed"
+    return "passed"
+
+
+def summarize_repo_checks(checks: list[CheckResult]) -> dict[str, Any]:
+    repo_checks = [check for check in checks if check.name != "browser_e2e_solo"]
+    if not repo_checks:
+        return {
+            "status": "skipped",
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "skipped": 0,
+        }
+
+    failed = sum(1 for check in repo_checks if check.status == "failed")
+    skipped = sum(1 for check in repo_checks if check.status == "skipped")
+    passed = sum(1 for check in repo_checks if check.status == "passed")
+    return {
+        "status": "failed" if failed else "passed",
+        "total": len(repo_checks),
+        "passed": passed,
+        "failed": failed,
+        "skipped": skipped,
+    }
+
+
+def summarize_browser_product_e2e(browser_e2e: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "status": browser_e2e.get("status", "unknown"),
+        "report_path": browser_e2e.get("report_path"),
+        "run_dir": browser_e2e.get("run_dir"),
+        "skipped_reason": browser_e2e.get("skipped_reason"),
+    }
+
+
+def summarize_critic_gate(critic: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(critic, dict):
+        return {
+            "status": "missing",
+            "report_path": None,
+            "pass": False,
+            "overall_score": None,
+            "min_core_cluster_score": None,
+            "unresolved_must_fix": None,
+        }
+
+    raw_critic = critic.get("critic") if isinstance(critic.get("critic"), dict) else critic
+    cluster_scores = raw_critic.get("cluster_scores")
+    min_cluster_score = (
+        min(cluster_scores.values())
+        if isinstance(cluster_scores, dict) and cluster_scores
+        else critic.get("min_core_cluster_score")
+    )
+    findings = raw_critic.get("findings")
+    unresolved_must_fix = critic.get("unresolved_must_fix")
+    if unresolved_must_fix is None and isinstance(findings, list):
+        unresolved_must_fix = sum(
+            1
+            for finding in findings
+            if isinstance(finding, dict)
+            and str(finding.get("severity") or "").lower() == "must_fix"
+        )
+
+    return {
+        "status": critic.get("status", "unknown"),
+        "report_path": critic.get("report_path"),
+        "pass": bool(raw_critic.get("pass")),
+        "overall_score": raw_critic.get("overall_score"),
+        "min_core_cluster_score": min_cluster_score,
+        "unresolved_must_fix": unresolved_must_fix,
+    }
+
+
+def build_release_readiness(
+    *,
+    functional_status: str,
+    checks: list[CheckResult],
+    browser_e2e: dict[str, Any],
+    critic: dict[str, Any] | None,
+) -> dict[str, Any]:
+    repo_checks = summarize_repo_checks(checks)
+    browser_product_e2e = summarize_browser_product_e2e(browser_e2e)
+    critic_gate = summarize_critic_gate(critic)
+    blocking_reasons: list[str] = []
+
+    if functional_status != "passed":
+        blocking_reasons.append("functional_validation_failed")
+    if repo_checks["status"] == "failed":
+        blocking_reasons.append("repo_checks_failed")
+    if browser_product_e2e["status"] != "passed":
+        blocking_reasons.append(
+            "browser_product_e2e_skipped"
+            if browser_product_e2e["status"] == "skipped"
+            else "browser_product_e2e_not_passed"
+        )
+    if critic_gate["status"] != "completed_external_critic":
+        blocking_reasons.append("critic_not_finalized")
+    elif not critic_gate["pass"]:
+        blocking_reasons.append("critic_failed")
+    else:
+        overall_score = critic_gate.get("overall_score")
+        min_core_cluster_score = critic_gate.get("min_core_cluster_score")
+        unresolved_must_fix = critic_gate.get("unresolved_must_fix")
+        if not isinstance(overall_score, (int, float)) or overall_score <= 7.0:
+            blocking_reasons.append("critic_score_below_threshold")
+        if (
+            not isinstance(min_core_cluster_score, (int, float))
+            or min_core_cluster_score < 6.5
+        ):
+            blocking_reasons.append("critic_core_cluster_below_threshold")
+        if unresolved_must_fix not in {0, None}:
+            blocking_reasons.append("critic_must_fix_unresolved")
+
+    release_status = "final_ready" if not blocking_reasons else "not_final"
+    if functional_status != "passed" or browser_product_e2e["status"] == "failed":
+        legacy_status = "failed"
+    elif release_status == "final_ready":
+        legacy_status = "passed-final-release"
+    else:
+        legacy_status = "functional-only"
+
+    return {
+        "repo_checks": repo_checks,
+        "browser_product_e2e": browser_product_e2e,
+        "critic": critic_gate,
+        "release_readiness": {
+            "status": release_status,
+            "legacy_status": legacy_status,
+            "blocking_reasons": blocking_reasons,
+        },
+    }
+
+
+def unwrap_api_snapshot(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    response = payload.get("response")
+    if isinstance(response, dict) and isinstance(response.get("body"), dict):
+        return response["body"]
+    return payload
+
+
+def load_optional_json(path: str | None) -> Any:
+    if not path:
+        return None
+    candidate = Path(path)
+    if not candidate.exists():
+        return None
+    return load_json(candidate)
+
+
+def checklist_line(label: str, passed: bool, evidence: str) -> str:
+    status = "PASS" if passed else "NOT CHECKED"
+    marker = "x" if passed else " "
+    return f"- [{marker}] {label} - `{status}` - {evidence}"
+
+
+def build_manual_browser_checklist(browser_e2e: dict[str, Any]) -> str:
+    browser_report = load_optional_json(str(browser_e2e.get("report_path") or "")) or {}
+    raw_artifacts = browser_report.get("artifacts") if isinstance(browser_report, dict) else {}
+    artifacts = raw_artifacts if isinstance(raw_artifacts, dict) else {}
+    screenshots_dir = Path(str(artifacts.get("screenshots_dir") or ""))
+    api_snapshots_dir = Path(str(artifacts.get("api_snapshots_dir") or ""))
+    continuity_path = api_snapshots_dir / "06-continuity-delivery-ready.json"
+    continuity = unwrap_api_snapshot(load_optional_json(str(continuity_path)))
+    work_units = browser_report.get("work_units") if isinstance(browser_report, dict) else []
+    verification = browser_report.get("verification") if isinstance(browser_report, dict) else {}
+    delivery = browser_report.get("delivery") if isinstance(browser_report, dict) else {}
+    preview = browser_report.get("preview") if isinstance(browser_report, dict) else {}
+    restart = browser_report.get("restart_continuity") if isinstance(browser_report, dict) else {}
+
+    prompt = str(browser_report.get("prompt") or "").strip()
+    initiative_id = str(browser_report.get("initiative_id") or "").strip()
+    task_graph_id = str(browser_report.get("task_graph_id") or "").strip()
+    frontdoor_screenshot = screenshots_dir / "01-root-frontdoor.png"
+    task_graph_screenshot = screenshots_dir / "03-task-graph-visible.png"
+
+    lines = [
+        "# Manual Browser Checklist",
+        "",
+        f"Browser E2E status: `{browser_e2e.get('status')}`",
+        f"Browser report: `{browser_e2e.get('report_path')}`",
+        f"Prompt: `{prompt}`",
+        f"Initiative: `{initiative_id}`",
+        "",
+        "This checklist is generated from the browser E2E report and API/browser snapshots.",
+        "Items marked `NOT CHECKED` are release gaps unless the Browser E2E was explicitly skipped.",
+        "",
+        "## Evidence",
+        "",
+        checklist_line(
+            "root frontdoor visible",
+            frontdoor_screenshot.exists(),
+            f"screenshot `{frontdoor_screenshot}`",
+        ),
+        checklist_line(
+            "prompt submitted",
+            bool(prompt and initiative_id),
+            f"initiative `{initiative_id}` from report",
+        ),
+        checklist_line(
+            "brief created",
+            bool(isinstance(continuity.get("briefs"), list) and continuity["briefs"]),
+            f"snapshot `{continuity_path}`",
+        ),
+        checklist_line(
+            "task graph visible",
+            bool(task_graph_id and task_graph_screenshot.exists()),
+            f"task graph `{task_graph_id}`, screenshot `{task_graph_screenshot}`",
+        ),
+        checklist_line(
+            "microtasks visible",
+            bool(isinstance(work_units, list) and work_units),
+            f"{len(work_units) if isinstance(work_units, list) else 0} work units in browser report",
+        ),
+        checklist_line(
+            "attempts visible",
+            bool(
+                isinstance(work_units, list)
+                and work_units
+                and all(isinstance(item, dict) and item.get("attempt_ids") for item in work_units)
+            ),
+            "every work unit has at least one attempt id",
+        ),
+        checklist_line(
+            "assembly visible",
+            bool(isinstance(continuity.get("assembly"), dict) and continuity["assembly"].get("status") == "assembled"),
+            f"snapshot `{continuity_path}`",
+        ),
+        checklist_line(
+            "verification passed",
+            bool(isinstance(verification, dict) and verification.get("overall_status") == "passed"),
+            f"verification `{verification.get('id') if isinstance(verification, dict) else None}`",
+        ),
+        checklist_line(
+            "delivery ready",
+            bool(
+                isinstance(delivery, dict)
+                and delivery.get("status") == "ready"
+                and delivery.get("launch_proof_kind") == "runnable_result"
+            ),
+            f"delivery `{delivery.get('id') if isinstance(delivery, dict) else None}`",
+        ),
+        checklist_line(
+            "preview opened",
+            bool(isinstance(preview, dict) and preview.get("http_status") == 200),
+            f"preview status `{preview.get('http_status') if isinstance(preview, dict) else None}`",
+        ),
+        checklist_line(
+            "generated app interacted with",
+            bool(
+                isinstance(preview, dict)
+                and preview.get("interaction_assertions", {})
+                .get("assertions", {})
+                .get("bill_amount_100_tip_20")
+            ),
+            "tip calculator returned `$20.00` and `$120.00` for 100 at 20%",
+        ),
+        checklist_line(
+            "restart continuity checked",
+            bool(isinstance(restart, dict) and restart.get("checked") is True),
+            f"restart snapshot `{restart.get('api_snapshot') if isinstance(restart, dict) else None}`",
+        ),
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-static-checks", action="store_true")
     parser.add_argument("--require-runnable-result", action="store_true")
+    parser.add_argument(
+        "--skip-browser-e2e",
+        metavar="REASON",
+        help="Record a named browser-E2E skip and downgrade release status to functional-only.",
+    )
     parser.add_argument("--critic-json")
     args = parser.parse_args()
 
@@ -1166,24 +1672,27 @@ def main() -> int:
     run_dir = HANDOFF_ROOT / validation_run_id
     logs_dir = run_dir / "logs"
     screenshots_dir = run_dir / "screenshots"
+    api_snapshots_dir = run_dir / "api-snapshots"
     logs_dir.mkdir(parents=True, exist_ok=True)
     screenshots_dir.mkdir(parents=True, exist_ok=True)
+    api_snapshots_dir.mkdir(parents=True, exist_ok=True)
+    git_status_before = git_status_short()
+    write_text(run_dir / "git-status-before.txt", git_status_before)
 
-    canonical_ports = [
-        (CANONICAL_SHELL_PORT, ("next-server", "next start", "next dev")),
-        (CANONICAL_WORK_UI_PORT, ("vite dev", "open-webui")),
-        (CANONICAL_KERNEL_PORT, ("execution-kernel", "go run ./cmd/execution-kernel")),
-    ]
-    for port, allowed_commands in canonical_ports:
-        kill_known_listener(port, allowed_commands)
-        assert_port_available(port)
-
-    shell_port = CANONICAL_SHELL_PORT
-    work_port = CANONICAL_WORK_UI_PORT
-    kernel_port = CANONICAL_KERNEL_PORT
+    shell_port = choose_available_port(CANONICAL_SHELL_PORT)
+    work_port = choose_available_port(CANONICAL_WORK_UI_PORT)
+    kernel_port = choose_available_port(CANONICAL_KERNEL_PORT)
     shell_origin = f"http://127.0.0.1:{shell_port}"
     work_origin = f"http://127.0.0.1:{work_port}"
     kernel_origin = f"http://127.0.0.1:{kernel_port}"
+    port_fallbacks = {
+        "shell_requested": CANONICAL_SHELL_PORT,
+        "shell_actual": shell_port,
+        "work_ui_requested": CANONICAL_WORK_UI_PORT,
+        "work_ui_actual": work_port,
+        "kernel_requested": CANONICAL_KERNEL_PORT,
+        "kernel_actual": kernel_port,
+    }
     state_dir = Path(tempfile.mkdtemp(prefix="infinity-validation-state-"))
 
     checks: list[CheckResult] = []
@@ -1193,6 +1702,12 @@ def main() -> int:
     artifacts: list[str] = []
 
     try:
+        def work_ui_validation_env(memory_mb: int) -> dict[str, str]:
+            env = with_node_memory(None, memory_mb)
+            env["PUBLIC_FOUNDEROS_SHELL_ORIGIN"] = shell_origin
+            env["VITE_FOUNDEROS_SHELL_ORIGIN"] = shell_origin
+            return env
+
         if not args.skip_static_checks:
             checks.extend(
                 [
@@ -1200,11 +1715,17 @@ def main() -> int:
                     run_command("shell_typecheck", ["npm", "run", "typecheck", "--workspace", "@founderos/web"], ROOT, logs_dir, env=with_node_memory(None, 1024)),
                     run_command("shell_test", ["npm", "run", "test", "--workspace", "@founderos/web"], ROOT, logs_dir, env=with_node_memory(None, 1024)),
                     run_command("shell_build", ["npm", "run", "build", "--workspace", "@founderos/web"], ROOT, logs_dir, env=with_node_memory(None, 1280)),
-                    run_command("work_ui_check", ["npm", "run", "check", "--workspace", "open-webui"], ROOT, logs_dir, env=with_node_memory(None, 3072)),
+                    run_command("work_ui_check", ["npm", "run", "check", "--workspace", "open-webui"], ROOT, logs_dir, env=work_ui_validation_env(3072)),
                     run_command("work_ui_test", ["npm", "run", "test:frontend:ci", "--workspace", "open-webui"], ROOT, logs_dir, env=with_node_memory(None, 1024)),
-                    run_command("work_ui_build", ["npm", "run", "build", "--workspace", "open-webui"], ROOT, logs_dir, env=with_node_memory(None, 4096)),
+                    run_command("work_ui_build", ["npm", "run", "build", "--workspace", "open-webui"], ROOT, logs_dir, env=work_ui_validation_env(4096)),
                 ]
             )
+
+        if args.skip_browser_e2e is not None:
+            browser_e2e_check, browser_e2e = skipped_browser_e2e_check(args.skip_browser_e2e)
+        else:
+            browser_e2e_check, browser_e2e = run_browser_e2e_solo_check(logs_dir)
+        checks.append(browser_e2e_check)
 
         kernel_env = os.environ.copy()
         kernel_env["EXECUTION_KERNEL_ADDR"] = f"127.0.0.1:{kernel_port}"
@@ -1223,23 +1744,10 @@ def main() -> int:
         shell_env["FOUNDEROS_CONTROL_PLANE_STATE_DIR"] = str(state_dir)
         shell_env["FOUNDEROS_ENABLE_SYNTHETIC_STATE_SEEDS"] = "0"
         shell_env["FOUNDEROS_WEB_PORT"] = str(shell_port)
+        shell_env["FOUNDEROS_SHELL_PUBLIC_ORIGIN"] = shell_origin
         shell_env["FOUNDEROS_WORK_UI_BASE_URL"] = work_origin
-        shell_env["FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON"] = json.dumps(
-            [
-                {
-                    "name": "static-smoke",
-                    "bucket": "static",
-                    "cwd": str(ROOT),
-                    "command": ["node", "-e", "process.exit(0)"],
-                },
-                {
-                    "name": "test-smoke",
-                    "bucket": "test",
-                    "cwd": str(ROOT),
-                    "command": ["node", "-e", "process.exit(0)"],
-                },
-            ]
-        )
+        shell_env.pop("FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON", None)
+        shell_env.pop("FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON", None)
         shell_command = ["npm", "run", "start", "--workspace", "@founderos/web"]
         processes.append(
             ManagedProcess(
@@ -1253,6 +1761,7 @@ def main() -> int:
 
         work_env = os.environ.copy()
         work_env["PUBLIC_FOUNDEROS_SHELL_ORIGIN"] = shell_origin
+        work_env["VITE_FOUNDEROS_SHELL_ORIGIN"] = shell_origin
         work_env["WORK_UI_HOST"] = "127.0.0.1"
         work_env["WORK_UI_PORT"] = str(work_port)
         processes.append(
@@ -1285,7 +1794,7 @@ def main() -> int:
             )
             scenarios.append(CheckResult("happy_path", "passed", json.dumps(happy)))
 
-            failure = run_failure_and_recovery_path(page, shell_origin, work_origin, screenshots, screenshots_dir)
+            failure = run_failure_and_recovery_path(page, shell_origin, work_origin, screenshots, screenshots_dir, api_snapshots_dir)
             scenarios.append(CheckResult("failure_recovery_path", "passed", json.dumps(failure)))
 
             # Shell and standalone screenshots
@@ -1317,14 +1826,41 @@ def main() -> int:
             )
 
             shell_approvals_url = f"{shell_origin}/execution/approvals"
+            validation_approval_id = f"approval-validation-{int(time.time() * 1000)}"
+            created_approval = request_json(
+                "POST",
+                f"{shell_origin}/api/control/execution/approvals",
+                {
+                    "id": validation_approval_id,
+                    "sessionId": happy["session_id"],
+                    "projectId": happy["initiative_id"],
+                    "projectName": "Validation approval probe",
+                    "requestKind": "command",
+                    "title": "Validation pending approval",
+                    "summary": "Approve the browser validation command before final release.",
+                    "reason": "browser_e2e_pending_approval_probe",
+                    "raw": {
+                        "validationRunDir": str(run_dir),
+                    },
+                },
+            )
+            write_json(api_snapshots_dir / "approval-created-pending.json", created_approval)
             page.goto(shell_approvals_url, wait_until="networkidle")
-            page.wait_for_timeout(2000)
+            page.wait_for_selector("text=Validation pending approval", timeout=15000)
             capture_screenshot(page, "shell_pending_approval", str(screenshots_dir / "shell_pending_approval.png"), screenshots, page.url, "operator_states")
-            capture_screenshot(page, "shell_approvals", str(screenshots_dir / "shell_approvals.png"), screenshots, page.url, "shell_operator")
             approve_button = page.locator('button:has-text("Approve once")').first
-            if approve_button.count() and approve_button.is_enabled():
-                approve_button.click()
-                page.wait_for_timeout(1200)
+            if not approve_button.count() or not approve_button.is_enabled():
+                raise ValidationFailure("Approvals board did not expose an enabled Approve once action for the validation approval.")
+            approve_button.click()
+            page.wait_for_selector("text=approved", timeout=15000)
+            resolved_approval = request_json(
+                "GET",
+                f"{shell_origin}/api/control/execution/approvals/{validation_approval_id}",
+            )
+            write_json(api_snapshots_dir / "approval-resolved-after-respond.json", resolved_approval)
+            if resolved_approval.get("approvalRequest", {}).get("status") != "approved":
+                raise ValidationFailure("Approval respond API did not resolve the validation approval to approved.")
+            capture_screenshot(page, "shell_approvals", str(screenshots_dir / "shell_approvals.png"), screenshots, page.url, "shell_operator")
 
             shell_recoveries_url = f"{shell_origin}/execution/recoveries"
             page.goto(shell_recoveries_url, wait_until="networkidle")
@@ -1343,7 +1879,7 @@ def main() -> int:
             if happy.get("delivery_id"):
                 shell_delivery_url = f"{shell_origin}/execution/delivery/{happy['delivery_id']}?initiative_id={happy['initiative_id']}"
                 page.goto(shell_delivery_url, wait_until="domcontentloaded")
-                page.wait_for_selector("text=Delivery Summary", timeout=15000)
+                page.wait_for_selector("text=Result summary", timeout=15000)
                 capture_screenshot(page, "shell_delivery_ready", str(screenshots_dir / "shell_delivery_ready.png"), screenshots, page.url, "happy_path")
 
             standalone_root_url = f"{work_origin}/"
@@ -1403,12 +1939,21 @@ def main() -> int:
             "launch_recorded_proof_url": happy["launch_recorded_proof_url"],
             "failure_recovery_override_used": failure["recovery_override_used"],
             "recovered_batches": failure["recovered_batches"],
+            "failure_recovery": {
+                "recovery_id": failure["recovery_id"],
+                "retry_audit_id": failure["recovery_retry_audit_id"],
+                "recoveries_board_scoped": failure["recoveries_board_scoped"],
+                "workspace_link_preserved": failure["workspace_link_preserved"],
+                "audit_event_verified": failure["audit_event_verified"],
+            },
         }
 
         write_json(run_dir / "route-matrix.json", route_matrix)
         write_json(run_dir / "api-exposure-checklist.json", api_checklist)
         write_json(run_dir / "screenshot-manifest.json", screenshot_manifest)
         write_json(run_dir / "autonomous-proof.json", autonomous_proof)
+        manual_browser_checklist = build_manual_browser_checklist(browser_e2e)
+        write_text(run_dir / "manual-browser-checklist.md", manual_browser_checklist)
 
         critic_brief = f"""# Critic Brief\n\nRun ID: `{validation_run_id}`\n\nBaseline: FounderOS / Linear fit.\n\nScreenshots are listed in `screenshot-manifest.json`.\nUse `{DOCS_DIR / 'critic-rubric.md'}` and `{DOCS_DIR / 'critic-prompt.md'}`.\nAfter the critic returns strict JSON, finalize this bundle with `python3 scripts/validation/finalize_critic_report.py --run-dir {run_dir} --critic-json /path/to/critic-output.json`.\n"""
         write_text(run_dir / "critic-brief.md", critic_brief)
@@ -1443,16 +1988,34 @@ def main() -> int:
                 check=True,
             )
 
-        status = "passed"
-        for result in checks + scenarios:
-            if result.status != "passed":
-                status = "failed"
-                break
+        git_status_after = git_status_short()
+        write_text(run_dir / "git-status-after.txt", git_status_after)
+        tracked_state = summarize_tracked_state(git_status_before, git_status_after)
+        status = compute_functional_status(checks + scenarios)
+        critic_report_path = run_dir / "critic-report-iteration-0.json"
+        critic_state = load_optional_json(str(critic_report_path))
+        if isinstance(critic_state, dict):
+            critic_state["report_path"] = str(critic_report_path)
+        release_layers = build_release_readiness(
+            functional_status=status,
+            checks=checks,
+            browser_e2e=browser_e2e,
+            critic=critic_state if isinstance(critic_state, dict) else None,
+        )
+        release_status = release_layers["release_readiness"]["legacy_status"]
 
         report_payload = {
             "run_id": validation_run_id,
             "generated_at": now_iso(),
             "status": status,
+            "release_status": release_status,
+            "repo_checks": release_layers["repo_checks"],
+            "browser_product_e2e": release_layers["browser_product_e2e"],
+            "critic": release_layers["critic"],
+            "release_readiness": release_layers["release_readiness"],
+            "tracked_state": tracked_state,
+            "browser_e2e": browser_e2e,
+            "port_fallbacks": port_fallbacks,
             "checks": [asdict(item) for item in checks],
             "scenarios": [asdict(item) for item in scenarios],
             "evidence": autonomous_proof,
@@ -1461,7 +2024,11 @@ def main() -> int:
                 "api-exposure-checklist.json",
                 "screenshot-manifest.json",
                 "autonomous-proof.json",
+                "api-snapshots/",
+                "manual-browser-checklist.md",
                 "critic-brief.md",
+                "git-status-before.txt",
+                "git-status-after.txt",
             ],
         }
         write_json(run_dir / "functional-report.json", report_payload)
@@ -1473,6 +2040,16 @@ def main() -> int:
             f"Run ID: `{validation_run_id}`",
             f"Generated: `{report_payload['generated_at']}`",
             f"Status: `{status}`",
+            f"Release status: `{release_status}`",
+            f"Release readiness: `{release_layers['release_readiness']['status']}`",
+            "",
+            "## Release Layers",
+            f"- repo_checks: `{release_layers['repo_checks']['status']}`",
+            f"- browser_product_e2e: `{release_layers['browser_product_e2e']['status']}`",
+            f"- critic: `{release_layers['critic']['status']}`",
+            f"- release_readiness: `{release_layers['release_readiness']['status']}`",
+            f"- blocking reasons: `{', '.join(release_layers['release_readiness']['blocking_reasons']) or 'none'}`",
+            f"- tracked_state_unchanged: `{tracked_state['unchanged']}`",
             "",
             "## Checks",
         ]
@@ -1490,6 +2067,16 @@ def main() -> int:
         functional_md_lines.append("## Artifacts")
         for artifact in artifacts:
             functional_md_lines.append(f"- `{artifact}`")
+        functional_md_lines.append("")
+        functional_md_lines.append("## Browser E2E")
+        functional_md_lines.append(f"- status: `{browser_e2e['status']}`")
+        if browser_e2e.get("report_path"):
+            functional_md_lines.append(f"- report: `{browser_e2e['report_path']}`")
+        if browser_e2e.get("skipped_reason"):
+            functional_md_lines.append(f"- skipped reason: `{browser_e2e['skipped_reason']}`")
+        if browser_e2e.get("log_path"):
+            functional_md_lines.append(f"- log: `{browser_e2e['log_path']}`")
+        functional_md_lines.append("- manual browser checklist: `manual-browser-checklist.md`")
         functional_md_lines.append("")
         functional_md_lines.append("## Autonomous Evidence")
         functional_md_lines.append(f"- root frontdoor composer visible: `{autonomous_proof['root_frontdoor']['composer_visible']}`")
@@ -1509,23 +2096,29 @@ def main() -> int:
             "# Final Validation Summary",
             "",
             f"Run ID: `{validation_run_id}`",
-            f"Status: `{status}`",
+            f"Status: `{release_status}`",
+            f"Functional status: `{status}`",
+            f"Browser E2E status: `{browser_e2e['status']}`",
+            f"Repo checks status: `{release_layers['repo_checks']['status']}`",
+            f"Critic status: `{release_layers['critic']['status']}`",
+            f"Release readiness: `{release_layers['release_readiness']['status']}`",
+            f"Release blocking reasons: `{', '.join(release_layers['release_readiness']['blocking_reasons']) or 'none'}`",
+            f"Tracked state unchanged: `{tracked_state['unchanged']}`",
             "",
             f"- shell origin: `{shell_origin}`",
             f"- work-ui origin: `{work_origin}`",
             f"- kernel origin: `{kernel_origin}`",
             f"- state dir: `{state_dir}`",
+            f"- shell port requested/actual: `{CANONICAL_SHELL_PORT}` / `{shell_port}`",
+            f"- work-ui port requested/actual: `{CANONICAL_WORK_UI_PORT}` / `{work_port}`",
+            f"- kernel port requested/actual: `{CANONICAL_KERNEL_PORT}` / `{kernel_port}`",
         ]
-        expected_shell_origin = f"http://127.0.0.1:{CANONICAL_SHELL_PORT}"
-        expected_work_origin = f"http://127.0.0.1:{CANONICAL_WORK_UI_PORT}"
-        expected_kernel_origin = f"http://127.0.0.1:{CANONICAL_KERNEL_PORT}"
-        if (
-            shell_origin != expected_shell_origin
-            or work_origin != expected_work_origin
-            or kernel_origin != expected_kernel_origin
-        ):
-            raise ValidationFailure(
-                "Validation drifted off the canonical localhost topology."
+        if browser_e2e.get("report_path"):
+            summary_md.append(f"- browser E2E report: `{browser_e2e['report_path']}`")
+        summary_md.append("- manual browser checklist: `manual-browser-checklist.md`")
+        if browser_e2e.get("skipped_reason"):
+            summary_md.append(
+                f"- browser E2E skipped reason: `{browser_e2e['skipped_reason']}`"
             )
         write_text(run_dir / "final-validation-summary.md", "\n".join(summary_md) + "\n")
 
@@ -1533,6 +2126,11 @@ def main() -> int:
             "run_id": validation_run_id,
             "run_dir": str(run_dir),
             "status": status,
+            "release_status": release_status,
+            "release_readiness": release_layers["release_readiness"],
+            "tracked_state": tracked_state,
+            "browser_e2e": browser_e2e,
+            "port_fallbacks": port_fallbacks,
             "shell_origin": shell_origin,
             "work_origin": work_origin,
             "kernel_origin": kernel_origin,
