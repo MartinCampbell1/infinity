@@ -165,13 +165,16 @@ describe("/api/control/orchestration/batches", () => {
                 workUnitId: (body.workUnits as Array<{ id: string }>)[0]?.id,
                 batchId: body.batchId,
                 executorType: (body.workUnits as Array<{ executorType: string }>)[0]?.executorType,
-                status: "started",
+                status: "leased",
                 startedAt: "2026-04-18T10:00:00.000Z",
                 finishedAt: null,
                 summary: null,
                 artifactUris: [],
                 errorCode: null,
                 errorSummary: null,
+                leaseHolder: "execution-kernel-scheduler",
+                leaseExpiresAt: "2026-04-18T10:00:30.000Z",
+                lastHeartbeatAt: "2026-04-18T10:00:00.000Z",
               },
             ],
           })
@@ -200,13 +203,16 @@ describe("/api/control/orchestration/batches", () => {
                 workUnitId: "work-unit-foundation",
                 batchId,
                 executorType: "droid",
-                status: "started",
+                status: "leased",
                 startedAt: "2026-04-18T10:00:00.000Z",
                 finishedAt: null,
                 summary: null,
                 artifactUris: [],
                 errorCode: null,
                 errorSummary: null,
+                leaseHolder: "execution-kernel-scheduler",
+                leaseExpiresAt: "2026-04-18T10:00:30.000Z",
+                lastHeartbeatAt: "2026-04-18T10:00:00.000Z",
               },
             ],
           })
@@ -256,7 +262,7 @@ describe("/api/control/orchestration/batches", () => {
       expect(createBody.attempts).toEqual([
         expect.objectContaining({
           id: "attempt-foundation-001",
-          status: "started",
+          status: "leased",
         }),
       ]);
 
@@ -284,7 +290,7 @@ describe("/api/control/orchestration/batches", () => {
       expect(detailBody.attempts).toEqual([
         expect.objectContaining({
           id: "attempt-foundation-001",
-          status: "started",
+          status: "leased",
         }),
       ]);
       expect(detailBody.workUnits).toEqual([

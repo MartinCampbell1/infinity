@@ -38,9 +38,9 @@ export default async function ExecutionValidationPage({
         detail: proof?.eventTimelinePath ?? "Validation proof will be attached after handoff.",
         meta: [
           `checks ${verification.checks.length}`,
-          proof?.previewReady ? "preview ready" : null,
-          proof?.launchReady ? "launch ready" : null,
-          proof?.handoffReady ? "handoff ready" : null,
+          proof?.previewReady ? "preview ready · Local solo" : null,
+          proof?.launchReady ? "launch ready · Local solo" : null,
+          proof?.handoffReady ? "handoff packet ready · Local solo" : null,
         ],
         href: run
           ? buildExecutionContinuityScopeHref(

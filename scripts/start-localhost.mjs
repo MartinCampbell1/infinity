@@ -7,6 +7,16 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(scriptDir, "..");
+const deploymentEnv = (process.env.FOUNDEROS_DEPLOYMENT_ENV ?? "local")
+  .trim()
+  .toLowerCase();
+
+if (deploymentEnv === "production") {
+  console.error(
+    "scripts/start-localhost.mjs refuses FOUNDEROS_DEPLOYMENT_ENV=production. Use production process management with explicit non-local origins and secrets.",
+  );
+  process.exit(1);
+}
 
 const config = {
   shellHost: process.env.FOUNDEROS_WEB_HOST ?? "127.0.0.1",
@@ -28,6 +38,7 @@ mkdirSync(stateDir, { recursive: true });
 
 const sharedEnv = {
   ...process.env,
+  FOUNDEROS_DEPLOYMENT_ENV: process.env.FOUNDEROS_DEPLOYMENT_ENV ?? "local",
   FOUNDEROS_INTEGRATION_ROOT: rootDir,
   FOUNDEROS_CONTROL_PLANE_STATE_DIR: stateDir,
   FOUNDEROS_WEB_HOST: config.shellHost,
@@ -38,12 +49,24 @@ const sharedEnv = {
     process.env.FOUNDEROS_WORK_UI_BASE_URL ?? workUiOrigin,
   FOUNDEROS_EXECUTION_KERNEL_BASE_URL:
     process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL ?? kernelOrigin,
+  FOUNDEROS_PRIVILEGED_API_ALLOWED_ORIGINS:
+    process.env.FOUNDEROS_PRIVILEGED_API_ALLOWED_ORIGINS ??
+    `${shellOrigin},${workUiOrigin}`,
   FOUNDEROS_WORKSPACE_LAUNCH_SECRET:
     process.env.FOUNDEROS_WORKSPACE_LAUNCH_SECRET ??
     "infinity-local-launch-secret",
+  FOUNDEROS_WORKSPACE_SESSION_GRANT_SECRET:
+    process.env.FOUNDEROS_WORKSPACE_SESSION_GRANT_SECRET ??
+    "infinity-local-session-grant-secret",
   FOUNDEROS_WORKSPACE_SESSION_TOKEN_SECRET:
     process.env.FOUNDEROS_WORKSPACE_SESSION_TOKEN_SECRET ??
     "infinity-local-session-secret",
+  FOUNDEROS_CONTROL_PLANE_OPERATOR_TOKEN:
+    process.env.FOUNDEROS_CONTROL_PLANE_OPERATOR_TOKEN ??
+    "infinity-local-operator-token",
+  FOUNDEROS_CONTROL_PLANE_SERVICE_TOKEN:
+    process.env.FOUNDEROS_CONTROL_PLANE_SERVICE_TOKEN ??
+    "infinity-local-service-token",
 };
 
 function pipeOutput(stream, prefix) {
@@ -81,25 +104,17 @@ const children = [
   startProcess(
     "kernel",
     `cd ${JSON.stringify(
-      path.join(rootDir, "services", "execution-kernel")
-    )} && EXECUTION_KERNEL_ADDR=${config.kernelHost}:${config.kernelPort} go run ./cmd/execution-kernel`
+      path.join(rootDir, "services", "execution-kernel"),
+    )} && EXECUTION_KERNEL_ADDR=${config.kernelHost}:${config.kernelPort} go run ./cmd/execution-kernel`,
   ),
-  startProcess(
-    "shell",
-    `npm run dev --workspace @founderos/web`,
-    sharedEnv
-  ),
-  startProcess(
-    "work-ui",
-    `npm run dev --workspace open-webui`,
-    {
-      ...sharedEnv,
-      PUBLIC_FOUNDEROS_SHELL_ORIGIN:
-        process.env.PUBLIC_FOUNDEROS_SHELL_ORIGIN ?? shellOrigin,
-      WORK_UI_HOST: config.workUiHost,
-      WORK_UI_PORT: config.workUiPort,
-    }
-  ),
+  startProcess("shell", `npm run dev --workspace @founderos/web`, sharedEnv),
+  startProcess("work-ui", `npm run dev --workspace open-webui`, {
+    ...sharedEnv,
+    PUBLIC_FOUNDEROS_SHELL_ORIGIN:
+      process.env.PUBLIC_FOUNDEROS_SHELL_ORIGIN ?? shellOrigin,
+    WORK_UI_HOST: config.workUiHost,
+    WORK_UI_PORT: config.workUiPort,
+  }),
 ];
 
 let shuttingDown = false;
@@ -123,7 +138,9 @@ console.log(`- shell entry:         ${shellOrigin}/`);
 console.log(`- work-ui internal:    ${workUiOrigin}/`);
 console.log(`- kernel internal:     ${kernelOrigin}/healthz`);
 console.log(`- state:   ${stateDir}`);
-console.log("- shell is the only user-facing entry; work-ui and kernel stay internal.");
+console.log(
+  "- shell is the only user-facing entry; work-ui and kernel stay internal.",
+);
 console.log("Press Ctrl+C to stop.");
 
 for (const child of children) {

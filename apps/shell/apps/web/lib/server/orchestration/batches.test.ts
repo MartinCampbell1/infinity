@@ -1,11 +1,22 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
+import { signExecutionKernelServiceToken } from "@founderos/api-clients";
 import { afterEach, describe, expect, test } from "vitest";
 
-import { getExecutionKernelAvailability, resolveExecutionKernelBaseUrl } from "./batches";
+import {
+  EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY,
+  LEGACY_EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY,
+  createServerExecutionKernelClient,
+  getExecutionKernelAvailability,
+  resolveExecutionKernelBaseUrl,
+} from "./batches";
 
 const ORIGINAL_EXECUTION_KERNEL_BASE_URL = process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
 const ORIGINAL_MULTICA_KERNEL_BASE_URL = process.env.MULTICA_KERNEL_BASE_URL;
+const ORIGINAL_EXECUTION_KERNEL_SERVICE_AUTH_SECRET =
+  process.env[EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY];
+const ORIGINAL_LEGACY_EXECUTION_KERNEL_SERVICE_AUTH_SECRET =
+  process.env[LEGACY_EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY];
 
 afterEach(() => {
   if (ORIGINAL_EXECUTION_KERNEL_BASE_URL === undefined) {
@@ -18,9 +29,34 @@ afterEach(() => {
   } else {
     process.env.MULTICA_KERNEL_BASE_URL = ORIGINAL_MULTICA_KERNEL_BASE_URL;
   }
+  if (ORIGINAL_EXECUTION_KERNEL_SERVICE_AUTH_SECRET === undefined) {
+    delete process.env[EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY];
+  } else {
+    process.env[EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY] =
+      ORIGINAL_EXECUTION_KERNEL_SERVICE_AUTH_SECRET;
+  }
+  if (ORIGINAL_LEGACY_EXECUTION_KERNEL_SERVICE_AUTH_SECRET === undefined) {
+    delete process.env[LEGACY_EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY];
+  } else {
+    process.env[LEGACY_EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY] =
+      ORIGINAL_LEGACY_EXECUTION_KERNEL_SERVICE_AUTH_SECRET;
+  }
 });
 
 describe("getExecutionKernelAvailability", () => {
+  test("signs a Go-compatible service token fixture", async () => {
+    await expect(
+      signExecutionKernelServiceToken({
+        secret: "shell-client-secret",
+        scopes: ["kernel.batch.create"],
+        now: () => new Date("2026-04-24T12:00:00.000Z"),
+        expiresInSeconds: 300,
+      })
+    ).resolves.toBe(
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJmb3VuZGVyb3Mtc2hlbGwiLCJhdWQiOiJleGVjdXRpb24ta2VybmVsIiwic2NwIjpbImtlcm5lbC5iYXRjaC5jcmVhdGUiXSwiaWF0IjoxNzc3MDMyMDAwLCJleHAiOjE3NzcwMzIzMDB9.j2gTlfwLSZ0-zHZnq2CYs0FicLr21KT6A3uB4534gxM"
+    );
+  });
+
   test("defaults to the canonical localhost kernel fallback when no env override is present", () => {
     delete process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
     process.env.MULTICA_KERNEL_BASE_URL = "";
@@ -74,6 +110,129 @@ describe("getExecutionKernelAvailability", () => {
         latestFailure: null,
         recoveryHint: null,
       });
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        kernelServer.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
+
+  test("sends scoped service auth credentials when a kernel secret is configured", async () => {
+    let observedAuthorization: string | undefined;
+    const kernelServer = createServer(
+      (request: IncomingMessage, response: ServerResponse) => {
+        observedAuthorization = request.headers.authorization;
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            status: "ok",
+            service: "execution-kernel",
+            generatedAt: "2026-04-20T12:00:00.000Z",
+          })
+        );
+      }
+    );
+
+    await new Promise<void>((resolve) => kernelServer.listen(0, "127.0.0.1", resolve));
+    const address = kernelServer.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Kernel auth test server did not bind to an ephemeral port.");
+    }
+    process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL = `http://127.0.0.1:${address.port}`;
+    process.env[EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY] = "kernel-secret";
+
+    try {
+      await getExecutionKernelAvailability();
+
+      expect(observedAuthorization).toMatch(/^Bearer [^.]+\.[^.]+\.[^.]+$/);
+      const token = observedAuthorization?.replace(/^Bearer /, "") ?? "";
+      const payload = JSON.parse(
+        Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8")
+      ) as { aud: string; scp: string[] };
+      expect(payload.aud).toBe("execution-kernel");
+      expect(payload.scp).toEqual(["kernel.health.read"]);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        kernelServer.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
+
+  test("sends mutation-scoped service auth for batch creation", async () => {
+    let observedAuthorization: string | undefined;
+    const kernelServer = createServer(
+      (request: IncomingMessage, response: ServerResponse) => {
+        observedAuthorization = request.headers.authorization;
+        response.writeHead(201, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            batch: {
+              id: "batch-auth-001",
+              initiativeId: "initiative-auth-001",
+              taskGraphId: "task-graph-auth-001",
+              workUnitIds: ["work-unit-auth-001"],
+              concurrencyLimit: 1,
+              status: "running",
+              recoveryState: "retryable",
+              startedAt: "2026-04-24T12:00:00.000Z",
+              finishedAt: null,
+            },
+            attempts: [
+              {
+                id: "attempt-auth-001",
+                workUnitId: "work-unit-auth-001",
+                batchId: "batch-auth-001",
+                executorType: "codex",
+                status: "leased",
+                recoveryState: "retryable",
+                startedAt: "2026-04-24T12:00:00.000Z",
+                finishedAt: null,
+                summary: null,
+                artifactUris: [],
+                errorCode: null,
+                errorSummary: null,
+                leaseHolder: "execution-kernel-scheduler",
+                leaseExpiresAt: "2026-04-24T12:00:30.000Z",
+                lastHeartbeatAt: "2026-04-24T12:00:00.000Z",
+              },
+            ],
+          })
+        );
+      }
+    );
+
+    await new Promise<void>((resolve) => kernelServer.listen(0, "127.0.0.1", resolve));
+    const address = kernelServer.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Kernel mutation auth test server did not bind to an ephemeral port.");
+    }
+    process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL = `http://127.0.0.1:${address.port}`;
+    process.env[EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY] = "kernel-secret";
+
+    try {
+      await createServerExecutionKernelClient().launchBatch({
+        batchId: "batch-auth-001",
+        initiativeId: "initiative-auth-001",
+        taskGraphId: "task-graph-auth-001",
+        concurrencyLimit: 1,
+        workUnits: [
+          {
+            id: "work-unit-auth-001",
+            title: "Auth",
+            description: "Verify mutation auth scope",
+            executorType: "codex",
+            scopePaths: ["/Users/martin/infinity/services/execution-kernel"],
+            dependencies: [],
+            acceptanceCriteria: ["Scoped token is present"],
+          },
+        ],
+      });
+
+      const token = observedAuthorization?.replace(/^Bearer /, "") ?? "";
+      const payload = JSON.parse(
+        Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8")
+      ) as { scp: string[] };
+      expect(payload.scp).toEqual(["kernel.batch.create"]);
     } finally {
       await new Promise<void>((resolve, reject) =>
         kernelServer.close((error) => (error ? reject(error) : resolve()))

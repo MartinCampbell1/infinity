@@ -89,8 +89,8 @@ func TestKernelHealthAndBatchLifecycle(t *testing.T) {
 	if launchResponse.Batch.Status != "running" {
 		t.Fatalf("expected running batch status, got %s", launchResponse.Batch.Status)
 	}
-	if len(launchResponse.Attempts) != 1 || launchResponse.Attempts[0].Status != "started" {
-		t.Fatalf("expected one started attempt, got %#v", launchResponse.Attempts)
+	if len(launchResponse.Attempts) != 1 || launchResponse.Attempts[0].Status != "leased" {
+		t.Fatalf("expected one leased attempt, got %#v", launchResponse.Attempts)
 	}
 
 	batchRequest := httptest.NewRequest(http.MethodGet, "/api/v1/batches/batch-001", nil)

@@ -27,6 +27,13 @@ function buildState(): ControlPlaneState {
     sessions: {
       events: [],
     },
+    tenancy: {
+      tenants: [],
+      users: [],
+      memberships: [],
+      projects: [],
+      workspaces: [],
+    },
     orchestration: {
       initiatives: [
         {
@@ -175,6 +182,10 @@ function buildState(): ControlPlaneState {
       handoffPackets: [],
       validationProofs: [],
       secretPauses: [],
+    },
+    mutations: {
+      events: [],
+      idempotency: [],
     },
   };
 }

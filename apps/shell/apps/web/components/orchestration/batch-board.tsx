@@ -144,8 +144,37 @@ export function BatchBoard({
           : "Supervisor action failed before the shell could refresh the batch."
       );
       setActionState("idle");
-    }
   }
+}
+
+function executorProofSummary(payload: Record<string, unknown>) {
+  const proof = payload.executorProof;
+  if (typeof proof !== "object" || proof === null) {
+    return null;
+  }
+  const record = proof as {
+    executorKind?: unknown;
+    summary?: unknown;
+    exitCode?: unknown;
+    artifactUris?: unknown;
+    tests?: unknown;
+  };
+  if (typeof record.summary !== "string") {
+    return null;
+  }
+  const artifactCount = Array.isArray(record.artifactUris)
+    ? record.artifactUris.length
+    : 0;
+  const testCount = Array.isArray(record.tests) ? record.tests.length : 0;
+  return {
+    executorKind:
+      typeof record.executorKind === "string" ? record.executorKind : "executor",
+    summary: record.summary,
+    exitCode: typeof record.exitCode === "number" ? record.exitCode : null,
+    artifactCount,
+    testCount,
+  };
+}
 
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
@@ -241,13 +270,19 @@ export function BatchBoard({
                   <div className="mt-1 text-sm text-white/58">
                     work unit: {attempt.workUnitId}
                   </div>
+                  {attempt.attemptNumber ? (
+                    <div className="mt-1 text-xs text-white/42">
+                      attempt {attempt.attemptNumber}
+                      {attempt.parentAttemptId ? ` · parent ${attempt.parentAttemptId}` : ""}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="text-sm text-white/58">
                   {attempt.status} · started {formatTimestamp(attempt.startedAt)}
                 </div>
               </div>
 
-              {attempt.status === "started" ? (
+              {["leased", "running", "started"].includes(attempt.status) ? (
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     className="rounded-full bg-sky-500/90 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
@@ -319,7 +354,9 @@ export function BatchBoard({
 
                 {reassignable ? (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {(["droid", "codex", "human"] as const).map((executorType) => (
+                    {(["droid", "codex", "human"] as const).map((executorType) => {
+                      const sameExecutor = executorType === workUnit.executorType;
+                      return (
                       <button
                         key={executorType}
                         className="rounded-full border border-white/12 bg-white/[0.03] px-3 py-1.5 text-sm font-medium text-white/78 disabled:cursor-not-allowed disabled:opacity-50"
@@ -332,14 +369,17 @@ export function BatchBoard({
                               workUnitId: workUnit.id,
                               executorType,
                             },
-                            `Work unit ${workUnit.id} reassigned to ${executorType}.`
+                            sameExecutor
+                              ? `Work unit ${workUnit.id} retried with ${executorType}.`
+                              : `Work unit ${workUnit.id} reassigned to ${executorType}.`
                           )
                         }
-                        disabled={actionState !== "idle" || executorType === workUnit.executorType}
+                        disabled={actionState !== "idle"}
                       >
-                        Reassign to {executorType}
+                        {sameExecutor ? `Retry ${executorType}` : `Reassign to ${executorType}`}
                       </button>
-                    ))}
+                    );
+                    })}
                   </div>
                 ) : null}
               </article>
@@ -365,6 +405,20 @@ export function BatchBoard({
             >
               <div className="font-medium text-white">{action.actionKind}</div>
               <div className="mt-1">{action.summary}</div>
+              {(() => {
+                const proof = executorProofSummary(action.payload);
+                return proof ? (
+                  <div className="mt-3 rounded-xl border border-emerald-500/15 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+                    <div className="font-medium">
+                      {proof.executorKind} proof · exit {proof.exitCode ?? "n/a"}
+                    </div>
+                    <div className="mt-1 text-emerald-100/75">{proof.summary}</div>
+                    <div className="mt-1 text-emerald-100/55">
+                      {proof.testCount} test record(s) · {proof.artifactCount} artifact(s)
+                    </div>
+                  </div>
+                ) : null;
+              })()}
               <div className="mt-1 text-xs text-white/42">
                 {formatTimestamp(action.occurredAt)}
               </div>

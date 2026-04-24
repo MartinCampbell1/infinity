@@ -6,6 +6,13 @@ import { POST as postRecoveryAction } from "../../recoveries/[recoveryId]/route"
 import { GET as getAuditDetail } from "./route";
 
 let restoreStateDir: (() => void) | null = null;
+const OPERATOR_ACTOR_HEADERS = {
+  "x-founderos-actor-type": "operator",
+  "x-founderos-actor-id": "operator-audit-detail-test",
+  "x-founderos-tenant-id": "tenant-test",
+  "x-founderos-request-id": "request-audit-detail-test",
+  "x-founderos-auth-boundary": "token",
+};
 
 afterEach(() => {
   if (restoreStateDir) {
@@ -22,7 +29,10 @@ describe("/api/control/execution/audits/[auditId]", () => {
     const recoveryResponse = await postRecoveryAction(
       new Request("http://localhost/api/control/execution/recoveries/recovery-001", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...OPERATOR_ACTOR_HEADERS,
+        },
         body: JSON.stringify({
           actionKind: "failover",
           targetAccountId: "account-chatgpt-03",

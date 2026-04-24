@@ -13,6 +13,8 @@ import {
 } from "../../../../../../lib/server/control-plane/state/store";
 import { buildWorkspaceRuntimeSnapshot } from "../../../../../../lib/server/control-plane/workspace/runtime-ingest";
 import type { SessionWorkspaceHostContext } from "../../../../../../lib/server/control-plane/contracts/workspace-launch";
+import { controlPlaneMutationActorFromRequest } from "../../../../../../lib/server/http/control-plane-auth";
+import { controlPlaneStorageUnavailableResponse } from "../../../../../../lib/server/http/control-plane-storage-response";
 import { retryOrchestrationRecovery } from "../../../../../../lib/server/orchestration/retry";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +24,16 @@ export async function GET(
   { params }: { params: Promise<{ recoveryId: string }> }
 ) {
   const { recoveryId } = await params;
-  const response = await buildRecoveryIncidentDetailResponse(recoveryId);
+  let response;
+  try {
+    response = await buildRecoveryIncidentDetailResponse(recoveryId);
+  } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error);
+    if (storageResponse) {
+      return storageResponse;
+    }
+    throw error;
+  }
 
   if (!response) {
     return NextResponse.json(
@@ -70,12 +81,39 @@ export async function POST(
     );
   }
 
-  const result = await recordRecoveryAction(recoveryId, body.actionKind, {
-    targetAccountId:
-      typeof targetAccountId === "string" && targetAccountId.trim().length > 0
-        ? targetAccountId.trim()
-        : null,
-  });
+  const actor = controlPlaneMutationActorFromRequest(request);
+  if (!actor) {
+    return NextResponse.json(
+      {
+        code: "missing_actor",
+        detail: "Recovery action requires an authenticated actor.",
+      },
+      { status: 401 },
+    );
+  }
+
+  let result;
+  try {
+    result = await recordRecoveryAction(
+      recoveryId,
+      body.actionKind,
+      {
+        targetAccountId:
+          typeof targetAccountId === "string" && targetAccountId.trim().length > 0
+            ? targetAccountId.trim()
+            : null,
+      },
+      actor,
+    );
+  } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+      accepted: false,
+    });
+    if (storageResponse) {
+      return storageResponse;
+    }
+    throw error;
+  }
 
   if (!result) {
     return NextResponse.json(
@@ -91,7 +129,18 @@ export async function POST(
       ? await retryOrchestrationRecovery(result.recoveryIncident)
       : null;
   const statusCode = result.accepted ? 200 : 409;
-  const state = await readControlPlaneState();
+  let state;
+  try {
+    state = await readControlPlaneState();
+  } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+      accepted: false,
+    });
+    if (storageResponse) {
+      return storageResponse;
+    }
+    throw error;
+  }
   const responseRecoveryIncident =
     state.recoveries.incidents.find(
       (incident) => incident.id === result.recoveryIncident.id

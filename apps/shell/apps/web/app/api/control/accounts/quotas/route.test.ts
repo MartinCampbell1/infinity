@@ -96,7 +96,14 @@ describe("/api/control/accounts/quotas", () => {
     const response = await postAccountQuotas(
       new Request("http://localhost/api/control/accounts/quotas", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-founderos-actor-type": "service",
+          "x-founderos-actor-id": "quota-producer-test",
+          "x-founderos-tenant-id": "tenant-test",
+          "x-founderos-request-id": "request-quota-test",
+          "x-founderos-auth-boundary": "token",
+        },
         body: JSON.stringify({
           producer: "openai_app_server",
           snapshot: {
@@ -128,11 +135,21 @@ describe("/api/control/accounts/quotas", () => {
     expect(body.accepted).toBe(true);
     expect(body.snapshot.accountId).toBe("account-chatgpt-02");
     expect(body.capacity.pressure).toBe("high");
+    expect(body.update.actorContext).toEqual({
+      actorType: "system",
+      actorId: "quota-producer-test",
+      tenantId: "tenant-test",
+      requestId: "request-quota-test",
+      authBoundary: "token",
+    });
     expect(body.affectedSessionIds).toContain("session-2026-04-11-002");
     expect(
       body.persistedEvents.some(
-        (event: { kind: string; sessionId: string }) =>
-          event.kind === "quota.updated" && event.sessionId === "session-2026-04-11-002"
+        (event: { kind: string; sessionId: string; payload: Record<string, unknown> }) =>
+          event.kind === "quota.updated" &&
+          event.sessionId === "session-2026-04-11-002" &&
+          (event.payload.actorContext as { actorId?: string } | undefined)?.actorId ===
+            "quota-producer-test"
       )
     ).toBe(true);
 
@@ -147,6 +164,7 @@ describe("/api/control/accounts/quotas", () => {
     expect(feedBody.updates[0].summary).toBe(
       "App-server push raised pressure on account-chatgpt-02."
     );
+    expect(feedBody.updates[0].actorContext.actorId).toBe("quota-producer-test");
 
     const executionEventsResponse = await getExecutionEvents(
       new Request(

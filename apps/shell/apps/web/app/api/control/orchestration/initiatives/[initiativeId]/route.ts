@@ -6,6 +6,7 @@ import {
   updateOrchestrationInitiative,
 } from "../../../../../../lib/server/orchestration/initiatives";
 import { isUpdateInitiativeRequest } from "../../../../../../lib/server/control-plane/contracts/orchestration";
+import { withControlPlaneStorageGuard } from "../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -14,18 +15,20 @@ export async function GET(
   { params }: { params: Promise<{ initiativeId: string }> }
 ) {
   const { initiativeId } = await params;
-  const response = await buildInitiativeDetailResponse(initiativeId);
+  return withControlPlaneStorageGuard(async () => {
+    const response = await buildInitiativeDetailResponse(initiativeId);
 
-  if (!response) {
-    return NextResponse.json(
-      {
-        detail: `Initiative ${initiativeId} is not present in the shell orchestration directory.`,
-      },
-      { status: 404 }
-    );
-  }
+    if (!response) {
+      return NextResponse.json(
+        {
+          detail: `Initiative ${initiativeId} is not present in the shell orchestration directory.`,
+        },
+        { status: 404 }
+      );
+    }
 
-  return NextResponse.json(response);
+    return NextResponse.json(response);
+  });
 }
 
 export async function PATCH(
@@ -45,15 +48,17 @@ export async function PATCH(
     );
   }
 
-  const initiative = await updateOrchestrationInitiative(initiativeId, body);
-  if (!initiative) {
-    return NextResponse.json(
-      {
-        detail: `Initiative ${initiativeId} is not present in the shell orchestration directory.`,
-      },
-      { status: 404 }
-    );
-  }
+  return withControlPlaneStorageGuard(async () => {
+    const initiative = await updateOrchestrationInitiative(initiativeId, body);
+    if (!initiative) {
+      return NextResponse.json(
+        {
+          detail: `Initiative ${initiativeId} is not present in the shell orchestration directory.`,
+        },
+        { status: 404 }
+      );
+    }
 
-  return NextResponse.json(await buildInitiativeMutationResponse(initiativeId));
+    return NextResponse.json(await buildInitiativeMutationResponse(initiativeId));
+  }, { accepted: false });
 }

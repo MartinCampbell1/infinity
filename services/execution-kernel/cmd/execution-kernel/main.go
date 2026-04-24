@@ -29,12 +29,26 @@ func main() {
 		statePath = filepath.Join(".local-state", "execution-kernel", "state.json")
 	}
 
-	svc, err := service.NewFileBacked(statePath)
+	deploymentEnv := firstNonEmpty(
+		os.Getenv("EXECUTION_KERNEL_DEPLOYMENT_ENV"),
+		os.Getenv("FOUNDEROS_DEPLOYMENT_ENV"),
+	)
+
+	svc, err := service.NewFromConfig(service.Config{
+		DeploymentEnv: deploymentEnv,
+		StatePath:     statePath,
+		DatabaseURL:   os.Getenv("EXECUTION_KERNEL_DATABASE_URL"),
+	})
 	if err != nil {
 		log.Fatalf("failed to initialize execution-kernel store: %v", err)
 	}
+	defer func() {
+		if err := svc.Close(); err != nil {
+			log.Printf("execution-kernel store close error: %v", err)
+		}
+	}()
 	httpHandler := handler.NewHTTPHandler(svc)
-	server := daemon.NewServer(addr, middleware.Chain(httpHandler, auth.LocalhostOnly))
+	server := daemon.NewServer(addr, middleware.Chain(httpHandler, auth.ServiceToService(serviceAuthConfigFromEnv(deploymentEnv))))
 
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -52,11 +66,36 @@ func main() {
 		}
 	}()
 
-	log.Printf("execution-kernel listening on %s with state %s", addr, statePath)
+	health := svc.Health(context.Background())
+	log.Printf("execution-kernel listening on %s with %s storage %s", addr, health.StorageKind, health.StatePath)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 	if shutdownContext.Err() != nil {
 		<-shutdownComplete
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func serviceAuthConfigFromEnv(deploymentEnv string) auth.Config {
+	return auth.Config{
+		Secret: firstNonEmpty(
+			os.Getenv("FOUNDEROS_EXECUTION_KERNEL_SERVICE_AUTH_SECRET"),
+			os.Getenv("EXECUTION_KERNEL_SERVICE_AUTH_SECRET"),
+		),
+		PreviousSecret: firstNonEmpty(
+			os.Getenv("FOUNDEROS_EXECUTION_KERNEL_SERVICE_AUTH_PREVIOUS_SECRET"),
+			os.Getenv("EXECUTION_KERNEL_SERVICE_AUTH_PREVIOUS_SECRET"),
+		),
+		DeploymentEnv:           deploymentEnv,
+		AllowLocalhostDevBypass: os.Getenv("EXECUTION_KERNEL_LOCALHOST_DEV_AUTH_BYPASS") != "0",
 	}
 }

@@ -9,7 +9,9 @@ import type {
   DeliveryMutationResponse,
   WorkUnitRecord,
 } from "../control-plane/contracts/orchestration";
+import { withResolvedDeliveryReadiness } from "../../delivery-readiness";
 import { readControlPlaneState, updateControlPlaneState } from "../control-plane/state/store";
+import { isStrictRolloutEnv } from "../control-plane/workspace/rollout-config";
 
 import {
   appendAutonomousRunEvent,
@@ -93,7 +95,10 @@ type DeliveryLaunchManifest = {
 };
 
 function cloneDelivery(value: DeliveryRecord) {
-  return JSON.parse(JSON.stringify(value)) as DeliveryRecord;
+  return withResolvedDeliveryReadiness(
+    JSON.parse(JSON.stringify(value)) as DeliveryRecord,
+    { strictRolloutEnv: isStrictRolloutEnv() },
+  );
 }
 
 export type DeliveryPromotionState =
@@ -1456,11 +1461,16 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     launchTargetLabel: fields.launchTargetLabel,
     launchProofUrl: fields.launchProofUrl,
     launchProofAt: fields.launchProofAt,
+    externalProofManifestPath: null,
+    readinessTier: "local_solo",
     handoffNotes: fields.handoffNotes,
     command: fields.command,
     status: launchReady ? "ready" : "pending",
     deliveredAt: occurredAt,
   };
+  delivery.readinessTier = withResolvedDeliveryReadiness(delivery, {
+    strictRolloutEnv: isStrictRolloutEnv(),
+  }).readinessTier;
 
   await updateControlPlaneState((draft) => {
     const preview = upsertPreviewTargetRecord(draft, input.initiativeId, {
@@ -1557,7 +1567,7 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
       appendAutonomousRunEvent(draft, input.initiativeId, {
         kind: "run.completed",
         stage: "handed_off",
-        summary: `Run ${handoff.runId} completed with runnable localhost result and handoff ready.`,
+        summary: `Run ${handoff.runId} completed with runnable localhost result and local handoff packet.`,
         payload: {
           deliveryId: delivery.id,
           previewId: preview?.id ?? null,
@@ -1565,6 +1575,8 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
         },
       });
     }
+  }, {
+    lockResourceId: input.initiativeId,
   });
   await writeDeliveryManifest({
     delivery,
@@ -1588,6 +1600,8 @@ export async function createDelivery(input: { initiativeId: string }): Promise<D
     if (proof) {
       await updateControlPlaneState((draft) => {
         upsertValidationProofRecord(draft, input.initiativeId, proof);
+      }, {
+        lockResourceId: input.initiativeId,
       });
     }
     syncAutonomousRunTimeline(await readControlPlaneState(), input.initiativeId);

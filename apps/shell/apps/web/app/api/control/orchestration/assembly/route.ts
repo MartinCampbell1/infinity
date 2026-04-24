@@ -6,6 +6,7 @@ import {
 } from "../../../../../lib/server/orchestration/assembly";
 import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateAssemblyRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
+import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +16,12 @@ function filterValue(request: Request, key: string) {
 }
 
 export async function GET(request: Request) {
-  return NextResponse.json(
-    await buildAssembliesDirectoryResponse({
-      initiativeId: filterValue(request, "initiative_id"),
-    })
+  return withControlPlaneStorageGuard(async () =>
+    NextResponse.json(
+      await buildAssembliesDirectoryResponse({
+        initiativeId: filterValue(request, "initiative_id"),
+      })
+    )
   );
 }
 
@@ -33,18 +36,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = await createAssembly(body);
-  if (!response) {
-    return NextResponse.json(
-      {
-        detail:
-          "Assembly could not be created because the initiative has no task graph or not every work unit is completed.",
-      },
-      { status: 400 }
-    );
-  }
+  return withControlPlaneStorageGuard(async () => {
+    const response = await createAssembly(body);
+    if (!response) {
+      return NextResponse.json(
+        {
+          detail:
+            "Assembly could not be created because the initiative has no task graph or not every work unit is completed.",
+        },
+        { status: 400 }
+      );
+    }
 
-  await triggerAutonomousLoopSafely(response.assembly.initiativeId);
+    await triggerAutonomousLoopSafely(response.assembly.initiativeId);
 
-  return NextResponse.json(response, { status: 201 });
+    return NextResponse.json(response, { status: 201 });
+  }, { accepted: false });
 }

@@ -1,0 +1,36 @@
+name: Control Plane Migrations
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  migration-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: founderos
+          POSTGRES_PASSWORD: founderos
+          POSTGRES_DB: founderos_migration_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U founderos -d founderos_migration_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run shell:control-plane:migrations:dry-run
+      - run: npm run shell:control-plane:migrations:smoke
+        env:
+          FOUNDEROS_MIGRATION_TEST_DATABASE_URL: postgres://founderos:founderos@127.0.0.1:5432/founderos_migration_test

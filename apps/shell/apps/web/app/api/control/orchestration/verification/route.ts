@@ -6,6 +6,7 @@ import {
 } from "../../../../../lib/server/orchestration/verification";
 import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateVerificationRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
+import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +16,12 @@ function filterValue(request: Request, key: string) {
 }
 
 export async function GET(request: Request) {
-  return NextResponse.json(
-    await buildVerificationsDirectoryResponse({
-      initiativeId: filterValue(request, "initiative_id"),
-    })
+  return withControlPlaneStorageGuard(async () =>
+    NextResponse.json(
+      await buildVerificationsDirectoryResponse({
+        initiativeId: filterValue(request, "initiative_id"),
+      })
+    )
   );
 }
 
@@ -33,17 +36,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = await createVerification(body);
-  if (!response) {
-    return NextResponse.json(
-      {
-        detail: "Verification could not be created because the initiative has no task graph.",
-      },
-      { status: 400 }
-    );
-  }
+  return withControlPlaneStorageGuard(async () => {
+    const response = await createVerification(body);
+    if (!response) {
+      return NextResponse.json(
+        {
+          detail: "Verification could not be created because the initiative has no task graph.",
+        },
+        { status: 400 }
+      );
+    }
 
-  await triggerAutonomousLoopSafely(response.verification.initiativeId);
+    await triggerAutonomousLoopSafely(response.verification.initiativeId);
 
-  return NextResponse.json(response, { status: 201 });
+    return NextResponse.json(response, { status: 201 });
+  }, { accepted: false });
 }

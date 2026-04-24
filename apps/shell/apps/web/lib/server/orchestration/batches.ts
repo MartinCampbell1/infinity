@@ -32,6 +32,10 @@ import {
 import { buildSupervisorActionRecord, cloneSupervisorAction } from "./supervisor-shared";
 
 const DEFAULT_EXECUTION_KERNEL_BASE_URL = "http://127.0.0.1:8798";
+export const EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY =
+  "FOUNDEROS_EXECUTION_KERNEL_SERVICE_AUTH_SECRET";
+export const LEGACY_EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY =
+  "EXECUTION_KERNEL_SERVICE_AUTH_SECRET";
 
 export type ExecutionKernelAvailability = {
   available: boolean;
@@ -79,11 +83,26 @@ export function resolveExecutionKernelBaseUrl() {
   return DEFAULT_EXECUTION_KERNEL_BASE_URL;
 }
 
+function resolveExecutionKernelServiceAuth() {
+  const secret =
+    process.env[EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY]?.trim() ||
+    process.env[LEGACY_EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY]?.trim();
+  if (!secret) {
+    return null;
+  }
+  return { secret };
+}
+
+export function createServerExecutionKernelClient() {
+  return createExecutionKernelClient({
+    baseUrl: resolveExecutionKernelBaseUrl(),
+    serviceAuth: resolveExecutionKernelServiceAuth(),
+  });
+}
+
 export async function getExecutionKernelAvailability(): Promise<ExecutionKernelAvailability> {
   const baseUrl = resolveExecutionKernelBaseUrl();
-  const kernel = createExecutionKernelClient({
-    baseUrl,
-  });
+  const kernel = createServerExecutionKernelClient();
 
   try {
     const health = await kernel.getHealth();
@@ -161,13 +180,43 @@ function toAttemptRecord(value: ExecutionKernelAttemptRecord): AttemptRecord {
     batchId: value.batchId ?? null,
     executorType: value.executorType,
     status: value.status,
+    attemptNumber: value.attemptNumber,
+    parentAttemptId: value.parentAttemptId ?? null,
+    retryReason: value.retryReason ?? null,
+    retryBackoffUntil: value.retryBackoffUntil ?? null,
     startedAt: value.startedAt,
     finishedAt: value.finishedAt ?? null,
     summary: value.summary ?? null,
     artifactUris: value.artifactUris,
     errorCode: value.errorCode ?? null,
     errorSummary: value.errorSummary ?? null,
+    leaseHolder: value.leaseHolder ?? null,
+    leaseExpiresAt: value.leaseExpiresAt ?? null,
+    lastHeartbeatAt: value.lastHeartbeatAt ?? null,
   };
+}
+
+function workUnitStatusForAttemptStatus(status: ExecutionKernelAttemptRecord["status"]) {
+  if (status === "completed" || status === "succeeded") {
+    return "completed" as const;
+  }
+  if (status === "failed") {
+    return "retryable" as const;
+  }
+  if (status === "blocked") {
+    return "blocked" as const;
+  }
+  if (status === "canceled" || status === "abandoned") {
+    return "failed" as const;
+  }
+  if (status === "leased" || status === "running" || status === "started") {
+    return "running" as const;
+  }
+  return "queued" as const;
+}
+
+function isActiveKernelAttempt(status: ExecutionKernelAttemptRecord["status"]) {
+  return status === "leased" || status === "running" || status === "started";
 }
 
 async function readTaskGraphContext(taskGraphId: string) {
@@ -236,9 +285,7 @@ export async function buildExecutionBatchDetailResponse(
   const workUnits =
     taskGraphDetail?.workUnits.filter((workUnit) => batch.workUnitIds.includes(workUnit.id)) ?? [];
 
-  const kernel = createExecutionKernelClient({
-    baseUrl: resolveExecutionKernelBaseUrl(),
-  });
+  const kernel = createServerExecutionKernelClient();
   const kernelBatch = await kernel.getBatch(batchId);
   const attempts = kernelBatch.attempts.map(toAttemptRecord);
   const supervisorActions = await listSupervisorActionsForBatch(batchId);
@@ -286,9 +333,7 @@ export async function createExecutionBatch(input: CreateExecutionBatchRequest) {
   }
 
   const batchId = buildOrchestrationId("batch");
-  const kernel = createExecutionKernelClient({
-    baseUrl: resolveExecutionKernelBaseUrl(),
-  });
+  const kernel = createServerExecutionKernelClient();
   const launched = await kernel.launchBatch({
     batchId,
     initiativeId: context.initiative.id,
@@ -302,6 +347,12 @@ export async function createExecutionBatch(input: CreateExecutionBatchRequest) {
       scopePaths: workUnit.scopePaths,
       dependencies: workUnit.dependencies,
       acceptanceCriteria: workUnit.acceptanceCriteria,
+      retryPolicy: workUnit.retryPolicy ?? {
+        maxAttempts: 3,
+        backoffSeconds: 0,
+        executorPreference: [workUnit.executorType],
+        failureClassification: "operator_retryable",
+      },
     })),
   });
 
@@ -341,13 +392,15 @@ export async function createExecutionBatch(input: CreateExecutionBatchRequest) {
   });
 
   const occurredAt = batch.startedAt ?? nowIso();
-  const attemptIdByWorkUnit = new Map(
-    launched.attempts.map((attempt) => [attempt.workUnitId, attempt.id] as const)
+  const attemptByWorkUnit = new Map(
+    launched.attempts.map((attempt) => [attempt.workUnitId, attempt] as const)
   );
   const launchedWorkUnits = selectedWorkUnits.map((workUnit) => ({
     ...workUnit,
-    status: "running" as const,
-    latestAttemptId: attemptIdByWorkUnit.get(workUnit.id) ?? workUnit.latestAttemptId ?? null,
+    status: workUnitStatusForAttemptStatus(
+      attemptByWorkUnit.get(workUnit.id)?.status ?? "queued"
+    ),
+    latestAttemptId: attemptByWorkUnit.get(workUnit.id)?.id ?? workUnit.latestAttemptId ?? null,
     updatedAt: occurredAt,
   }));
 
@@ -382,15 +435,17 @@ export async function createExecutionBatch(input: CreateExecutionBatchRequest) {
       stage: "executing",
       health: "healthy",
     });
-    launched.attempts.forEach((attempt) => {
-      upsertAgentSessionRecord(draft, batch.initiativeId, {
-        batchId: batch.id,
-        workItemId: attempt.workUnitId,
-        attemptId: attempt.id,
-        status: "running",
-        runtimeRef: attempt.id,
+    launched.attempts
+      .filter((attempt) => isActiveKernelAttempt(attempt.status))
+      .forEach((attempt) => {
+        upsertAgentSessionRecord(draft, batch.initiativeId, {
+          batchId: batch.id,
+          workItemId: attempt.workUnitId,
+          attemptId: attempt.id,
+          status: "running",
+          runtimeRef: attempt.id,
+        });
       });
-    });
     appendAutonomousRunEvent(draft, batch.initiativeId, {
       kind: "batch.queued",
       stage: "queued",
@@ -409,19 +464,21 @@ export async function createExecutionBatch(input: CreateExecutionBatchRequest) {
         workUnitIds: batch.workUnitIds,
       },
     });
-    launched.attempts.forEach((attempt) => {
-      appendAutonomousRunEvent(draft, batch.initiativeId, {
-        kind: "agent.started",
-        stage: "executing",
-        summary: `Agent attempt ${attempt.id} started for ${attempt.workUnitId}.`,
-        payload: {
-          batchId: batch.id,
-          workUnitId: attempt.workUnitId,
-          attemptId: attempt.id,
-          executorType: attempt.executorType,
-        },
+    launched.attempts
+      .filter((attempt) => isActiveKernelAttempt(attempt.status))
+      .forEach((attempt) => {
+        appendAutonomousRunEvent(draft, batch.initiativeId, {
+          kind: "agent.started",
+          stage: "executing",
+          summary: `Agent attempt ${attempt.id} started for ${attempt.workUnitId}.`,
+          payload: {
+            batchId: batch.id,
+            workUnitId: attempt.workUnitId,
+            attemptId: attempt.id,
+            executorType: attempt.executorType,
+          },
+        });
       });
-    });
   });
 
   const nextState = await readControlPlaneState();

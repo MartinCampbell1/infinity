@@ -14,6 +14,13 @@ import type {
   VerificationRunRecord,
   WorkUnitRecord,
 } from "../contracts/orchestration";
+import type {
+  TenantMembershipRecord,
+  TenantProjectRecord,
+  TenantRecord,
+  TenantUserRecord,
+  TenantWorkspaceRecord,
+} from "../contracts/tenancy";
 
 export type AutonomousRunStage =
   | "intake"
@@ -152,6 +159,48 @@ export interface AutonomousSecretPauseRecord {
   resolvedAt?: string | null;
 }
 
+export type ControlPlaneMutationResourceKind =
+  | "run"
+  | "session"
+  | "work_unit"
+  | "approval"
+  | "delivery"
+  | "supervisor_action"
+  | "quota"
+  | "unknown";
+
+export interface ControlPlaneMutationEventRecord {
+  id: string;
+  tenantId: string;
+  mutationKind: string;
+  resourceKind: ControlPlaneMutationResourceKind;
+  resourceId: string;
+  idempotencyKey?: string | null;
+  actorId?: string | null;
+  requestHash?: string | null;
+  payload: Record<string, unknown>;
+  responseJson?: Record<string, unknown> | null;
+  statusCode?: number | null;
+  occurredAt: string;
+}
+
+export interface ControlPlaneIdempotencyRecord {
+  tenantId: string;
+  idempotencyKey: string;
+  requestHash: string;
+  mutationEventId: string;
+  status: "completed";
+  statusCode: number;
+  responseJson: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StoredMutationsState {
+  events: ControlPlaneMutationEventRecord[];
+  idempotency: ControlPlaneIdempotencyRecord[];
+}
+
 export interface StoredApprovalsState {
   requests: ApprovalRequest[];
   operatorActions: OperatorActionAuditEvent[];
@@ -171,6 +220,14 @@ export interface StoredAccountsState {
 
 export interface StoredSessionsState {
   events: NormalizedExecutionEvent[];
+}
+
+export interface StoredTenancyState {
+  tenants: TenantRecord[];
+  users: TenantUserRecord[];
+  memberships: TenantMembershipRecord[];
+  projects: TenantProjectRecord[];
+  workspaces: TenantWorkspaceRecord[];
 }
 
 export interface StoredOrchestrationState {
@@ -201,5 +258,7 @@ export interface ControlPlaneState {
   recoveries: StoredRecoveriesState;
   accounts: StoredAccountsState;
   sessions: StoredSessionsState;
+  tenancy: StoredTenancyState;
   orchestration: StoredOrchestrationState;
+  mutations: StoredMutationsState;
 }

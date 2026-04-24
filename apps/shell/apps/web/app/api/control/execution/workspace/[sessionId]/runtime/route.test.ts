@@ -1,16 +1,42 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { resetControlPlaneStateForTests } from "../../../../../../../lib/server/control-plane/state/store";
+import {
+  getControlPlaneStatePath,
+  resetControlPlaneStateForTests,
+} from "../../../../../../../lib/server/control-plane/state/store";
+import {
+  CANONICAL_SHELL_PUBLIC_ORIGIN_ENV_KEY,
+  CANONICAL_WORK_UI_BASE_URL_ENV_KEY,
+  CONTROL_PLANE_DATABASE_URL_ENV_KEY,
+  CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY,
+  CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY,
+  DEPLOYMENT_ENV_KEY,
+  EXECUTION_KERNEL_BASE_URL_ENV_KEY,
+  EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY,
+  PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY,
+  STRICT_ROLLOUT_ENV_KEY,
+  WORKSPACE_LAUNCH_SECRET_ENV_KEY,
+  WORKSPACE_SESSION_GRANT_SECRET_ENV_KEY,
+  WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY,
+} from "../../../../../../../lib/server/control-plane/workspace/rollout-config";
 
 import { POST as postWorkspaceRuntimeIngest } from "./route";
 
 const ORIGINAL_CONTROL_PLANE_STATE_DIR = process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR;
 const ORIGINAL_CONTROL_PLANE_DATABASE_URL = process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
 const ORIGINAL_EXECUTION_HANDOFF_DATABASE_URL = process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
+const ORIGINAL_ENV = { ...process.env };
+const WORKSPACE_RUNTIME_ACTOR_HEADERS = {
+  "x-founderos-actor-type": "service",
+  "x-founderos-actor-id": "workspace-runtime-producer",
+  "x-founderos-tenant-id": "tenant-test",
+  "x-founderos-request-id": "request-runtime-test",
+  "x-founderos-auth-boundary": "token",
+};
 
 let tempStateDir = "";
 
@@ -24,6 +50,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await resetControlPlaneStateForTests();
+  process.env = { ...ORIGINAL_ENV };
   if (ORIGINAL_CONTROL_PLANE_STATE_DIR === undefined) {
     delete process.env.FOUNDEROS_CONTROL_PLANE_STATE_DIR;
   } else {
@@ -46,14 +73,96 @@ afterEach(async () => {
   }
 });
 
+function configureProductionControlPlaneEnv() {
+  process.env[DEPLOYMENT_ENV_KEY] = "production";
+  process.env[STRICT_ROLLOUT_ENV_KEY] = "1";
+  process.env[CONTROL_PLANE_DATABASE_URL_ENV_KEY] =
+    "postgres://127.0.0.1:1/infinity_control_plane";
+  process.env[CANONICAL_SHELL_PUBLIC_ORIGIN_ENV_KEY] =
+    "https://shell.infinity.example";
+  process.env[CANONICAL_WORK_UI_BASE_URL_ENV_KEY] =
+    "https://work.infinity.example";
+  process.env[EXECUTION_KERNEL_BASE_URL_ENV_KEY] =
+    "https://kernel.infinity.example";
+  process.env[EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY] = "kernel-secret";
+  process.env[PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY] =
+    "https://shell.infinity.example,https://work.infinity.example";
+  process.env[WORKSPACE_LAUNCH_SECRET_ENV_KEY] = "launch-secret";
+  process.env[WORKSPACE_SESSION_GRANT_SECRET_ENV_KEY] = "grant-secret";
+  process.env[WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY] = "session-secret";
+  process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY] = "operator-secret";
+  process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY] = "service-secret";
+}
+
 describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
+  test("returns production storage 503 instead of mutating local file fallback when Postgres is unavailable", async () => {
+    configureProductionControlPlaneEnv();
+    await resetControlPlaneStateForTests();
+
+    const response = await postWorkspaceRuntimeIngest(
+      new Request(
+        "https://shell.infinity.example/api/control/execution/workspace/session-2026-04-11-001/runtime",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...WORKSPACE_RUNTIME_ACTOR_HEADERS,
+          },
+          body: JSON.stringify({
+            hostContext: {
+              projectId: "project-atlas",
+              projectName: "Atlas Launch",
+              sessionId: "session-2026-04-11-001",
+              groupId: "group-ops-01",
+              accountId: "account-chatgpt-01",
+              workspaceId: "workspace-atlas-main",
+              openedFrom: "execution_board",
+            },
+            message: {
+              type: "workspace.tool.started",
+              payload: {
+                toolName: "apply_patch",
+                eventId: "event-storage-policy",
+              },
+            },
+          }),
+        }
+      ),
+      { params: Promise.resolve({ sessionId: "session-2026-04-11-001" }) }
+    );
+
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual(
+      expect.objectContaining({
+        code: "control_plane_storage_unavailable",
+        accepted: false,
+        readOnly: true,
+        degraded: true,
+        storageKind: "unknown",
+        integrationState: "degraded",
+        storagePolicy: expect.objectContaining({
+          deploymentEnv: "production",
+          localFileAllowed: false,
+          postgresRequired: true,
+          degradedMode: "read_only",
+        }),
+      })
+    );
+    expect(existsSync(getControlPlaneStatePath())).toBe(false);
+  });
+
   test("accepts a supported runtime message and reports touched approval state", async () => {
     const response = await postWorkspaceRuntimeIngest(
       new Request(
         "http://localhost/api/control/execution/workspace/session-2026-04-11-001/runtime",
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...WORKSPACE_RUNTIME_ACTOR_HEADERS,
+          },
           body: JSON.stringify({
             hostContext: {
               projectId: "project-atlas",
@@ -92,6 +201,15 @@ describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
         sessionId: "session-2026-04-11-001",
         kind: "approval.requested",
         source: "openwebui",
+        payload: expect.objectContaining({
+          actorContext: {
+            actorType: "system",
+            actorId: "workspace-runtime-producer",
+            tenantId: "tenant-test",
+            requestId: "request-runtime-test",
+            authBoundary: "token",
+          },
+        }),
       })
     );
     expect(body.runtimeSnapshot).toEqual(
@@ -118,6 +236,11 @@ describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
       expect.objectContaining({
         id: "approval-001",
         sessionId: "session-2026-04-11-001",
+        raw: expect.objectContaining({
+          actorContext: expect.objectContaining({
+            actorId: "workspace-runtime-producer",
+          }),
+        }),
       })
     );
     expect(body.touchedRecoveries).toHaveLength(0);
@@ -129,7 +252,10 @@ describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
         "http://localhost/api/control/execution/workspace/session-2026-04-11-001/runtime",
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...WORKSPACE_RUNTIME_ACTOR_HEADERS,
+          },
           body: JSON.stringify({
             hostContext: {
               projectId: "project-atlas",
@@ -195,7 +321,10 @@ describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
         "http://localhost/api/control/execution/workspace/session-2026-04-11-001/runtime",
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...WORKSPACE_RUNTIME_ACTOR_HEADERS,
+          },
           body: JSON.stringify({
             hostContext: {
               projectId: "project-atlas",
@@ -250,7 +379,10 @@ describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
         "http://localhost/api/control/execution/workspace/session-2026-04-11-001/runtime",
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...WORKSPACE_RUNTIME_ACTOR_HEADERS,
+          },
           body: JSON.stringify({
             hostContext: {
               projectId: "project-atlas",

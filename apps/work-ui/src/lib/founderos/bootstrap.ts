@@ -102,11 +102,16 @@ export interface FounderosLaunchSessionExchangeResult {
 	accepted: boolean;
 	note: string;
 	token: string | null;
+	storageMode: 'http_only_cookie' | 'local_dev_session_storage' | 'unknown';
+	cookieBound: boolean;
 	user: FounderosLaunchBootstrapUser | null;
 	sessionGrant: {
-		token: string;
+		token?: string | null;
+		grantId?: string | null;
 		issuedAt: string;
 		expiresAt: string;
+		refreshAfter?: string | null;
+		revokedAt?: string | null;
 	} | null;
 }
 
@@ -283,6 +288,7 @@ export const fetchFounderosLaunchBootstrap = async (
 
 	const response = await fetchImpl(bootstrapUrl, {
 		method: 'POST',
+		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
 			token: context.launchToken,
@@ -383,6 +389,8 @@ export const exchangeFounderosLaunchSession = async (
 					accepted: false,
 					note: 'FounderOS session exchange is not required for standalone mode.',
 					token: null,
+					storageMode: 'unknown',
+					cookieBound: false,
 					user: null,
 					sessionGrant: null
 				};
@@ -394,6 +402,8 @@ export const exchangeFounderosLaunchSession = async (
 					accepted: false,
 					note: 'FounderOS session exchange requires hostOrigin, sessionId, projectId, and a valid launch token.',
 					token: null,
+					storageMode: 'unknown',
+					cookieBound: false,
 					user: null,
 					sessionGrant: null
 				};
@@ -401,6 +411,7 @@ export const exchangeFounderosLaunchSession = async (
 
 	const response = await fetchImpl(exchangeUrl, {
 		method: 'POST',
+		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
 			token: context.launchToken,
@@ -418,6 +429,8 @@ export const exchangeFounderosLaunchSession = async (
 					accepted: false,
 					note: 'FounderOS session exchange request failed.',
 					token: null,
+					storageMode: 'unknown',
+					cookieBound: false,
 					user: null,
 					sessionGrant: null
 				};
@@ -429,18 +442,40 @@ export const exchangeFounderosLaunchSession = async (
 		payloadRecord?.session && typeof payloadRecord.session === 'object'
 			? (payloadRecord.session as Record<string, unknown>)
 			: null;
+	const storageMode =
+		sessionCandidate?.deliveryMode === 'http_only_cookie' ||
+		sessionCandidate?.deliveryMode === 'local_dev_session_storage'
+			? sessionCandidate.deliveryMode
+			: 'unknown';
+	const cookieBound = storageMode === 'http_only_cookie';
 	const sessionGrantCandidate =
 		payloadRecord?.sessionGrant && typeof payloadRecord.sessionGrant === 'object'
 			? (payloadRecord.sessionGrant as Record<string, unknown>)
 			: null;
 	const sessionGrant =
-		typeof sessionGrantCandidate?.token === 'string' &&
 		typeof sessionGrantCandidate?.issuedAt === 'string' &&
 		typeof sessionGrantCandidate?.expiresAt === 'string'
 			? {
-					token: sessionGrantCandidate.token,
+					token:
+						typeof sessionGrantCandidate.token === 'string' &&
+						sessionGrantCandidate.token.trim().length > 0
+							? sessionGrantCandidate.token
+							: null,
+					grantId:
+						typeof sessionGrantCandidate.grantId === 'string' &&
+						sessionGrantCandidate.grantId.trim().length > 0
+							? sessionGrantCandidate.grantId
+							: null,
 					issuedAt: sessionGrantCandidate.issuedAt,
-					expiresAt: sessionGrantCandidate.expiresAt
+					expiresAt: sessionGrantCandidate.expiresAt,
+					refreshAfter:
+						typeof sessionGrantCandidate.refreshAfter === 'string'
+							? sessionGrantCandidate.refreshAfter
+							: null,
+					revokedAt:
+						typeof sessionGrantCandidate.revokedAt === 'string'
+							? sessionGrantCandidate.revokedAt
+							: null
 				}
 			: null;
 	const token =
@@ -469,7 +504,7 @@ export const exchangeFounderosLaunchSession = async (
 							: {}
 				}
 			: null;
-	if (!response.ok || !token) {
+	if (!response.ok || (!token && !cookieBound)) {
 		return {
 			accepted: false,
 			note:
@@ -477,6 +512,8 @@ export const exchangeFounderosLaunchSession = async (
 						? payloadRecord.note
 						: 'FounderOS session exchange returned an invalid response.',
 			token: null,
+			storageMode,
+			cookieBound,
 			user,
 			sessionGrant
 		};
@@ -489,6 +526,8 @@ export const exchangeFounderosLaunchSession = async (
 					? payloadRecord.note
 					: 'FounderOS embedded session exchange succeeded.',
 			token,
+			storageMode,
+			cookieBound,
 			user,
 			sessionGrant
 		};

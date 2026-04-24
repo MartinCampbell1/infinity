@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { authorizeControlPlaneRequest } from "./lib/server/http/control-plane-auth";
 import {
   buildPrivilegedApiCorsHeaders,
   getPrivilegedApiCorsRejectionDetail,
@@ -13,7 +14,14 @@ function applyHeaders(response: NextResponse, headers: Record<string, string>) {
   return response;
 }
 
-function applyPrivilegedApiCors(request: NextRequest) {
+function responseWithCors(
+  response: NextResponse,
+  headers: Record<string, string> | null,
+) {
+  return headers ? applyHeaders(response, headers) : response;
+}
+
+function applyPrivilegedApiGate(request: NextRequest) {
   if (!isPrivilegedApiPath(request.nextUrl.pathname)) {
     return NextResponse.next();
   }
@@ -39,15 +47,37 @@ function applyPrivilegedApiCors(request: NextRequest) {
     );
   }
 
-  if (!corsHeaders) {
-    return NextResponse.next();
+  const auth = authorizeControlPlaneRequest(request);
+  if (!auth.allowed) {
+    return responseWithCors(
+      NextResponse.json(
+        {
+          code: auth.code,
+          detail: auth.detail,
+        },
+        { status: auth.status },
+      ),
+      corsHeaders,
+    );
   }
 
-  return applyHeaders(NextResponse.next(), corsHeaders);
+  const requestHeaders = new Headers(request.headers);
+  for (const [key, value] of Object.entries(auth.requestHeaders)) {
+    requestHeaders.set(key, value);
+  }
+
+  return responseWithCors(
+    NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    }),
+    corsHeaders,
+  );
 }
 
 export function proxy(request: NextRequest) {
-  return applyPrivilegedApiCors(request);
+  return applyPrivilegedApiGate(request);
 }
 
 export const config = {

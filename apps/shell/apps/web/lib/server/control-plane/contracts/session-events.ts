@@ -1,3 +1,5 @@
+import type { TenantScopedRecordFields } from "./tenancy";
+
 export type ExecutionProvider =
   | "codex"
   | "hermes"
@@ -57,7 +59,7 @@ export type NormalizedExecutionEventKind =
   | "recovery.completed"
   | "error.raised";
 
-export interface ExecutionSessionSummary {
+export interface ExecutionSessionSummary extends TenantScopedRecordFields {
   id: string;
   externalSessionId?: string | null;
   projectId: string;
@@ -86,7 +88,7 @@ export interface ExecutionSessionSummary {
   unreadOperatorSignals: number;
 }
 
-export interface NormalizedExecutionEvent {
+export interface NormalizedExecutionEvent extends TenantScopedRecordFields {
   id: string;
   sessionId: string;
   projectId: string;
@@ -196,6 +198,9 @@ export function reduceSessionProjection(
           typeof event.payload.title === "string"
             ? event.payload.title
             : event.summary,
+        tenantId: event.tenantId,
+        createdBy: event.createdBy ?? null,
+        updatedBy: event.updatedBy ?? null,
         createdAt: event.timestamp,
         updatedAt: event.timestamp,
         provider: event.provider,
@@ -210,6 +215,9 @@ export function reduceSessionProjection(
 
   const next: SessionProjectionState = {
     ...baseline,
+    tenantId: event.tenantId ?? baseline.tenantId,
+    createdBy: baseline.createdBy ?? event.createdBy ?? null,
+    updatedBy: event.updatedBy ?? baseline.updatedBy ?? null,
     provider: event.provider || baseline.provider,
     updatedAt: event.timestamp,
     phase: event.phase ?? baseline.phase,

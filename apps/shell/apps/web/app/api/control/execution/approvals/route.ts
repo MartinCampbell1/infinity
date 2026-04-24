@@ -9,11 +9,21 @@ import type {
   ApprovalCreateRequest,
   ApprovalCreateResponse,
 } from "../../../../../lib/server/control-plane/contracts/approvals";
+import { controlPlaneMutationActorFromRequest } from "../../../../../lib/server/http/control-plane-auth";
+import { controlPlaneStorageUnavailableResponse } from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json(await buildApprovalRequestsDirectory());
+  try {
+    return NextResponse.json(await buildApprovalRequestsDirectory());
+  } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error);
+    if (storageResponse) {
+      return storageResponse;
+    }
+    throw error;
+  }
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -103,7 +113,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const approvalRequest = await createApprovalRequest(input);
+  let approvalRequest;
+  try {
+    approvalRequest = await createApprovalRequest(
+      input,
+      controlPlaneMutationActorFromRequest(request) ?? undefined,
+    );
+  } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+      accepted: false,
+    });
+    if (storageResponse) {
+      return storageResponse;
+    }
+    throw error;
+  }
   if (!approvalRequest) {
     return NextResponse.json(
       {
@@ -113,7 +137,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const directory = await buildApprovalRequestsDirectory();
+  let directory;
+  try {
+    directory = await buildApprovalRequestsDirectory();
+  } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+      accepted: false,
+    });
+    if (storageResponse) {
+      return storageResponse;
+    }
+    throw error;
+  }
   const response: ApprovalCreateResponse = {
     generatedAt: directory.generatedAt,
     source: directory.source,

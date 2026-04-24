@@ -25,10 +25,13 @@ const ORIGINAL_EXECUTION_HANDOFF_DATABASE_URL =
   process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
 const ORIGINAL_EXECUTION_KERNEL_BASE_URL =
   process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
+const ORIGINAL_DEPLOYMENT_ENV = process.env.FOUNDEROS_DEPLOYMENT_ENV;
 const ORIGINAL_VALIDATION_COMMANDS =
   process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
 const ORIGINAL_VALIDATION_COMMANDS_ALLOWED =
   process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
+const ORIGINAL_ALLOW_SYNTHETIC_EXECUTION =
+  process.env.FOUNDEROS_ALLOW_SYNTHETIC_EXECUTION;
 
 let tempStateDir = "";
 
@@ -48,7 +51,7 @@ type KernelAttemptRecord = {
   workUnitId: string;
   batchId: string;
   executorType: string;
-  status: "started" | "succeeded";
+  status: "leased" | "running" | "completed" | "started" | "succeeded";
   startedAt: string;
   finishedAt: string | null;
   summary: string | null;
@@ -131,6 +134,11 @@ afterEach(async () => {
     process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL =
       ORIGINAL_EXECUTION_KERNEL_BASE_URL;
   }
+  if (ORIGINAL_DEPLOYMENT_ENV === undefined) {
+    delete process.env.FOUNDEROS_DEPLOYMENT_ENV;
+  } else {
+    process.env.FOUNDEROS_DEPLOYMENT_ENV = ORIGINAL_DEPLOYMENT_ENV;
+  }
 
   if (ORIGINAL_VALIDATION_COMMANDS === undefined) {
     delete process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
@@ -144,6 +152,12 @@ afterEach(async () => {
     process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON =
       ORIGINAL_VALIDATION_COMMANDS_ALLOWED;
   }
+  if (ORIGINAL_ALLOW_SYNTHETIC_EXECUTION === undefined) {
+    delete process.env.FOUNDEROS_ALLOW_SYNTHETIC_EXECUTION;
+  } else {
+    process.env.FOUNDEROS_ALLOW_SYNTHETIC_EXECUTION =
+      ORIGINAL_ALLOW_SYNTHETIC_EXECUTION;
+  }
 
   if (tempStateDir) {
     rmSync(tempStateDir, { recursive: true, force: true });
@@ -153,6 +167,8 @@ afterEach(async () => {
 
 describe("autonomous one-prompt orchestration", () => {
   test("intake-authored brief progresses from creation to ready delivery without manual stage posts", async () => {
+    process.env.FOUNDEROS_ALLOW_SYNTHETIC_EXECUTION = "1";
+
     const batches = new Map<string, KernelBatchRecord>();
     const attempts = new Map<string, KernelAttemptRecord>();
 
@@ -183,7 +199,7 @@ describe("autonomous one-prompt orchestration", () => {
               workUnitId: String(workUnit.id),
               batchId,
               executorType: String(workUnit.executorType ?? "codex"),
-              status: "started",
+              status: "leased",
               startedAt,
               finishedAt: null,
               summary: null,
@@ -245,7 +261,7 @@ describe("autonomous one-prompt orchestration", () => {
           const finishedAt = "2026-04-19T00:00:05.000Z";
           const nextAttempt: KernelAttemptRecord = {
             ...attempt,
-            status: "succeeded",
+            status: "completed",
             finishedAt,
             summary: "completed",
           };
@@ -262,7 +278,7 @@ describe("autonomous one-prompt orchestration", () => {
             (candidate) => candidate.batchId === batch.id,
           );
           const nextBatch: KernelBatchRecord = batchAttempts.every(
-            (candidate) => candidate.status === "succeeded",
+            (candidate) => candidate.status === "completed",
           )
             ? {
                 ...batch,
@@ -405,6 +421,146 @@ describe("autonomous one-prompt orchestration", () => {
       expect(existsSync(handoff?.finalSummaryPath ?? "")).toBe(true);
       expect(existsSync(handoff?.manifestPath ?? "")).toBe(true);
       expect(existsSync(proof?.eventTimelinePath ?? "")).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        kernelServer.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  test("production autonomy does not complete leased attempts without executor proof", async () => {
+    delete process.env.FOUNDEROS_ALLOW_SYNTHETIC_EXECUTION;
+    let completeHit = false;
+
+    const batches = new Map<string, KernelBatchRecord>();
+    const attempts = new Map<string, KernelAttemptRecord>();
+    const kernelServer = createServer(
+      async (request: IncomingMessage, response: ServerResponse) => {
+        if (request.method === "POST" && request.url === "/api/v1/batches") {
+          const body = await readJsonBody(request);
+          const batchId = String(body.batchId);
+          const startedAt = "2026-04-19T00:00:00.000Z";
+          const workUnits = Array.isArray(body.workUnits)
+            ? (body.workUnits as Array<Record<string, unknown>>)
+            : [];
+          const batch: KernelBatchRecord = {
+            id: batchId,
+            initiativeId: String(body.initiativeId),
+            taskGraphId: String(body.taskGraphId),
+            workUnitIds: workUnits.map((workUnit) => String(workUnit.id)),
+            concurrencyLimit: Number(body.concurrencyLimit ?? 1),
+            status: "running",
+            startedAt,
+            finishedAt: null,
+          };
+          batches.set(batchId, batch);
+          const launchedAttempts = workUnits.map((workUnit) => {
+            const attempt: KernelAttemptRecord = {
+              id: `attempt-${batchId}-${String(workUnit.id)}`,
+              workUnitId: String(workUnit.id),
+              batchId,
+              executorType: String(workUnit.executorType ?? "codex"),
+              status: "leased",
+              startedAt,
+              finishedAt: null,
+              summary: null,
+              artifactUris: [],
+              errorCode: null,
+              errorSummary: null,
+            };
+            attempts.set(attempt.id, attempt);
+            return attempt;
+          });
+          response.writeHead(201, { "content-type": "application/json" });
+          response.end(JSON.stringify({ batch, attempts: launchedAttempts }));
+          return;
+        }
+
+        if (request.method === "GET" && request.url?.startsWith("/api/v1/batches/")) {
+          const batchId = request.url.split("/").at(-1) ?? "";
+          const batch = batches.get(batchId);
+          if (!batch) {
+            response.writeHead(404, { "content-type": "application/json" });
+            response.end(JSON.stringify({ detail: "batch not found" }));
+            return;
+          }
+          response.writeHead(200, { "content-type": "application/json" });
+          response.end(
+            JSON.stringify({
+              batch,
+              attempts: [...attempts.values()].filter(
+                (attempt) => attempt.batchId === batchId,
+              ),
+            }),
+          );
+          return;
+        }
+
+        if (request.method === "POST" && request.url?.includes("/complete")) {
+          completeHit = true;
+        }
+        response.writeHead(404, { "content-type": "application/json" });
+        response.end(JSON.stringify({ detail: "route not found" }));
+      },
+    );
+
+    await new Promise<void>((resolve) =>
+      kernelServer.listen(0, "127.0.0.1", resolve),
+    );
+    const address = kernelServer.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Kernel test server did not bind to an ephemeral port.");
+    }
+    process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const initiativeResponse = await postInitiatives(
+        new Request("http://localhost/api/control/orchestration/initiatives", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            title: "Proof Gate",
+            userRequest: "Verify production proof gate.",
+            requestedBy: "martin",
+          }),
+        }),
+      );
+      const initiativeBody = await initiativeResponse.json();
+      const initiativeId = initiativeBody.initiative.id as string;
+
+      process.env.FOUNDEROS_DEPLOYMENT_ENV = "production";
+
+      const briefResponse = await postBriefs(
+        new Request("http://localhost/api/control/orchestration/briefs", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            initiativeId,
+            summary: "Verify production proof gate.",
+            goals: [],
+            nonGoals: [],
+            constraints: [],
+            assumptions: [],
+            acceptanceCriteria: [],
+            repoScope: [],
+            deliverables: [],
+            clarificationLog: [],
+            authoredBy: "hermes-intake",
+            status: "clarifying",
+          }),
+        }),
+      );
+
+      expect(briefResponse.status).toBe(201);
+      expect(completeHit).toBe(false);
+
+      const state = await readControlPlaneState();
+      expect(state.orchestration.deliveries).toHaveLength(0);
+      expect(
+        state.orchestration.workUnits.some(
+          (workUnit) => workUnit.status !== "completed",
+        ),
+      ).toBe(true);
     } finally {
       await new Promise<void>((resolve, reject) =>
         kernelServer.close((error) => (error ? reject(error) : resolve())),

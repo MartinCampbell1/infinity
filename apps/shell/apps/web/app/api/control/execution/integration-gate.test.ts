@@ -11,6 +11,20 @@ import { POST as postRecoveryAction } from "./recoveries/[recoveryId]/route";
 import { POST as postWorkspaceRuntimeIngest } from "./workspace/[sessionId]/runtime/route";
 
 let restoreStateDir: (() => void) | null = null;
+const OPERATOR_ACTOR_HEADERS = {
+  "x-founderos-actor-type": "operator",
+  "x-founderos-actor-id": "operator-integration",
+  "x-founderos-tenant-id": "tenant-integration",
+  "x-founderos-request-id": "request-integration-operator",
+  "x-founderos-auth-boundary": "token",
+};
+const SERVICE_ACTOR_HEADERS = {
+  "x-founderos-actor-type": "service",
+  "x-founderos-actor-id": "service-integration",
+  "x-founderos-tenant-id": "tenant-integration",
+  "x-founderos-request-id": "request-integration-service",
+  "x-founderos-auth-boundary": "token",
+};
 
 afterEach(() => {
   if (restoreStateDir) {
@@ -31,7 +45,10 @@ describe("shell control-plane integration gate", () => {
     const runtimeResponse = await postWorkspaceRuntimeIngest(
       new Request(`http://localhost/api/control/execution/workspace/${sessionId}/runtime`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...SERVICE_ACTOR_HEADERS,
+        },
         body: JSON.stringify({
           hostContext: {
             projectId: "project-atlas",
@@ -104,7 +121,10 @@ describe("shell control-plane integration gate", () => {
     const approvalResponse = await postApprovalRespond(
       new Request(`http://localhost/api/control/execution/approvals/${approvalId}/respond`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...OPERATOR_ACTOR_HEADERS,
+        },
         body: JSON.stringify({
           decision: "approve_session",
         }),
@@ -145,7 +165,10 @@ describe("shell control-plane integration gate", () => {
     const quotaResponse = await postAccountQuotas(
       new Request("http://localhost/api/control/accounts/quotas", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...SERVICE_ACTOR_HEADERS,
+        },
         body: JSON.stringify({
           producer: "openai_app_server",
           snapshot: {
@@ -195,7 +218,10 @@ describe("shell control-plane integration gate", () => {
     const recoveryResponse = await postRecoveryAction(
       new Request(`http://localhost/api/control/execution/recoveries/${recoveryId}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...OPERATOR_ACTOR_HEADERS,
+        },
         body: JSON.stringify({
           actionKind: "failover",
           targetAccountId: "account-chatgpt-03",

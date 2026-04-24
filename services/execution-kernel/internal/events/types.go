@@ -1,13 +1,21 @@
 package events
 
 type WorkUnit struct {
-	ID                 string   `json:"id"`
-	Title              string   `json:"title"`
-	Description        string   `json:"description"`
-	ExecutorType       string   `json:"executorType"`
-	ScopePaths         []string `json:"scopePaths"`
-	Dependencies       []string `json:"dependencies"`
-	AcceptanceCriteria []string `json:"acceptanceCriteria"`
+	ID                 string       `json:"id"`
+	Title              string       `json:"title"`
+	Description        string       `json:"description"`
+	ExecutorType       string       `json:"executorType"`
+	ScopePaths         []string     `json:"scopePaths"`
+	Dependencies       []string     `json:"dependencies"`
+	AcceptanceCriteria []string     `json:"acceptanceCriteria"`
+	RetryPolicy        *RetryPolicy `json:"retryPolicy,omitempty"`
+}
+
+type RetryPolicy struct {
+	MaxAttempts           int      `json:"maxAttempts,omitempty"`
+	BackoffSeconds        int      `json:"backoffSeconds,omitempty"`
+	ExecutorPreference    []string `json:"executorPreference,omitempty"`
+	FailureClassification string   `json:"failureClassification,omitempty"`
 }
 
 type LaunchBatchRequest struct {
@@ -31,18 +39,25 @@ type BatchRecord struct {
 }
 
 type AttemptRecord struct {
-	ID            string   `json:"id"`
-	WorkUnitID    string   `json:"workUnitId"`
-	BatchID       *string  `json:"batchId"`
-	ExecutorType  string   `json:"executorType"`
-	Status        string   `json:"status"`
-	RecoveryState string   `json:"recoveryState,omitempty"`
-	StartedAt     string   `json:"startedAt"`
-	FinishedAt    *string  `json:"finishedAt"`
-	Summary       *string  `json:"summary"`
-	ArtifactURIs  []string `json:"artifactUris"`
-	ErrorCode     *string  `json:"errorCode"`
-	ErrorSummary  *string  `json:"errorSummary"`
+	ID                string   `json:"id"`
+	WorkUnitID        string   `json:"workUnitId"`
+	BatchID           *string  `json:"batchId"`
+	ExecutorType      string   `json:"executorType"`
+	Status            string   `json:"status"`
+	RecoveryState     string   `json:"recoveryState,omitempty"`
+	AttemptNumber     int      `json:"attemptNumber,omitempty"`
+	ParentAttemptID   *string  `json:"parentAttemptId,omitempty"`
+	RetryReason       *string  `json:"retryReason,omitempty"`
+	RetryBackoffUntil *string  `json:"retryBackoffUntil,omitempty"`
+	StartedAt         string   `json:"startedAt"`
+	FinishedAt        *string  `json:"finishedAt"`
+	Summary           *string  `json:"summary"`
+	ArtifactURIs      []string `json:"artifactUris"`
+	ErrorCode         *string  `json:"errorCode"`
+	ErrorSummary      *string  `json:"errorSummary"`
+	LeaseHolder       *string  `json:"leaseHolder,omitempty"`
+	LeaseExpiresAt    *string  `json:"leaseExpiresAt,omitempty"`
+	LastHeartbeatAt   *string  `json:"lastHeartbeatAt,omitempty"`
 }
 
 type BatchEnvelope struct {
@@ -64,6 +79,25 @@ type AttemptActionEnvelope struct {
 	Attempt AttemptRecord `json:"attempt"`
 }
 
+type RetryWorkUnitRequest struct {
+	WorkUnitID            string  `json:"workUnitId"`
+	ExecutorType          *string `json:"executorType,omitempty"`
+	Reason                *string `json:"reason,omitempty"`
+	MaxAttempts           *int    `json:"maxAttempts,omitempty"`
+	BackoffSeconds        *int    `json:"backoffSeconds,omitempty"`
+	FailureClassification *string `json:"failureClassification,omitempty"`
+}
+
+type AttemptLeaseRequest struct {
+	Holder          string `json:"holder"`
+	LeaseTTLSeconds int    `json:"leaseTtlSeconds,omitempty"`
+}
+
+type AttemptHeartbeatRequest struct {
+	Holder          string `json:"holder"`
+	LeaseTTLSeconds int    `json:"leaseTtlSeconds,omitempty"`
+}
+
 type BatchCounts struct {
 	Total     int `json:"total"`
 	Running   int `json:"running"`
@@ -73,9 +107,15 @@ type BatchCounts struct {
 
 type AttemptCounts struct {
 	Total     int `json:"total"`
+	Queued    int `json:"queued"`
+	Leased    int `json:"leased"`
+	Running   int `json:"running"`
+	Blocked   int `json:"blocked"`
+	Canceled  int `json:"canceled"`
 	Started   int `json:"started"`
 	Succeeded int `json:"succeeded"`
 	Failed    int `json:"failed"`
+	Completed int `json:"completed"`
 }
 
 type FailureSummary struct {

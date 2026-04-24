@@ -6,6 +6,7 @@ import {
 } from "../../../../../lib/server/orchestration/task-graphs";
 import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateTaskGraphRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
+import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +16,13 @@ function filterValue(request: Request, key: string) {
 }
 
 export async function GET(request: Request) {
-  return NextResponse.json(
-    await buildTaskGraphsDirectoryResponse({
-      initiativeId: filterValue(request, "initiative_id"),
-      briefId: filterValue(request, "brief_id"),
-    })
+  return withControlPlaneStorageGuard(async () =>
+    NextResponse.json(
+      await buildTaskGraphsDirectoryResponse({
+        initiativeId: filterValue(request, "initiative_id"),
+        briefId: filterValue(request, "brief_id"),
+      })
+    )
   );
 }
 
@@ -34,17 +37,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = await createTaskGraphFromBrief(body);
-  if (!response) {
-    return NextResponse.json(
-      {
-        detail: `Approved brief ${body.briefId} is required before generating a task graph.`,
-      },
-      { status: 404 }
-    );
-  }
+  return withControlPlaneStorageGuard(async () => {
+    const response = await createTaskGraphFromBrief(body);
+    if (!response) {
+      return NextResponse.json(
+        {
+          detail: `Approved brief ${body.briefId} is required before generating a task graph.`,
+        },
+        { status: 404 }
+      );
+    }
 
-  await triggerAutonomousLoopSafely(response.taskGraph.initiativeId);
+    await triggerAutonomousLoopSafely(response.taskGraph.initiativeId);
 
-  return NextResponse.json(response, { status: 201 });
+    return NextResponse.json(response, { status: 201 });
+  }, { accepted: false });
 }

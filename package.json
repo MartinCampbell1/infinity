@@ -19,6 +19,11 @@
     "shell:build": "npm run build --workspace @founderos/web",
     "shell:typecheck": "npm run typecheck --workspace @founderos/web",
     "shell:test": "npm run test --workspace @founderos/web",
+    "shell:control-plane:migrations:dry-run": "npm run control-plane:migrations:dry-run --workspace @founderos/web",
+    "shell:control-plane:migrations:apply": "npm run control-plane:migrations:apply --workspace @founderos/web",
+    "shell:control-plane:migrations:status": "npm run control-plane:migrations:status --workspace @founderos/web",
+    "shell:control-plane:migrations:smoke": "npm run control-plane:migrations:smoke --workspace @founderos/web",
+    "shell:control-plane:preflight": "npm run control-plane:preflight --workspace @founderos/web",
     "validate:full": "python3 scripts/validation/run_infinity_validation.py --require-runnable-result",
     "browser:e2e:solo": "python3 scripts/validation/run_browser_e2e_solo.py",
     "validate:quick": "python3 scripts/validation/run_infinity_validation.py --skip-static-checks",
@@ -26,7 +31,8 @@
     "work-ui:build": "npm run build --workspace open-webui",
     "work-ui:check": "npm run check --workspace open-webui",
     "work-ui:preview": "npm run preview --workspace open-webui",
-    "work-ui:test": "npm run test:frontend:ci --workspace open-webui"
+    "work-ui:test": "npm run test:frontend:ci --workspace open-webui",
+    "security:embedded-auth": "node ./scripts/security/check-work-ui-embedded-auth.mjs"
   },
   "devDependencies": {
     "prettier": "^3.8.1",

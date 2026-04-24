@@ -21,6 +21,17 @@ import {
 } from "../events/store";
 import { updateControlPlaneState } from "../state/store";
 import type { ControlPlaneState } from "../state/types";
+import {
+  activeControlPlaneTenantId,
+  tenantScopedRecordFields,
+  tenantScopedUpdateFields,
+  tenantIdForRecord,
+  withTenantMetadataRaw,
+} from "../state/tenancy";
+import {
+  controlPlaneActorContext,
+  type ControlPlaneMutationActor,
+} from "../../http/control-plane-auth";
 
 export interface WorkspaceRuntimeBridgePersistResult {
   state: ControlPlaneState;
@@ -568,8 +579,12 @@ function buildEventSummary(message: WorkspaceRuntimeBridgeMessage): string {
 
 function buildEventPayload(
   context: SessionWorkspaceHostContext,
-  message: WorkspaceRuntimeBridgeMessage
+  message: WorkspaceRuntimeBridgeMessage,
+  actor?: ControlPlaneMutationActor
 ) {
+  const actorPayload = actor
+    ? { actorContext: controlPlaneActorContext(actor) }
+    : {};
   const base = {
     projectId: context.projectId,
     projectName: context.projectName,
@@ -579,6 +594,7 @@ function buildEventPayload(
     workspaceId: context.workspaceId ?? null,
     accountId: context.accountId ?? null,
     openedFrom: context.openedFrom,
+    ...actorPayload,
   };
 
   switch (message.type) {
@@ -630,7 +646,8 @@ function buildEventPayload(
 function buildRuntimeEvent(
   state: ControlPlaneState,
   context: SessionWorkspaceHostContext,
-  message: WorkspaceRuntimeBridgeMessage
+  message: WorkspaceRuntimeBridgeMessage,
+  actor?: ControlPlaneMutationActor
 ): NormalizedExecutionEvent {
   const timestamp = resolveNextEventTimestamp(state, context.sessionId);
   const provider = resolveEventProvider(state, context);
@@ -657,11 +674,16 @@ function buildRuntimeEvent(
     phase: resolveEventPhase(message, currentPhase),
     timestamp,
     summary: buildEventSummary(message),
-    payload: buildEventPayload(context, message),
-    raw: {
-      context: clone(context),
-      message: clone(message),
-    },
+    payload: buildEventPayload(context, message, actor),
+    raw: withTenantMetadataRaw(
+      {
+        context: clone(context),
+        message: clone(message),
+        ...(actor ? { actorContext: controlPlaneActorContext(actor) } : {}),
+      },
+      actor,
+    ),
+    ...tenantScopedRecordFields(actor),
   };
 }
 
@@ -703,20 +725,35 @@ function addMinutes(isoTimestamp: string, minutes: number) {
 
 function findApprovalRequest(
   requests: readonly ApprovalRequest[],
-  approvalId: string
+  approvalId: string,
+  tenantId: string,
 ) {
-  return requests.find((request) => request.id === approvalId) ?? null;
+  return (
+    requests.find(
+      (request) =>
+        request.id === approvalId && tenantIdForRecord(request) === tenantId,
+    ) ?? null
+  );
 }
 
 function upsertApprovalRequest(
   state: ControlPlaneState,
   context: SessionWorkspaceHostContext,
   message: Extract<WorkspaceRuntimeBridgeMessage, { type: "workspace.approval.requested" }>,
-  timestamp: string
+  timestamp: string,
+  actor?: ControlPlaneMutationActor
 ) {
-  const existing = findApprovalRequest(state.approvals.requests, message.payload.approvalId);
+  const tenantId = actor?.tenantId ?? activeControlPlaneTenantId();
+  const existing = findApprovalRequest(
+    state.approvals.requests,
+    message.payload.approvalId,
+    tenantId,
+  );
   const nextRequest: ApprovalRequest = {
     id: message.payload.approvalId,
+    ...(existing
+      ? tenantScopedUpdateFields(actor)
+      : tenantScopedRecordFields(actor)),
     sessionId: context.sessionId,
     externalSessionId: context.externalSessionId ?? null,
     projectId: context.projectId,
@@ -741,15 +778,21 @@ function upsertApprovalRequest(
     resolvedBy: null,
     expiresAt: addMinutes(timestamp, 60),
     revision: existing ? existing.revision + 1 : 1,
-    raw: {
-      context: clone(context),
-      message: clone(message),
-      source: "workspace_runtime_bridge",
-    },
+    raw: withTenantMetadataRaw(
+      {
+        context: clone(context),
+        message: clone(message),
+        source: "workspace_runtime_bridge",
+        ...(actor ? { actorContext: controlPlaneActorContext(actor) } : {}),
+      },
+      actor,
+    ),
   };
 
   const index = state.approvals.requests.findIndex(
-    (request) => request.id === message.payload.approvalId
+    (request) =>
+      request.id === message.payload.approvalId &&
+      tenantIdForRecord(request) === tenantId,
   );
   if (index >= 0) {
     state.approvals.requests[index] = nextRequest;
@@ -815,10 +858,14 @@ function upsertRecoveryIncident(
   message:
     | Extract<WorkspaceRuntimeBridgeMessage, { type: "workspace.error" }>
     | Extract<WorkspaceRuntimeBridgeMessage, { type: "founderos.session.retry" }>,
-  timestamp: string
+  timestamp: string,
+  actor?: ControlPlaneMutationActor
 ) {
+  const tenantId = actor?.tenantId ?? activeControlPlaneTenantId();
   const existingIndex = state.recoveries.incidents.findIndex(
-    (incident) => incident.sessionId === context.sessionId
+    (incident) =>
+      incident.sessionId === context.sessionId &&
+      tenantIdForRecord(incident) === tenantId,
   );
   const existing = existingIndex >= 0 ? state.recoveries.incidents[existingIndex] ?? null : null;
 
@@ -836,6 +883,9 @@ function upsertRecoveryIncident(
 
   const nextIncident: RecoveryIncident = {
     id: existing?.id ?? `runtime-recovery-${context.sessionId}`,
+    ...(existing
+      ? tenantScopedUpdateFields(actor)
+      : tenantScopedRecordFields(actor)),
     sessionId: context.sessionId,
     externalSessionId: context.externalSessionId ?? null,
     projectId: context.projectId,
@@ -861,11 +911,15 @@ function upsertRecoveryIncident(
     updatedAt: timestamp,
     resolvedAt: null,
     revision: existing ? existing.revision + 1 : 1,
-    raw: {
-      context: clone(context),
-      message: clone(message),
-      source: "workspace_runtime_bridge",
-    },
+    raw: withTenantMetadataRaw(
+      {
+        context: clone(context),
+        message: clone(message),
+        source: "workspace_runtime_bridge",
+        ...(actor ? { actorContext: controlPlaneActorContext(actor) } : {}),
+      },
+      actor,
+    ),
   };
 
   if (message.type === "founderos.session.retry") {
@@ -907,7 +961,8 @@ function getRuntimeBridgeMessages(
 }
 
 export async function persistWorkspaceRuntimeBridgeMessage(
-  input: WorkspaceRuntimeBridgeIngestRequest
+  input: WorkspaceRuntimeBridgeIngestRequest,
+  actor?: ControlPlaneMutationActor
 ): Promise<WorkspaceRuntimeBridgePersistResult> {
   const messages = getRuntimeBridgeMessages(input);
   for (const message of messages) {
@@ -923,7 +978,7 @@ export async function persistWorkspaceRuntimeBridgeMessage(
       const nextEvents: NormalizedExecutionEvent[] = [];
 
       for (const message of messages) {
-        const event = buildRuntimeEvent(draft, input.hostContext, message);
+        const event = buildRuntimeEvent(draft, input.hostContext, message, actor);
         nextEvents.push(event);
 
         if (message.type === "workspace.approval.requested") {
@@ -931,7 +986,8 @@ export async function persistWorkspaceRuntimeBridgeMessage(
             draft,
             input.hostContext,
             message,
-            event.timestamp
+            event.timestamp,
+            actor
           );
           approvalRequests = [...approvalRequests, approvalRequest];
         }
@@ -941,7 +997,8 @@ export async function persistWorkspaceRuntimeBridgeMessage(
             draft,
             input.hostContext,
             message,
-            event.timestamp
+            event.timestamp,
+            actor
           );
           recoveryIncidents = [...recoveryIncidents, recoveryIncident];
         }

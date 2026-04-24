@@ -26,6 +26,20 @@ const toNullIfBlank = (value: string | null | undefined) => {
 
 const isLaunchEnabled = (value: string | null) => value === '1' || value === 'true';
 
+const isLocalHostname = (hostname: string) =>
+	hostname === 'localhost' ||
+	hostname === '127.0.0.1' ||
+	hostname === '::1' ||
+	hostname === '0.0.0.0';
+
+const allowsLocalDevCredentialStorage = (url: URL) => {
+	if (!isLaunchEnabled(url.searchParams.get('founderos_local_dev_storage'))) {
+		return false;
+	}
+
+	return isLocalHostname(url.hostname.toLowerCase());
+};
+
 const toTrustedOrigin = (value: string | null) => {
 	const normalized = toNullIfBlank(value);
 	if (!normalized) {
@@ -119,13 +133,14 @@ export const parseFounderosLaunchContext = (url: URL): FounderosLaunchContext =>
 	const sessionId = toNullIfBlank(params.get('session_id'));
 	const hostOrigin = toTrustedOrigin(params.get('host_origin'));
 	const explicitLaunchToken = toNullIfBlank(params.get('launch_token'));
+	const allowStoredLaunchToken = allowsLocalDevCredentialStorage(url);
 	const storedLaunchToken =
-		enabled && !explicitLaunchToken
+		enabled && allowStoredLaunchToken && !explicitLaunchToken
 			? readStoredLaunchToken(projectId, sessionId, hostOrigin)
 			: null;
 	const launchToken = explicitLaunchToken ?? storedLaunchToken;
 
-	if (enabled) {
+	if (enabled && allowStoredLaunchToken) {
 		persistLaunchToken(launchToken, projectId, sessionId, hostOrigin);
 	}
 

@@ -3,6 +3,7 @@ import type {
   ControlPlaneIntegrationState,
 } from "./control-plane-meta";
 import type { OperatorActionAuditEvent } from "./operator-actions";
+import type { TenantScopedRecordFields } from "./tenancy";
 import type { WorkspaceRuntimeSnapshot } from "./workspace-launch";
 
 export type ApprovalRequestStatus =
@@ -26,7 +27,7 @@ export type ApprovalRequestKind =
   | "model_switch"
   | "unknown";
 
-export interface ApprovalRequest {
+export interface ApprovalRequest extends TenantScopedRecordFields {
   id: string;
   sessionId: string;
   externalSessionId?: string | null;

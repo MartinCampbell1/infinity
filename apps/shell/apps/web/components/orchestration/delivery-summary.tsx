@@ -18,6 +18,8 @@ import type {
   VerificationRunRecord,
   WorkUnitRecord,
 } from "@/lib/server/control-plane/contracts/orchestration";
+import { resolveDeliveryReadinessCopy } from "../../lib/delivery-readiness";
+import { isStrictRolloutEnv } from "../../lib/server/control-plane/workspace/rollout-config";
 import { DeliveryProofCopyButton } from "./delivery-proof-copy-button";
 
 function titleCase(value: string | null | undefined) {
@@ -30,19 +32,6 @@ function titleCase(value: string | null | undefined) {
     .filter(Boolean)
     .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function deliveryReadiness(delivery: DeliveryRecord) {
-  if (delivery.launchProofKind === "runnable_result" && delivery.launchProofAt) {
-    return "handoff ready";
-  }
-  if (delivery.launchProofKind === "attempt_scaffold") {
-    return "scaffold evidence";
-  }
-  if (delivery.launchProofKind === "synthetic_wrapper") {
-    return "wrapper evidence";
-  }
-  return titleCase(delivery.status);
 }
 
 function formatDeliveredTime(value: string) {
@@ -165,8 +154,10 @@ export function DeliverySummary({
 }) {
   const previewHref = delivery.previewUrl ?? null;
   const continuityHref = buildExecutionContinuityScopeHref(delivery.initiativeId, routeScope);
-  const launchReady =
-    delivery.launchProofKind === "runnable_result" && Boolean(delivery.launchProofAt);
+  const readinessCopy = resolveDeliveryReadinessCopy(delivery, {
+    strictRolloutEnv: isStrictRolloutEnv(),
+  });
+  const launchReady = readinessCopy.launchReady;
   const displayPreviewHref = previewHref;
   const scaffoldOnly = delivery.launchProofKind === "attempt_scaffold" && !launchReady;
   const wrapperOnly = delivery.launchProofKind === "synthetic_wrapper" && !launchReady;
@@ -197,7 +188,7 @@ export function DeliverySummary({
     {
       label: "Status",
       value: scaffoldOnly || wrapperOnly ? "Pending" : titleCase(delivery.status),
-      detail: deliveryReadiness(delivery),
+      detail: `${readinessCopy.statusDetail} · ${readinessCopy.tierLabel}`,
     },
     {
       label: "Build",
@@ -233,6 +224,12 @@ export function DeliverySummary({
       value: titleCase(delivery.status),
       detail: delivery.id,
       tone: delivery.status === "ready" || delivery.status === "delivered" ? "success" : "warning",
+    },
+    {
+      label: "tier",
+      value: readinessCopy.tierLabel,
+      detail: delivery.externalProofManifestPath ?? "hosted proof manifest not attached",
+      tone: readinessCopy.tier === "production" ? "success" : "warning",
     },
     {
       label: "verification",
@@ -292,6 +289,14 @@ export function DeliverySummary({
       label: "Proof kind",
       value: delivery.launchProofKind ?? "pending",
     },
+    {
+      label: "Readiness tier",
+      value: readinessCopy.tier,
+    },
+    {
+      label: "External proof manifest",
+      value: delivery.externalProofManifestPath ?? "not attached",
+    },
   ];
   const priorityArtifactRows = artifactRows.filter((row) =>
     ["Preview URL", "Manifest path", "Launch command", "Proof kind"].includes(row.label),
@@ -334,14 +339,14 @@ export function DeliverySummary({
               {previewHref ? (
                 <Link href={displayPreviewHref ?? previewHref}>
                   <PlaneButton variant="ghost" size="sm">
-                    {launchReady ? "Open preview" : scaffoldOnly ? "Open scaffold" : "Open wrapper"}
+                    {readinessCopy.actionLabel}
                   </PlaneButton>
                 </Link>
               ) : null}
               {launchReady && handoffHref ? (
                 <Link href={handoffHref}>
                   <PlaneButton variant="primary" size="sm">
-                    Handoff
+                    Handoff packet
                   </PlaneButton>
                 </Link>
               ) : null}
@@ -473,7 +478,7 @@ export function DeliverySummary({
                       Result summary
                     </div>
                     <div className="mt-3 text-[15px] font-medium tracking-[-0.02em] text-white">
-                      {launchReady ? "Handoff-ready result" : scaffoldOnly ? "Attempt scaffold evidence" : "Wrapper evidence"}
+                      {readinessCopy.resultHeadline}
                     </div>
                     <p className="mt-2 text-[13px] leading-7 text-white/56">
                       {delivery.resultSummary}
@@ -584,14 +589,10 @@ export function DeliverySummary({
               Delivery
             </div>
             <div className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-white">
-              {launchReady ? "Handoff ready" : scaffoldOnly ? "Scaffold evidence" : "Wrapper evidence"}
+              {readinessCopy.sidebarTitle}
             </div>
             <p className="mt-2 text-[12px] leading-6 text-white/54">
-              {launchReady
-                ? "Preview is live and the handoff lane can route the result."
-              : scaffoldOnly
-                ? "A scaffold preview is live, but the requested product still lacks real runnable-result proof."
-              : "The shell has wrapper evidence and a preview route, but runnable-result proof is still pending."}
+              {readinessCopy.sidebarDescription}
             </p>
           </div>
 
@@ -610,7 +611,7 @@ export function DeliverySummary({
               {launchReady && handoffHref ? (
                 <Link href={handoffHref}>
                   <PlaneButton variant="primary" size="md" className="w-full justify-center">
-                    Open handoff
+                    Open handoff packet
                   </PlaneButton>
                 </Link>
               ) : null}
@@ -624,7 +625,7 @@ export function DeliverySummary({
               {displayPreviewHref ? (
                 <Link href={displayPreviewHref}>
                   <PlaneButton variant="ghost" size="md" className="w-full justify-center">
-                    {launchReady ? "Open preview" : scaffoldOnly ? "Open scaffold" : "Open wrapper"}
+                    {readinessCopy.actionLabel}
                   </PlaneButton>
                 </Link>
               ) : null}
@@ -651,7 +652,7 @@ export function DeliverySummary({
               </Link>
               {launchReady && handoffHref ? (
                 <Link href={handoffHref} className="transition hover:text-white">
-                  Open handoff
+                  Open handoff packet
                 </Link>
               ) : null}
               {!launchReady && taskGraphHref ? (

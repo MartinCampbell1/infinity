@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 
 import {
+  buildControlPlaneStorageUnavailableProblem,
   getControlPlaneIntegrationState,
   getControlPlaneStorageKind,
   getControlPlaneStorageSource,
+  isControlPlaneStorageUnavailableError,
 } from "../../../../../../../lib/server/control-plane/state/store";
 import {
   isWorkspaceRuntimeBridgeIngestRequest,
   persistWorkspaceRuntimeBridgeMessage,
 } from "../../../../../../../lib/server/control-plane/workspace/runtime-ingest";
 import type { WorkspaceRuntimeIngestResponse } from "../../../../../../../lib/server/control-plane/contracts/workspace-launch";
+import { controlPlaneMutationActorFromRequest } from "../../../../../../../lib/server/http/control-plane-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +50,21 @@ export async function POST(
   }
 
   try {
-    const result = await persistWorkspaceRuntimeBridgeMessage(body);
+    const actor = controlPlaneMutationActorFromRequest(request);
+    if (!actor) {
+      return NextResponse.json(
+        {
+          code: "missing_actor",
+          detail: "Workspace runtime ingest requires an authenticated actor.",
+        },
+        { status: 401 },
+      );
+    }
+
+    const result = await persistWorkspaceRuntimeBridgeMessage(
+      body,
+      actor,
+    );
     const response: WorkspaceRuntimeIngestResponse = {
       source: getControlPlaneStorageSource(),
       storageKind: getControlPlaneStorageKind(),
@@ -62,6 +79,17 @@ export async function POST(
 
     return NextResponse.json(response);
   } catch (error) {
+    if (isControlPlaneStorageUnavailableError(error)) {
+      const problem = buildControlPlaneStorageUnavailableProblem(error);
+      return NextResponse.json(
+        {
+          ...problem,
+          accepted: false,
+        },
+        { status: error.status },
+      );
+    }
+
     if (error instanceof Error && error.message.startsWith("Unsupported workspace runtime bridge message")) {
       return NextResponse.json(
         {

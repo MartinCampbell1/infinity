@@ -1,13 +1,22 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 import type {
   WorkspaceIssuedSession,
   WorkspaceIssuedSessionClaims,
   WorkspaceLaunchRefs,
+  WorkspaceSessionDeliveryMode,
 } from "../contracts/workspace-launch";
-import { resolveWorkspaceSessionTokenSecret } from "./rollout-config";
+import {
+  requiresFullDeploymentEnv,
+  resolveWorkspaceSessionTokenSecret,
+} from "./rollout-config";
+
+type EnvLike = Record<string, string | undefined>;
 
 const WORKSPACE_SESSION_TOKEN_TTL_MS = 30 * 60 * 1000;
+export const WORKSPACE_SESSION_COOKIE_NAME = "founderos_workspace_session";
+export const WORKSPACE_SESSION_DELIVERY_MODE_ENV_KEY =
+  "FOUNDEROS_WORKSPACE_SESSION_DELIVERY_MODE";
 
 function normalizeValue(value: string | null | undefined) {
   const normalized = (value ?? "").trim();
@@ -45,6 +54,10 @@ function signPayload(payloadSegment: string) {
     .digest("base64url");
 }
 
+function refreshAfter(issuedAt: Date, ttlMs: number) {
+  return new Date(issuedAt.getTime() + Math.floor(ttlMs / 2)).toISOString();
+}
+
 function constantTimeEqual(left: string, right: string) {
   const leftBuffer = Buffer.from(left);
   const rightBuffer = Buffer.from(right);
@@ -58,15 +71,20 @@ export function mintWorkspaceSessionToken(params: {
   refs: WorkspaceLaunchRefs;
   now?: Date;
   ttlMs?: number;
+  deliveryMode?: WorkspaceSessionDeliveryMode;
 }): WorkspaceIssuedSession {
   const now = params.now ?? new Date();
   const ttlMs = params.ttlMs ?? WORKSPACE_SESSION_TOKEN_TTL_MS;
+  const deliveryMode =
+    params.deliveryMode ?? resolveWorkspaceSessionDeliveryMode();
   const refs = normalizeRefs(params.refs);
   const issuedAt = now.toISOString();
   const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
+  const sessionTokenId = randomUUID();
   const claims: WorkspaceIssuedSessionClaims = {
     v: 1,
     kind: "founderos_workspace_embedded_session",
+    sessionTokenId,
     projectId: refs.projectId,
     sessionId: refs.sessionId,
     groupId: refs.groupId ?? null,
@@ -81,9 +99,134 @@ export function mintWorkspaceSessionToken(params: {
 
   return {
     token: `${payloadSegment}.${signatureSegment}`,
+    sessionTokenId,
     issuedAt,
     expiresAt,
+    refreshAfter: refreshAfter(now, ttlMs),
+    deliveryMode,
+    cookieName:
+      deliveryMode === "http_only_cookie"
+        ? WORKSPACE_SESSION_COOKIE_NAME
+        : null,
   };
+}
+
+export function resolveWorkspaceSessionDeliveryMode(
+  env: EnvLike = process.env,
+): WorkspaceSessionDeliveryMode {
+  if (requiresFullDeploymentEnv(env)) {
+    return "http_only_cookie";
+  }
+
+  const configuredMode = env[WORKSPACE_SESSION_DELIVERY_MODE_ENV_KEY]?.trim();
+  if (
+    configuredMode === "http_only_cookie" ||
+    configuredMode === "local_dev_session_storage"
+  ) {
+    return configuredMode;
+  }
+
+  return requiresFullDeploymentEnv(env)
+    ? "http_only_cookie"
+    : "local_dev_session_storage";
+}
+
+export function redactWorkspaceSessionForDelivery(
+  session: WorkspaceIssuedSession,
+): WorkspaceIssuedSession {
+  if (session.deliveryMode === "http_only_cookie") {
+    return {
+      ...session,
+      token: null,
+    };
+  }
+
+  return session;
+}
+
+function cookiePathForSession(sessionId: string) {
+  return `/api/control/execution/workspace/${encodeURIComponent(sessionId)}`;
+}
+
+function cookieMaxAgeSeconds(expiresAt: string, now: Date) {
+  const expiresMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresMs)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor((expiresMs - now.getTime()) / 1000));
+}
+
+function shouldMarkCookieSecure(env: EnvLike) {
+  return requiresFullDeploymentEnv(env);
+}
+
+export function buildWorkspaceSessionSetCookieHeader(params: {
+  session: WorkspaceIssuedSession;
+  refs: WorkspaceLaunchRefs;
+  now?: Date;
+  env?: EnvLike;
+}) {
+  if (!params.session.token) {
+    return null;
+  }
+
+  const now = params.now ?? new Date();
+  const env = params.env ?? process.env;
+  const attributes = [
+    `${WORKSPACE_SESSION_COOKIE_NAME}=${encodeURIComponent(params.session.token)}`,
+    "HttpOnly",
+    `Path=${cookiePathForSession(params.refs.sessionId)}`,
+    "SameSite=Lax",
+    `Max-Age=${cookieMaxAgeSeconds(params.session.expiresAt, now)}`,
+  ];
+
+  if (shouldMarkCookieSecure(env)) {
+    attributes.push("Secure");
+  }
+
+  return attributes.join("; ");
+}
+
+export function buildWorkspaceSessionClearCookieHeader(params: {
+  refs: WorkspaceLaunchRefs;
+  env?: EnvLike;
+}) {
+  const env = params.env ?? process.env;
+  const attributes = [
+    `${WORKSPACE_SESSION_COOKIE_NAME}=`,
+    "HttpOnly",
+    `Path=${cookiePathForSession(params.refs.sessionId)}`,
+    "SameSite=Lax",
+    "Max-Age=0",
+  ];
+
+  if (shouldMarkCookieSecure(env)) {
+    attributes.push("Secure");
+  }
+
+  return attributes.join("; ");
+}
+
+function parseCookieHeader(value: string | null | undefined) {
+  const cookies = new Map<string, string>();
+  for (const part of (value ?? "").split(";")) {
+    const [rawName, ...rawValue] = part.split("=");
+    const name = rawName?.trim();
+    if (!name) {
+      continue;
+    }
+    cookies.set(name, decodeURIComponent(rawValue.join("=").trim()));
+  }
+  return cookies;
+}
+
+export function readWorkspaceSessionCookieToken(
+  headers: Pick<Headers, "get">,
+) {
+  return (
+    parseCookieHeader(headers.get("cookie")).get(WORKSPACE_SESSION_COOKIE_NAME) ??
+    null
+  );
 }
 
 export function verifyWorkspaceSessionToken(params: {
@@ -135,6 +278,8 @@ export function verifyWorkspaceSessionToken(params: {
   const claimsMatch =
     claims.v === 1 &&
     claims.kind === "founderos_workspace_embedded_session" &&
+    typeof claims.sessionTokenId === "string" &&
+    claims.sessionTokenId.trim().length > 0 &&
     claims.projectId === refs.projectId &&
     claims.sessionId === refs.sessionId &&
     (claims.groupId ?? null) === (refs.groupId ?? null) &&

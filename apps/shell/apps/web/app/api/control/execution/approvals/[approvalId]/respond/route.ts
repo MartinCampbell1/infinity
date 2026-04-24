@@ -10,8 +10,17 @@ import {
   getControlPlaneStorageSource,
   readControlPlaneState,
 } from "../../../../../../../lib/server/control-plane/state/store";
+import {
+  controlPlaneIdempotencyKeyFromRequest,
+  hashControlPlaneMutationRequest,
+  isControlPlaneIdempotencyConflictError,
+  readControlPlaneIdempotentMutationResult,
+  recordControlPlaneMutationResult,
+} from "../../../../../../../lib/server/control-plane/state/mutations";
 import { buildWorkspaceRuntimeSnapshot } from "../../../../../../../lib/server/control-plane/workspace/runtime-ingest";
 import type { SessionWorkspaceHostContext } from "../../../../../../../lib/server/control-plane/contracts/workspace-launch";
+import { controlPlaneMutationActorFromRequest } from "../../../../../../../lib/server/http/control-plane-auth";
+import { controlPlaneStorageUnavailableResponse } from "../../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +47,71 @@ export async function POST(
     );
   }
 
-  const result = await respondToApprovalRequest(approvalId, body.decision);
+  const actor = controlPlaneMutationActorFromRequest(request);
+  if (!actor) {
+    return NextResponse.json(
+      {
+        code: "missing_actor",
+        detail: "Approval response requires an authenticated actor.",
+      },
+      { status: 401 },
+    );
+  }
+
+  const idempotencyKey = controlPlaneIdempotencyKeyFromRequest(request);
+  const requestHash = idempotencyKey
+    ? hashControlPlaneMutationRequest({
+        route: "approval.respond",
+        approvalId,
+        body,
+      })
+    : null;
+  if (idempotencyKey && requestHash) {
+    try {
+      const replay =
+        await readControlPlaneIdempotentMutationResult<ApprovalRespondResponse>({
+          tenantId: actor.tenantId,
+          idempotencyKey,
+          requestHash,
+        });
+      if (replay) {
+        return NextResponse.json(replay.responseJson, {
+          status: replay.statusCode,
+        });
+      }
+    } catch (error) {
+      const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+        accepted: false,
+      });
+      if (storageResponse) {
+        return storageResponse;
+      }
+      if (isControlPlaneIdempotencyConflictError(error)) {
+        return NextResponse.json(
+          {
+            code: error.code,
+            detail: error.message,
+            accepted: false,
+          },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
+  }
+
+  let result;
+  try {
+    result = await respondToApprovalRequest(approvalId, body.decision, actor);
+  } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+      accepted: false,
+    });
+    if (storageResponse) {
+      return storageResponse;
+    }
+    throw error;
+  }
 
   if (!result) {
     return NextResponse.json(
@@ -50,7 +123,18 @@ export async function POST(
   }
 
   const statusCode = result.accepted ? 200 : 409;
-  const state = await readControlPlaneState();
+  let state;
+  try {
+    state = await readControlPlaneState();
+  } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+      accepted: false,
+    });
+    if (storageResponse) {
+      return storageResponse;
+    }
+    throw error;
+  }
   const runtimeSnapshot = buildWorkspaceRuntimeSnapshot(
     state,
     {
@@ -84,6 +168,44 @@ export async function POST(
       "sessionId remains the canonical truth key; external bindings stay attached to the request payload.",
     ],
   };
+
+  if (idempotencyKey && requestHash) {
+    try {
+      await recordControlPlaneMutationResult({
+        tenantId: actor.tenantId,
+        idempotencyKey,
+        requestHash,
+        mutationKind: "approval.respond",
+        resourceKind: "approval",
+        resourceId: approvalId,
+        actorId: actor.actorId,
+        statusCode,
+        payload: {
+          approvalId,
+          decision: body.decision,
+        },
+        responseJson: response as unknown as Record<string, unknown>,
+      });
+    } catch (error) {
+      const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+        accepted: false,
+      });
+      if (storageResponse) {
+        return storageResponse;
+      }
+      if (isControlPlaneIdempotencyConflictError(error)) {
+        return NextResponse.json(
+          {
+            code: error.code,
+            detail: error.message,
+            accepted: false,
+          },
+          { status: error.status },
+        );
+      }
+      throw error;
+    }
+  }
 
   return NextResponse.json(response, { status: statusCode });
 }

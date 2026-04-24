@@ -179,6 +179,8 @@ export function buildDeliveryManifest(params: {
     launchTargetLabel: params.delivery.launchTargetLabel ?? null,
     launchProofUrl: params.delivery.launchProofUrl ?? null,
     launchProofAt: params.delivery.launchProofAt ?? null,
+    readinessTier: params.delivery.readinessTier ?? "local_solo",
+    externalProofManifestPath: params.delivery.externalProofManifestPath ?? null,
     localhostReady:
       params.delivery.status === "ready" &&
       params.delivery.launchProofKind === "runnable_result" &&

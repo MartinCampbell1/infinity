@@ -1,0 +1,116 @@
+import { NextRequest } from "next/server";
+import { afterEach, describe, expect, test } from "vitest";
+
+import {
+  CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY,
+  CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY,
+  REQUIRE_CONTROL_PLANE_AUTH_ENV_KEY,
+} from "./lib/server/http/control-plane-auth";
+import { proxy } from "./proxy";
+
+const ORIGINAL_ENV = { ...process.env };
+
+afterEach(() => {
+  process.env = { ...ORIGINAL_ENV };
+});
+
+function nextRequest(
+  pathname: string,
+  init: {
+    method?: string;
+    token?: string;
+    origin?: string;
+    requestMethod?: string;
+  } = {},
+) {
+  const headers = new Headers();
+  if (init.token) {
+    headers.set("authorization", `Bearer ${init.token}`);
+  }
+  if (init.origin) {
+    headers.set("origin", init.origin);
+  }
+  if (init.requestMethod) {
+    headers.set("access-control-request-method", init.requestMethod);
+  }
+
+  return new NextRequest(`http://localhost${pathname}`, {
+    method: init.method ?? "GET",
+    headers,
+  });
+}
+
+describe("privileged API proxy auth gate", () => {
+  test("rejects anonymous privileged requests when control-plane auth is required", async () => {
+    process.env[REQUIRE_CONTROL_PLANE_AUTH_ENV_KEY] = "1";
+    process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY] = "operator-secret";
+    process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY] = "service-secret";
+
+    const response = proxy(nextRequest("/api/control/accounts"));
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      code: "missing_actor",
+      detail: "Privileged control-plane routes require an authenticated actor.",
+    });
+  });
+
+  test("allows operator bearer requests through the proxy", () => {
+    process.env[REQUIRE_CONTROL_PLANE_AUTH_ENV_KEY] = "1";
+    process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY] = "operator-secret";
+    process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY] = "service-secret";
+
+    const response = proxy(
+      nextRequest("/api/control/orchestration/batches", {
+        method: "POST",
+        token: "operator-secret",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  test("allows credentialed workspace session revoke preflight", () => {
+    process.env[REQUIRE_CONTROL_PLANE_AUTH_ENV_KEY] = "1";
+
+    const response = proxy(
+      nextRequest(
+        "/api/control/execution/workspace/session-2026-04-11-001/session",
+        {
+          method: "OPTIONS",
+          origin: "http://127.0.0.1:3101",
+          requestMethod: "DELETE",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "http://127.0.0.1:3101",
+    );
+    expect(response.headers.get("access-control-allow-credentials")).toBe(
+      "true",
+    );
+    expect(response.headers.get("access-control-allow-methods")).toContain(
+      "DELETE",
+    );
+  });
+
+  test("rejects service bearer requests on operator-only routes", async () => {
+    process.env[REQUIRE_CONTROL_PLANE_AUTH_ENV_KEY] = "1";
+    process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY] = "operator-secret";
+    process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY] = "service-secret";
+
+    const response = proxy(
+      nextRequest("/api/control/orchestration/batches", {
+        method: "POST",
+        token: "service-secret",
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("forbidden_actor");
+  });
+});

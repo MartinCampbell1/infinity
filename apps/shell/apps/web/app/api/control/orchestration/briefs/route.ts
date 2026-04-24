@@ -7,11 +7,14 @@ import {
 } from "../../../../../lib/server/orchestration/briefs";
 import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateProjectBriefRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
+import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json(await buildProjectBriefsDirectoryResponse());
+  return withControlPlaneStorageGuard(async () =>
+    NextResponse.json(await buildProjectBriefsDirectoryResponse()),
+  );
 }
 
 export async function POST(request: Request) {
@@ -27,19 +30,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await createOrchestrationBrief(body);
-  if (!result.brief) {
-    return NextResponse.json(
-      {
-        detail: `Initiative ${body.initiativeId} is not present in the shell orchestration directory.`,
-      },
-      { status: 404 }
-    );
-  }
+  return withControlPlaneStorageGuard(async () => {
+    const result = await createOrchestrationBrief(body);
+    if (!result.brief) {
+      return NextResponse.json(
+        {
+          detail: `Initiative ${body.initiativeId} is not present in the shell orchestration directory.`,
+        },
+        { status: 404 }
+      );
+    }
 
-  await triggerAutonomousLoopSafely(result.brief.initiativeId);
+    await triggerAutonomousLoopSafely(result.brief.initiativeId);
 
-  return NextResponse.json(await buildProjectBriefMutationResponse(result.brief.id), {
-    status: 201,
-  });
+    return NextResponse.json(await buildProjectBriefMutationResponse(result.brief.id), {
+      status: 201,
+    });
+  }, { accepted: false });
 }

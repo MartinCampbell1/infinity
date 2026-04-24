@@ -824,6 +824,28 @@ def assert_no_required_stage_labels(page, screen_name: str) -> list[str]:
     return found
 
 
+def assert_no_false_local_production_claims(page, screen_name: str) -> None:
+    body_text = page.locator("body").inner_text().lower()
+    forbidden = [
+        "handoff ready",
+        "handoff-ready",
+        "handoff is ready",
+        "handoff are ready",
+        "production handoff ready",
+        "production ready",
+        "production-ready",
+    ]
+    found = [claim for claim in forbidden if claim in body_text]
+    if found:
+        raise ValidationFailure(
+            f"{screen_name} exposes production/handoff-ready copy in local validation: {', '.join(found)}"
+        )
+    if "readiness tier" not in body_text or "local solo" not in body_text:
+        raise ValidationFailure(
+            f"{screen_name} does not show the local_solo readiness tier next to delivery proof."
+        )
+
+
 def approve_brief_and_launch_planner(page) -> None:
     page.click('button:has-text("Force approval")')
     page.wait_for_timeout(1200)
@@ -956,6 +978,7 @@ def run_happy_path(page, shell_origin: str, work_origin: str, state_dir: Path, m
     page.wait_for_selector("text=Return to shell workspace", timeout=30000)
     capture_screenshot(page, "workui_project_result_passed", str(screenshots_dir / "workui_project_result_passed.png"), manifest, page.url, "happy_path")
     result_stage_labels = assert_no_required_stage_labels(page, "workui_project_result_passed")
+    assert_no_false_local_production_claims(page, "workui_project_result_passed")
     delivery_id = str(delivery["id"]).strip()
     launch_ready = str(delivery.get("launchProofKind") or "") == "runnable_result" and str(delivery.get("status") or "") == "ready"
 
@@ -1880,6 +1903,7 @@ def main() -> int:
                 shell_delivery_url = f"{shell_origin}/execution/delivery/{happy['delivery_id']}?initiative_id={happy['initiative_id']}"
                 page.goto(shell_delivery_url, wait_until="domcontentloaded")
                 page.wait_for_selector("text=Result summary", timeout=15000)
+                assert_no_false_local_production_claims(page, "shell_delivery_ready")
                 capture_screenshot(page, "shell_delivery_ready", str(screenshots_dir / "shell_delivery_ready.png"), screenshots, page.url, "happy_path")
 
             standalone_root_url = f"{work_origin}/"
@@ -2088,7 +2112,7 @@ def main() -> int:
         functional_md_lines.append(f"- preview ready: `{autonomous_proof['preview_ready']}`")
         functional_md_lines.append(f"- launch kind: `{autonomous_proof['launch_kind']}`")
         functional_md_lines.append(f"- launch ready: `{autonomous_proof['launch_ready']}`")
-        functional_md_lines.append(f"- handoff ready: `{autonomous_proof['handoff_ready']}`")
+        functional_md_lines.append(f"- handoff packet ready (local_solo): `{autonomous_proof['handoff_ready']}`")
         functional_md_lines.append(f"- failure recovery override used: `{autonomous_proof['failure_recovery_override_used']}`")
         write_text(run_dir / "functional-report.md", "\n".join(functional_md_lines) + "\n")
 

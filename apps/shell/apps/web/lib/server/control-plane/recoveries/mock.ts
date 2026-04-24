@@ -1,5 +1,9 @@
 import type { ControlPlaneDirectoryMeta } from "../contracts/control-plane-meta";
 import type { OperatorActionAuditEvent } from "../contracts/operator-actions";
+import {
+  controlPlaneActorContext,
+  type ControlPlaneMutationActor,
+} from "../../http/control-plane-auth";
 import type {
   RecoveryActionContext,
   RecoveryActionKind,
@@ -108,8 +112,16 @@ function buildRecoveryActionEvent(
   occurredAt: string,
   sequence: number,
   reason?: string,
-  context?: RecoveryActionContext
+  context?: RecoveryActionContext,
+  actor?: ControlPlaneMutationActor
 ): OperatorActionAuditEvent {
+  const mutationActor = actor ?? {
+    actorType: "operator" as const,
+    actorId: OPERATOR,
+    tenantId: "local",
+    requestId: `operator-action-${String(sequence).padStart(3, "0")}`,
+    authBoundary: "legacy_default",
+  };
   const kind =
     actionKind === "retry"
       ? "recovery.retry_requested"
@@ -129,8 +141,8 @@ function buildRecoveryActionEvent(
     targetId: incident.id,
     kind,
     outcome,
-    actorType: "operator",
-    actorId: OPERATOR,
+    actorType: mutationActor.actorType,
+    actorId: mutationActor.actorId,
     occurredAt,
     summary:
       outcome === "rejected"
@@ -143,6 +155,7 @@ function buildRecoveryActionEvent(
       recoveryStatus: incident.status,
       targetAccountId: context?.targetAccountId ?? null,
       reason: reason ?? null,
+      actorContext: controlPlaneActorContext(mutationActor),
     },
     raw: {
       source: getControlPlaneStorageSource(),
@@ -169,7 +182,8 @@ function appendRecoverySessionEvent(
   occurredAt: string,
   previousStatus: RecoveryIncidentStatus,
   updatedIncident: RecoveryIncident,
-  context?: RecoveryActionContext
+  context?: RecoveryActionContext,
+  actor?: ControlPlaneMutationActor
 ) {
   const provider = resolveRecoverySessionProvider(state, incident.sessionId);
   const isCompleted = actionKind === "resolve";
@@ -200,6 +214,7 @@ function appendRecoverySessionEvent(
       retryCount: updatedIncident.retryCount,
       resolvedAt: updatedIncident.resolvedAt ?? null,
       recoveryRevision: updatedIncident.revision,
+      actorContext: actor ? controlPlaneActorContext(actor) : null,
     },
     raw: {
       source: getControlPlaneStorageSource(),
@@ -333,7 +348,8 @@ function isRecoveryActionAllowed(incident: RecoveryIncident, actionKind: Recover
 export async function recordMockRecoveryAction(
   recoveryId: string,
   actionKind: RecoveryActionKind,
-  context?: RecoveryActionContext
+  context?: RecoveryActionContext,
+  actor?: ControlPlaneMutationActor
 ): Promise<RecoveryRecordActionResult | null> {
   const current = await findMockRecoveryIncident(recoveryId);
   if (!current) {
@@ -369,7 +385,8 @@ export async function recordMockRecoveryAction(
           occurredAt,
           sequence,
           "missing_target_account_id_for_failover",
-          context
+          context,
+          actor
         );
         draft.recoveries.operatorActions = [...draft.recoveries.operatorActions, operatorAction];
         accepted = false;
@@ -386,7 +403,8 @@ export async function recordMockRecoveryAction(
           occurredAt,
           sequence,
           "invalid_recovery_transition",
-          context
+          context,
+          actor
         );
         draft.recoveries.operatorActions = [...draft.recoveries.operatorActions, operatorAction];
         accepted = false;
@@ -410,7 +428,8 @@ export async function recordMockRecoveryAction(
           occurredAt,
           sequence,
           undefined,
-          context
+          context,
+          actor
         );
         draft.recoveries.operatorActions = [...draft.recoveries.operatorActions, operatorAction];
         idempotent = true;
@@ -460,7 +479,8 @@ export async function recordMockRecoveryAction(
         occurredAt,
         draftCurrent.status,
         updatedIncident,
-        context
+        context,
+        actor
       );
       operatorAction = buildRecoveryActionEvent(
         updatedIncident,
@@ -469,7 +489,8 @@ export async function recordMockRecoveryAction(
         occurredAt,
         sequence,
         undefined,
-        context
+        context,
+        actor
       );
       draft.recoveries.operatorActions = [...draft.recoveries.operatorActions, operatorAction];
       idempotent = false;

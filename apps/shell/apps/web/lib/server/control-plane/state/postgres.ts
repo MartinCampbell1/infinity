@@ -11,7 +11,22 @@ import {
 import type { RecoveryIncident } from "../contracts/recoveries";
 import { materializeSessionProjections } from "../events/store";
 import { sortNormalizedEvents } from "../events/normalizers";
-import type { ControlPlaneState } from "./types";
+import { requiresFullDeploymentEnv } from "../workspace/rollout-config";
+import {
+  assertControlPlaneSchemaReady,
+  readControlPlaneSchemaStatus,
+  type Queryable,
+} from "./schema";
+import {
+  TENANT_METADATA_KEY,
+  activeControlPlaneTenantId,
+  tenantIdForRecord,
+} from "./tenancy";
+import type {
+  ControlPlaneIdempotencyRecord,
+  ControlPlaneMutationEventRecord,
+  ControlPlaneState,
+} from "./types";
 
 const CONTROL_PLANE_DB_ENV_KEYS = [
   "FOUNDEROS_CONTROL_PLANE_DATABASE_URL",
@@ -26,8 +41,9 @@ const RECOVERY_INCIDENTS_TABLE = "recovery_incidents";
 const ACCOUNT_QUOTA_SNAPSHOTS_TABLE = "account_quota_snapshots";
 const ACCOUNT_QUOTA_UPDATES_TABLE = "account_quota_updates";
 const OPERATOR_ACTION_AUDIT_EVENTS_TABLE = "operator_action_audit_events";
-
-type Queryable = Pick<Pool, "query"> | Pick<PoolClient, "query">;
+const CONTROL_PLANE_MUTATION_EVENTS_TABLE = "control_plane_mutation_events";
+const CONTROL_PLANE_IDEMPOTENCY_RECORDS_TABLE =
+  "control_plane_idempotency_records";
 
 export interface ControlPlaneRelationalDelta {
   sessions?: ExecutionSessionSummary[];
@@ -37,6 +53,8 @@ export interface ControlPlaneRelationalDelta {
   quotaSnapshots?: AccountQuotaSnapshot[];
   quotaUpdates?: AccountQuotaUpdate[];
   operatorActions?: OperatorActionAuditEvent[];
+  mutationEvents?: ControlPlaneMutationEventRecord[];
+  idempotencyRecords?: ControlPlaneIdempotencyRecord[];
 }
 
 let cachedPool: Pool | null = null;
@@ -62,6 +80,18 @@ function parseJsonValue<T>(value: unknown, fallback: T): T {
   return clone(value as T);
 }
 
+function normalizeStoredControlPlaneState(
+  state: ControlPlaneState,
+): ControlPlaneState {
+  return {
+    ...state,
+    mutations: state.mutations ?? {
+      events: [],
+      idempotency: [],
+    },
+  };
+}
+
 function asNumber(value: unknown, fallback = 0) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -81,6 +111,130 @@ function asStringArray(value: unknown) {
   );
 }
 
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function normalizeString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+type TenantAuditedRecord = Parameters<typeof tenantIdForRecord>[0] & {
+  createdBy?: unknown;
+  updatedBy?: unknown;
+};
+
+function actorIdFromContext(value: unknown) {
+  const actorContext = objectValue(value);
+  return normalizeString(actorContext?.actorId);
+}
+
+function metadataFromRaw(raw: unknown) {
+  const rawObject = objectValue(raw);
+  if (!rawObject) {
+    return null;
+  }
+  return objectValue(rawObject[TENANT_METADATA_KEY]);
+}
+
+function auditFieldFromRecord(
+  record: TenantAuditedRecord,
+  field: "createdBy" | "updatedBy",
+) {
+  const direct = normalizeString(record[field]);
+  if (direct) {
+    return direct;
+  }
+
+  const metadata = metadataFromRaw(record.raw);
+  const metadataField = normalizeString(metadata?.[field]);
+  if (metadataField) {
+    return metadataField;
+  }
+
+  const payload = objectValue(record.payload);
+  const payloadActorId = actorIdFromContext(payload?.actorContext);
+  if (payloadActorId) {
+    return payloadActorId;
+  }
+
+  return actorIdFromContext(record.actorContext);
+}
+
+function tenantRowFields(record: TenantAuditedRecord) {
+  return {
+    tenant_id: tenantIdForRecord(record),
+    created_by: auditFieldFromRecord(record, "createdBy"),
+    updated_by: auditFieldFromRecord(record, "updatedBy"),
+  };
+}
+
+async function setTenantRlsContext(client: PoolClient, tenantId: string) {
+  await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [
+    tenantId,
+  ]);
+}
+
+function collectStateTenantIds(state: ControlPlaneState) {
+  const tenantIds = new Set<string>();
+  for (const tenant of state.tenancy.tenants) {
+    tenantIds.add(tenant.id);
+  }
+  for (const record of [
+    ...Object.values(materializeSessionProjections(state.sessions.events)),
+    ...state.sessions.events,
+    ...state.approvals.requests,
+    ...state.recoveries.incidents,
+    ...state.accounts.snapshots,
+    ...state.accounts.updates,
+    ...state.approvals.operatorActions,
+    ...state.recoveries.operatorActions,
+  ]) {
+    tenantIds.add(tenantIdForRecord(record as TenantAuditedRecord));
+  }
+  if (tenantIds.size === 0) {
+    tenantIds.add(activeControlPlaneTenantId());
+  }
+  return Array.from(tenantIds).sort();
+}
+
+async function deleteReadModelTablesForTenant(
+  client: PoolClient,
+  tenantId: string,
+) {
+  await setTenantRlsContext(client, tenantId);
+  await client.query(
+    `DELETE FROM ${EXECUTION_SESSION_EVENTS_TABLE} WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  await client.query(
+    `DELETE FROM ${RECOVERY_INCIDENTS_TABLE} WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  await client.query(
+    `DELETE FROM ${APPROVAL_REQUESTS_TABLE} WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  await client.query(
+    `DELETE FROM ${ACCOUNT_QUOTA_UPDATES_TABLE} WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  await client.query(
+    `DELETE FROM ${ACCOUNT_QUOTA_SNAPSHOTS_TABLE} WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  await client.query(
+    `DELETE FROM ${OPERATOR_ACTION_AUDIT_EVENTS_TABLE} WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  await client.query(
+    `DELETE FROM ${EXECUTION_SESSIONS_TABLE} WHERE tenant_id = $1`,
+    [tenantId],
+  );
+}
+
 function buildAccountQuotaSnapshotId(snapshot: AccountQuotaSnapshot) {
   return `${snapshot.accountId}:${snapshot.observedAt}:${snapshot.source}`;
 }
@@ -97,6 +251,7 @@ function toApprovalRequestRow(
   sessionMap: Map<string, ExecutionSessionSummary>
 ) {
   return {
+    ...tenantRowFields(request),
     id: request.id,
     session_id: request.sessionId,
     external_session_id: request.externalSessionId ?? null,
@@ -124,6 +279,7 @@ function toApprovalRequestRow(
 
 function toRecoveryIncidentRow(incident: RecoveryIncident) {
   return {
+    ...tenantRowFields(incident),
     id: incident.id,
     session_id: incident.sessionId,
     external_session_id: incident.externalSessionId ?? null,
@@ -150,6 +306,7 @@ function toRecoveryIncidentRow(incident: RecoveryIncident) {
 
 function toOperatorActionRow(action: OperatorActionAuditEvent) {
   return {
+    ...tenantRowFields(action),
     id: action.id,
     sequence: action.sequence,
     session_id: action.sessionId,
@@ -170,6 +327,7 @@ function toOperatorActionRow(action: OperatorActionAuditEvent) {
 
 function toAccountQuotaSnapshotRow(snapshot: AccountQuotaSnapshot) {
   return {
+    ...tenantRowFields(snapshot),
     id: buildAccountQuotaSnapshotId(snapshot),
     account_id: snapshot.accountId,
     auth_mode: snapshot.authMode,
@@ -182,17 +340,20 @@ function toAccountQuotaSnapshotRow(snapshot: AccountQuotaSnapshot) {
 
 function toAccountQuotaUpdateRow(update: AccountQuotaUpdate) {
   return {
+    ...tenantRowFields(update),
     sequence: update.sequence,
     account_id: update.accountId,
     source: update.source,
     observed_at: update.observedAt,
     summary: update.summary,
     snapshot_json: JSON.stringify(update.snapshot),
+    actor_context: JSON.stringify(update.actorContext ?? null),
   };
 }
 
 function toExecutionSessionRow(session: ExecutionSessionSummary) {
   return {
+    ...tenantRowFields(session),
     id: session.id,
     external_session_id: session.externalSessionId ?? null,
     project_id: session.projectId,
@@ -224,6 +385,7 @@ function toExecutionSessionRow(session: ExecutionSessionSummary) {
 
 function toExecutionEventRow(event: NormalizedExecutionEvent) {
   return {
+    ...tenantRowFields(event),
     id: event.id,
     session_id: event.sessionId,
     project_id: event.projectId,
@@ -237,6 +399,37 @@ function toExecutionEventRow(event: NormalizedExecutionEvent) {
     summary: event.summary,
     payload: JSON.stringify(event.payload ?? {}),
     raw: JSON.stringify(event.raw ?? null),
+  };
+}
+
+function toMutationEventRow(event: ControlPlaneMutationEventRecord) {
+  return {
+    tenant_id: event.tenantId,
+    id: event.id,
+    mutation_kind: event.mutationKind,
+    resource_kind: event.resourceKind,
+    resource_id: event.resourceId,
+    idempotency_key: event.idempotencyKey ?? null,
+    actor_id: event.actorId ?? null,
+    request_hash: event.requestHash ?? null,
+    payload: JSON.stringify(event.payload ?? {}),
+    response_json: JSON.stringify(event.responseJson ?? null),
+    status_code: event.statusCode ?? null,
+    occurred_at: event.occurredAt,
+  };
+}
+
+function toIdempotencyRecordRow(record: ControlPlaneIdempotencyRecord) {
+  return {
+    tenant_id: record.tenantId,
+    idempotency_key: record.idempotencyKey,
+    request_hash: record.requestHash,
+    mutation_event_id: record.mutationEventId,
+    status: record.status,
+    status_code: record.statusCode,
+    response_json: JSON.stringify(record.responseJson),
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
   };
 }
 
@@ -286,175 +479,18 @@ function getPool(connectionString: string) {
   return cachedPool;
 }
 
-async function ensureSchema(queryable: Queryable) {
-  await queryable.query(`
-    CREATE TABLE IF NOT EXISTS ${CONTROL_PLANE_STATE_TABLE} (
-      id SMALLINT PRIMARY KEY CHECK (id = 1),
-      state_json JSONB NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
+async function assertRuntimeSchema(queryable: Queryable) {
+  await assertControlPlaneSchemaReady(queryable);
+}
 
-  await queryable.query(`
-    CREATE TABLE IF NOT EXISTS ${EXECUTION_SESSIONS_TABLE} (
-      id TEXT PRIMARY KEY,
-      external_session_id TEXT,
-      project_id TEXT NOT NULL,
-      project_name TEXT NOT NULL,
-      group_id TEXT,
-      workspace_id TEXT,
-      account_id TEXT,
-      provider TEXT NOT NULL,
-      model TEXT,
-      title TEXT NOT NULL,
-      status TEXT NOT NULL,
-      phase TEXT,
-      tags JSONB NOT NULL DEFAULT '[]'::jsonb,
-      pinned BOOLEAN NOT NULL DEFAULT FALSE,
-      archived BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL,
-      last_message_at TIMESTAMPTZ,
-      last_tool_at TIMESTAMPTZ,
-      last_error_at TIMESTAMPTZ,
-      pending_approvals INTEGER NOT NULL DEFAULT 0,
-      tool_activity_count INTEGER NOT NULL DEFAULT 0,
-      retry_count INTEGER NOT NULL DEFAULT 0,
-      recovery_state TEXT NOT NULL DEFAULT 'none',
-      quota_pressure TEXT NOT NULL DEFAULT 'unknown',
-      unread_operator_signals INTEGER NOT NULL DEFAULT 0
-    )
-  `);
-
-  await queryable.query(`
-    CREATE TABLE IF NOT EXISTS ${EXECUTION_SESSION_EVENTS_TABLE} (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL REFERENCES ${EXECUTION_SESSIONS_TABLE}(id) ON DELETE CASCADE,
-      project_id TEXT NOT NULL,
-      group_id TEXT,
-      source TEXT NOT NULL,
-      provider TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      status TEXT,
-      phase TEXT,
-      event_ts TIMESTAMPTZ NOT NULL,
-      summary TEXT NOT NULL,
-      payload JSONB NOT NULL,
-      raw JSONB
-    )
-  `);
-  await queryable.query(`
-    CREATE INDEX IF NOT EXISTS idx_execution_session_events_session_ts
-      ON ${EXECUTION_SESSION_EVENTS_TABLE} (session_id, event_ts DESC)
-  `);
-
-  await queryable.query(`
-    CREATE TABLE IF NOT EXISTS ${APPROVAL_REQUESTS_TABLE} (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      external_session_id TEXT,
-      project_id TEXT NOT NULL,
-      project_name TEXT NOT NULL,
-      group_id TEXT,
-      account_id TEXT,
-      workspace_id TEXT,
-      provider TEXT NOT NULL,
-      request_kind TEXT NOT NULL,
-      title TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      reason TEXT,
-      status TEXT NOT NULL,
-      decision TEXT,
-      requested_at TIMESTAMPTZ NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL,
-      resolved_at TIMESTAMPTZ,
-      resolved_by TEXT,
-      expires_at TIMESTAMPTZ,
-      revision INTEGER NOT NULL,
-      raw JSONB
-    )
-  `);
-
-  await queryable.query(`
-    CREATE TABLE IF NOT EXISTS ${RECOVERY_INCIDENTS_TABLE} (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL REFERENCES ${EXECUTION_SESSIONS_TABLE}(id) ON DELETE CASCADE,
-      external_session_id TEXT,
-      project_id TEXT NOT NULL,
-      project_name TEXT NOT NULL,
-      group_id TEXT,
-      account_id TEXT,
-      workspace_id TEXT,
-      status TEXT NOT NULL,
-      severity TEXT NOT NULL,
-      recovery_action_kind TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      root_cause TEXT,
-      recommended_action TEXT,
-      retry_count INTEGER NOT NULL DEFAULT 0,
-      opened_at TIMESTAMPTZ NOT NULL,
-      last_observed_at TIMESTAMPTZ NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL,
-      resolved_at TIMESTAMPTZ,
-      revision INTEGER NOT NULL,
-      raw JSONB
-    )
-  `);
-
-  await queryable.query(`
-    CREATE TABLE IF NOT EXISTS ${ACCOUNT_QUOTA_SNAPSHOTS_TABLE} (
-      id TEXT PRIMARY KEY,
-      account_id TEXT NOT NULL,
-      auth_mode TEXT NOT NULL,
-      source TEXT NOT NULL,
-      observed_at TIMESTAMPTZ NOT NULL,
-      buckets JSONB NOT NULL,
-      raw JSONB
-    )
-  `);
-  await queryable.query(`
-    CREATE INDEX IF NOT EXISTS idx_account_quota_snapshots_account_observed
-      ON ${ACCOUNT_QUOTA_SNAPSHOTS_TABLE} (account_id, observed_at DESC)
-  `);
-
-  await queryable.query(`
-    CREATE TABLE IF NOT EXISTS ${ACCOUNT_QUOTA_UPDATES_TABLE} (
-      sequence BIGINT PRIMARY KEY,
-      account_id TEXT NOT NULL,
-      source TEXT NOT NULL,
-      observed_at TIMESTAMPTZ NOT NULL,
-      summary TEXT NOT NULL,
-      snapshot_json JSONB NOT NULL
-    )
-  `);
-  await queryable.query(`
-    CREATE INDEX IF NOT EXISTS idx_account_quota_updates_account_sequence
-      ON ${ACCOUNT_QUOTA_UPDATES_TABLE} (account_id, sequence DESC)
-  `);
-
-  await queryable.query(`
-    CREATE TABLE IF NOT EXISTS ${OPERATOR_ACTION_AUDIT_EVENTS_TABLE} (
-      id TEXT PRIMARY KEY,
-      sequence INTEGER NOT NULL,
-      session_id TEXT NOT NULL,
-      project_id TEXT NOT NULL,
-      group_id TEXT,
-      target_kind TEXT NOT NULL,
-      target_id TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      outcome TEXT NOT NULL,
-      actor_type TEXT NOT NULL,
-      actor_id TEXT NOT NULL,
-      occurred_at TIMESTAMPTZ NOT NULL,
-      summary TEXT NOT NULL,
-      payload JSONB NOT NULL,
-      raw JSONB
-    )
-  `);
-  await queryable.query(`
-    CREATE INDEX IF NOT EXISTS idx_operator_action_audit_events_session_sequence
-      ON ${OPERATOR_ACTION_AUDIT_EVENTS_TABLE} (session_id, sequence DESC)
-  `);
+async function lockControlPlaneMutationScope(
+  client: PoolClient,
+  params: { tenantId: string; resourceId: string },
+) {
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [
+    params.tenantId,
+    params.resourceId,
+  ]);
 }
 
 async function replaceReadModelTables(
@@ -478,16 +514,13 @@ async function replaceReadModelTables(
     return left.id.localeCompare(right.id);
   });
 
-  await client.query(`DELETE FROM ${EXECUTION_SESSION_EVENTS_TABLE}`);
-  await client.query(`DELETE FROM ${RECOVERY_INCIDENTS_TABLE}`);
-  await client.query(`DELETE FROM ${APPROVAL_REQUESTS_TABLE}`);
-  await client.query(`DELETE FROM ${ACCOUNT_QUOTA_UPDATES_TABLE}`);
-  await client.query(`DELETE FROM ${ACCOUNT_QUOTA_SNAPSHOTS_TABLE}`);
-  await client.query(`DELETE FROM ${OPERATOR_ACTION_AUDIT_EVENTS_TABLE}`);
-  await client.query(`DELETE FROM ${EXECUTION_SESSIONS_TABLE}`);
+  for (const tenantId of collectStateTenantIds(state)) {
+    await deleteReadModelTablesForTenant(client, tenantId);
+  }
 
   for (const session of sessionSummaries) {
     const row = toExecutionSessionRow(session);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${EXECUTION_SESSIONS_TABLE} (
@@ -495,14 +528,14 @@ async function replaceReadModelTables(
           account_id, provider, model, title, status, phase, tags, pinned, archived,
           created_at, updated_at, last_message_at, last_tool_at, last_error_at,
           pending_approvals, tool_activity_count, retry_count, recovery_state,
-          quota_pressure, unread_operator_signals
+          quota_pressure, unread_operator_signals, tenant_id, created_by, updated_by
         )
         VALUES (
           $1, $2, $3, $4, $5, $6,
           $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15,
           $16, $17, $18, $19, $20,
           $21, $22, $23, $24,
-          $25, $26
+          $25, $26, $27, $28, $29
         )
       `,
       [
@@ -532,21 +565,25 @@ async function replaceReadModelTables(
         row.recovery_state,
         row.quota_pressure,
         row.unread_operator_signals,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
 
   for (const event of sessionEvents) {
     const row = toExecutionEventRow(event);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${EXECUTION_SESSION_EVENTS_TABLE} (
           id, session_id, project_id, group_id, source, provider, kind, status,
-          phase, event_ts, summary, payload, raw
+          phase, event_ts, summary, payload, raw, tenant_id, created_by, updated_by
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8,
-          $9, $10, $11, $12::jsonb, $13::jsonb
+          $9, $10, $11, $12::jsonb, $13::jsonb, $14, $15, $16
         )
       `,
       [
@@ -563,25 +600,29 @@ async function replaceReadModelTables(
         row.summary,
         row.payload,
         row.raw,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
 
   for (const request of state.approvals.requests) {
     const row = toApprovalRequestRow(request, sessionMap);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${APPROVAL_REQUESTS_TABLE} (
           id, session_id, external_session_id, project_id, project_name, group_id,
           account_id, workspace_id, provider, request_kind, title, summary, reason,
           status, decision, requested_at, updated_at, resolved_at, resolved_by,
-          expires_at, revision, raw
+          expires_at, revision, raw, tenant_id, created_by, updated_by
         )
         VALUES (
           $1, $2, $3, $4, $5, $6,
           $7, $8, $9, $10, $11, $12, $13,
           $14, $15, $16, $17, $18, $19,
-          $20, $21, $22::jsonb
+          $20, $21, $22::jsonb, $23, $24, $25
         )
       `,
       [
@@ -607,25 +648,29 @@ async function replaceReadModelTables(
         row.expires_at,
         row.revision,
         row.raw,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
 
   for (const incident of state.recoveries.incidents) {
     const row = toRecoveryIncidentRow(incident);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${RECOVERY_INCIDENTS_TABLE} (
           id, session_id, external_session_id, project_id, project_name, group_id,
           account_id, workspace_id, status, severity, recovery_action_kind, summary,
           root_cause, recommended_action, retry_count, opened_at, last_observed_at,
-          updated_at, resolved_at, revision, raw
+          updated_at, resolved_at, revision, raw, tenant_id, created_by, updated_by
         )
         VALUES (
           $1, $2, $3, $4, $5, $6,
           $7, $8, $9, $10, $11, $12,
           $13, $14, $15, $16, $17,
-          $18, $19, $20, $21::jsonb
+          $18, $19, $20, $21::jsonb, $22, $23, $24
         )
       `,
       [
@@ -650,18 +695,23 @@ async function replaceReadModelTables(
         row.resolved_at,
         row.revision,
         row.raw,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
 
   for (const snapshot of state.accounts.snapshots) {
     const row = toAccountQuotaSnapshotRow(snapshot);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${ACCOUNT_QUOTA_SNAPSHOTS_TABLE} (
-          id, account_id, auth_mode, source, observed_at, buckets, raw
+          id, account_id, auth_mode, source, observed_at, buckets, raw,
+          tenant_id, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10)
       `,
       [
         row.id,
@@ -671,18 +721,23 @@ async function replaceReadModelTables(
         row.observed_at,
         row.buckets,
         row.raw,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
 
   for (const update of state.accounts.updates) {
     const row = toAccountQuotaUpdateRow(update);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${ACCOUNT_QUOTA_UPDATES_TABLE} (
-          sequence, account_id, source, observed_at, summary, snapshot_json
+          sequence, account_id, source, observed_at, summary, snapshot_json, actor_context,
+          tenant_id, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10)
       `,
       [
         row.sequence,
@@ -691,21 +746,28 @@ async function replaceReadModelTables(
         row.observed_at,
         row.summary,
         row.snapshot_json,
+        row.actor_context,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
 
   for (const action of operatorActions) {
     const row = toOperatorActionRow(action);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${OPERATOR_ACTION_AUDIT_EVENTS_TABLE} (
           id, sequence, session_id, project_id, group_id, target_kind, target_id,
-          kind, outcome, actor_type, actor_id, occurred_at, summary, payload, raw
+          kind, outcome, actor_type, actor_id, occurred_at, summary, payload, raw,
+          tenant_id, created_by, updated_by
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb
+          $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb,
+          $16, $17, $18
         )
       `,
       [
@@ -724,6 +786,9 @@ async function replaceReadModelTables(
         row.summary,
         row.payload,
         row.raw,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
@@ -741,8 +806,29 @@ function hasRelationalDelta(delta: ControlPlaneRelationalDelta | null | undefine
     (delta.recoveries?.length ?? 0) > 0 ||
     (delta.quotaSnapshots?.length ?? 0) > 0 ||
     (delta.quotaUpdates?.length ?? 0) > 0 ||
-    (delta.operatorActions?.length ?? 0) > 0
+    (delta.operatorActions?.length ?? 0) > 0 ||
+    (delta.mutationEvents?.length ?? 0) > 0 ||
+    (delta.idempotencyRecords?.length ?? 0) > 0
   );
+}
+
+function buildFullRelationalDelta(
+  state: ControlPlaneState,
+): ControlPlaneRelationalDelta {
+  return {
+    sessions: Object.values(materializeSessionProjections(state.sessions.events)),
+    events: sortNormalizedEvents(state.sessions.events),
+    approvals: state.approvals.requests,
+    recoveries: state.recoveries.incidents,
+    quotaSnapshots: state.accounts.snapshots,
+    quotaUpdates: state.accounts.updates,
+    operatorActions: [
+      ...state.approvals.operatorActions,
+      ...state.recoveries.operatorActions,
+    ],
+    mutationEvents: state.mutations.events,
+    idempotencyRecords: state.mutations.idempotency,
+  };
 }
 
 async function upsertExecutionSessions(
@@ -751,6 +837,7 @@ async function upsertExecutionSessions(
 ) {
   for (const session of sessions) {
     const row = toExecutionSessionRow(session);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${EXECUTION_SESSIONS_TABLE} (
@@ -758,16 +845,16 @@ async function upsertExecutionSessions(
           account_id, provider, model, title, status, phase, tags, pinned, archived,
           created_at, updated_at, last_message_at, last_tool_at, last_error_at,
           pending_approvals, tool_activity_count, retry_count, recovery_state,
-          quota_pressure, unread_operator_signals
+          quota_pressure, unread_operator_signals, tenant_id, created_by, updated_by
         )
         VALUES (
           $1, $2, $3, $4, $5, $6,
           $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15,
           $16, $17, $18, $19, $20,
           $21, $22, $23, $24,
-          $25, $26
+          $25, $26, $27, $28, $29
         )
-        ON CONFLICT (id) DO UPDATE SET
+        ON CONFLICT (tenant_id, id) DO UPDATE SET
           external_session_id = EXCLUDED.external_session_id,
           project_id = EXCLUDED.project_id,
           project_name = EXCLUDED.project_name,
@@ -792,7 +879,10 @@ async function upsertExecutionSessions(
           retry_count = EXCLUDED.retry_count,
           recovery_state = EXCLUDED.recovery_state,
           quota_pressure = EXCLUDED.quota_pressure,
-          unread_operator_signals = EXCLUDED.unread_operator_signals
+          unread_operator_signals = EXCLUDED.unread_operator_signals,
+          tenant_id = EXCLUDED.tenant_id,
+          created_by = COALESCE(${EXECUTION_SESSIONS_TABLE}.created_by, EXCLUDED.created_by),
+          updated_by = EXCLUDED.updated_by
       `,
       [
         row.id,
@@ -821,6 +911,9 @@ async function upsertExecutionSessions(
         row.recovery_state,
         row.quota_pressure,
         row.unread_operator_signals,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
@@ -832,17 +925,18 @@ async function upsertExecutionSessionEvents(
 ) {
   for (const event of events) {
     const row = toExecutionEventRow(event);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${EXECUTION_SESSION_EVENTS_TABLE} (
           id, session_id, project_id, group_id, source, provider, kind, status,
-          phase, event_ts, summary, payload, raw
+          phase, event_ts, summary, payload, raw, tenant_id, created_by, updated_by
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8,
-          $9, $10, $11, $12::jsonb, $13::jsonb
+          $9, $10, $11, $12::jsonb, $13::jsonb, $14, $15, $16
         )
-        ON CONFLICT (id) DO UPDATE SET
+        ON CONFLICT (tenant_id, id) DO UPDATE SET
           session_id = EXCLUDED.session_id,
           project_id = EXCLUDED.project_id,
           group_id = EXCLUDED.group_id,
@@ -854,7 +948,10 @@ async function upsertExecutionSessionEvents(
           event_ts = EXCLUDED.event_ts,
           summary = EXCLUDED.summary,
           payload = EXCLUDED.payload,
-          raw = EXCLUDED.raw
+          raw = EXCLUDED.raw,
+          tenant_id = EXCLUDED.tenant_id,
+          created_by = COALESCE(${EXECUTION_SESSION_EVENTS_TABLE}.created_by, EXCLUDED.created_by),
+          updated_by = EXCLUDED.updated_by
       `,
       [
         row.id,
@@ -870,6 +967,9 @@ async function upsertExecutionSessionEvents(
         row.summary,
         row.payload,
         row.raw,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
@@ -882,21 +982,22 @@ async function upsertApprovalRequests(
 ) {
   for (const request of requests) {
     const row = toApprovalRequestRow(request, sessionMap);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${APPROVAL_REQUESTS_TABLE} (
           id, session_id, external_session_id, project_id, project_name, group_id,
           account_id, workspace_id, provider, request_kind, title, summary, reason,
           status, decision, requested_at, updated_at, resolved_at, resolved_by,
-          expires_at, revision, raw
+          expires_at, revision, raw, tenant_id, created_by, updated_by
         )
         VALUES (
           $1, $2, $3, $4, $5, $6,
           $7, $8, $9, $10, $11, $12, $13,
           $14, $15, $16, $17, $18, $19,
-          $20, $21, $22::jsonb
+          $20, $21, $22::jsonb, $23, $24, $25
         )
-        ON CONFLICT (id) DO UPDATE SET
+        ON CONFLICT (tenant_id, id) DO UPDATE SET
           session_id = EXCLUDED.session_id,
           external_session_id = EXCLUDED.external_session_id,
           project_id = EXCLUDED.project_id,
@@ -917,7 +1018,10 @@ async function upsertApprovalRequests(
           resolved_by = EXCLUDED.resolved_by,
           expires_at = EXCLUDED.expires_at,
           revision = EXCLUDED.revision,
-          raw = EXCLUDED.raw
+          raw = EXCLUDED.raw,
+          tenant_id = EXCLUDED.tenant_id,
+          created_by = COALESCE(${APPROVAL_REQUESTS_TABLE}.created_by, EXCLUDED.created_by),
+          updated_by = EXCLUDED.updated_by
       `,
       [
         row.id,
@@ -942,6 +1046,9 @@ async function upsertApprovalRequests(
         row.expires_at,
         row.revision,
         row.raw,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
@@ -953,21 +1060,22 @@ async function upsertRecoveryIncidents(
 ) {
   for (const incident of incidents) {
     const row = toRecoveryIncidentRow(incident);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${RECOVERY_INCIDENTS_TABLE} (
           id, session_id, external_session_id, project_id, project_name, group_id,
           account_id, workspace_id, status, severity, recovery_action_kind, summary,
           root_cause, recommended_action, retry_count, opened_at, last_observed_at,
-          updated_at, resolved_at, revision, raw
+          updated_at, resolved_at, revision, raw, tenant_id, created_by, updated_by
         )
         VALUES (
           $1, $2, $3, $4, $5, $6,
           $7, $8, $9, $10, $11, $12,
           $13, $14, $15, $16, $17,
-          $18, $19, $20, $21::jsonb
+          $18, $19, $20, $21::jsonb, $22, $23, $24
         )
-        ON CONFLICT (id) DO UPDATE SET
+        ON CONFLICT (tenant_id, id) DO UPDATE SET
           session_id = EXCLUDED.session_id,
           external_session_id = EXCLUDED.external_session_id,
           project_id = EXCLUDED.project_id,
@@ -987,7 +1095,10 @@ async function upsertRecoveryIncidents(
           updated_at = EXCLUDED.updated_at,
           resolved_at = EXCLUDED.resolved_at,
           revision = EXCLUDED.revision,
-          raw = EXCLUDED.raw
+          raw = EXCLUDED.raw,
+          tenant_id = EXCLUDED.tenant_id,
+          created_by = COALESCE(${RECOVERY_INCIDENTS_TABLE}.created_by, EXCLUDED.created_by),
+          updated_by = EXCLUDED.updated_by
       `,
       [
         row.id,
@@ -1011,6 +1122,9 @@ async function upsertRecoveryIncidents(
         row.resolved_at,
         row.revision,
         row.raw,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
@@ -1020,30 +1134,43 @@ async function syncAccountQuotaSnapshots(
   client: PoolClient,
   snapshots: readonly AccountQuotaSnapshot[]
 ) {
-  const accountIds = Array.from(new Set(snapshots.map((snapshot) => snapshot.accountId)));
+  const accountScopes = Array.from(
+    new Map(
+      snapshots.map((snapshot) => {
+        const row = toAccountQuotaSnapshotRow(snapshot);
+        return [`${row.tenant_id}:${row.account_id}`, row] as const;
+      }),
+    ).values(),
+  );
 
-  for (const accountId of accountIds) {
+  for (const row of accountScopes) {
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
-      `DELETE FROM ${ACCOUNT_QUOTA_SNAPSHOTS_TABLE} WHERE account_id = $1`,
-      [accountId]
+      `DELETE FROM ${ACCOUNT_QUOTA_SNAPSHOTS_TABLE} WHERE tenant_id = $1 AND account_id = $2`,
+      [row.tenant_id, row.account_id]
     );
   }
 
   for (const snapshot of snapshots) {
     const row = toAccountQuotaSnapshotRow(snapshot);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${ACCOUNT_QUOTA_SNAPSHOTS_TABLE} (
-          id, account_id, auth_mode, source, observed_at, buckets, raw
+          id, account_id, auth_mode, source, observed_at, buckets, raw,
+          tenant_id, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)
-        ON CONFLICT (id) DO UPDATE SET
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10)
+        ON CONFLICT (tenant_id, id) DO UPDATE SET
           account_id = EXCLUDED.account_id,
           auth_mode = EXCLUDED.auth_mode,
           source = EXCLUDED.source,
           observed_at = EXCLUDED.observed_at,
           buckets = EXCLUDED.buckets,
-          raw = EXCLUDED.raw
+          raw = EXCLUDED.raw,
+          tenant_id = EXCLUDED.tenant_id,
+          created_by = COALESCE(${ACCOUNT_QUOTA_SNAPSHOTS_TABLE}.created_by, EXCLUDED.created_by),
+          updated_by = EXCLUDED.updated_by
       `,
       [
         row.id,
@@ -1053,6 +1180,9 @@ async function syncAccountQuotaSnapshots(
         row.observed_at,
         row.buckets,
         row.raw,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
@@ -1064,18 +1194,24 @@ async function upsertAccountQuotaUpdates(
 ) {
   for (const update of updates) {
     const row = toAccountQuotaUpdateRow(update);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${ACCOUNT_QUOTA_UPDATES_TABLE} (
-          sequence, account_id, source, observed_at, summary, snapshot_json
+          sequence, account_id, source, observed_at, summary, snapshot_json, actor_context,
+          tenant_id, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-        ON CONFLICT (sequence) DO UPDATE SET
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10)
+        ON CONFLICT (tenant_id, sequence) DO UPDATE SET
           account_id = EXCLUDED.account_id,
           source = EXCLUDED.source,
           observed_at = EXCLUDED.observed_at,
           summary = EXCLUDED.summary,
-          snapshot_json = EXCLUDED.snapshot_json
+          snapshot_json = EXCLUDED.snapshot_json,
+          actor_context = EXCLUDED.actor_context,
+          tenant_id = EXCLUDED.tenant_id,
+          created_by = COALESCE(${ACCOUNT_QUOTA_UPDATES_TABLE}.created_by, EXCLUDED.created_by),
+          updated_by = EXCLUDED.updated_by
       `,
       [
         row.sequence,
@@ -1084,6 +1220,10 @@ async function upsertAccountQuotaUpdates(
         row.observed_at,
         row.summary,
         row.snapshot_json,
+        row.actor_context,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
     );
   }
@@ -1095,17 +1235,20 @@ async function upsertOperatorActionAuditEvents(
 ) {
   for (const action of actions) {
     const row = toOperatorActionRow(action);
+    await setTenantRlsContext(client, row.tenant_id);
     await client.query(
       `
         INSERT INTO ${OPERATOR_ACTION_AUDIT_EVENTS_TABLE} (
           id, sequence, session_id, project_id, group_id, target_kind, target_id,
-          kind, outcome, actor_type, actor_id, occurred_at, summary, payload, raw
+          kind, outcome, actor_type, actor_id, occurred_at, summary, payload, raw,
+          tenant_id, created_by, updated_by
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb
+          $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb,
+          $16, $17, $18
         )
-        ON CONFLICT (id) DO UPDATE SET
+        ON CONFLICT (tenant_id, id) DO UPDATE SET
           sequence = EXCLUDED.sequence,
           session_id = EXCLUDED.session_id,
           project_id = EXCLUDED.project_id,
@@ -1119,7 +1262,10 @@ async function upsertOperatorActionAuditEvents(
           occurred_at = EXCLUDED.occurred_at,
           summary = EXCLUDED.summary,
           payload = EXCLUDED.payload,
-          raw = EXCLUDED.raw
+          raw = EXCLUDED.raw,
+          tenant_id = EXCLUDED.tenant_id,
+          created_by = COALESCE(${OPERATOR_ACTION_AUDIT_EVENTS_TABLE}.created_by, EXCLUDED.created_by),
+          updated_by = EXCLUDED.updated_by
       `,
       [
         row.id,
@@ -1137,7 +1283,86 @@ async function upsertOperatorActionAuditEvents(
         row.summary,
         row.payload,
         row.raw,
+        row.tenant_id,
+        row.created_by,
+        row.updated_by,
       ]
+    );
+  }
+}
+
+async function appendControlPlaneMutationEvents(
+  client: PoolClient,
+  events: readonly ControlPlaneMutationEventRecord[],
+) {
+  for (const event of events) {
+    const row = toMutationEventRow(event);
+    await setTenantRlsContext(client, row.tenant_id);
+    await client.query(
+      `
+        INSERT INTO ${CONTROL_PLANE_MUTATION_EVENTS_TABLE} (
+          tenant_id, id, mutation_kind, resource_kind, resource_id,
+          idempotency_key, actor_id, request_hash, payload, response_json,
+          status_code, occurred_at
+        )
+        VALUES (
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9::jsonb, $10::jsonb,
+          $11, $12
+        )
+        ON CONFLICT (tenant_id, id) DO NOTHING
+      `,
+      [
+        row.tenant_id,
+        row.id,
+        row.mutation_kind,
+        row.resource_kind,
+        row.resource_id,
+        row.idempotency_key,
+        row.actor_id,
+        row.request_hash,
+        row.payload,
+        row.response_json,
+        row.status_code,
+        row.occurred_at,
+      ],
+    );
+  }
+}
+
+async function upsertControlPlaneIdempotencyRecords(
+  client: PoolClient,
+  records: readonly ControlPlaneIdempotencyRecord[],
+) {
+  for (const record of records) {
+    const row = toIdempotencyRecordRow(record);
+    await setTenantRlsContext(client, row.tenant_id);
+    await client.query(
+      `
+        INSERT INTO ${CONTROL_PLANE_IDEMPOTENCY_RECORDS_TABLE} (
+          tenant_id, idempotency_key, request_hash, mutation_event_id, status,
+          status_code, response_json, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+        ON CONFLICT (tenant_id, idempotency_key) DO UPDATE SET
+          mutation_event_id = EXCLUDED.mutation_event_id,
+          status = EXCLUDED.status,
+          status_code = EXCLUDED.status_code,
+          response_json = EXCLUDED.response_json,
+          updated_at = EXCLUDED.updated_at
+        WHERE ${CONTROL_PLANE_IDEMPOTENCY_RECORDS_TABLE}.request_hash = EXCLUDED.request_hash
+      `,
+      [
+        row.tenant_id,
+        row.idempotency_key,
+        row.request_hash,
+        row.mutation_event_id,
+        row.status,
+        row.status_code,
+        row.response_json,
+        row.created_at,
+        row.updated_at,
+      ],
     );
   }
 }
@@ -1170,32 +1395,59 @@ async function applyControlPlaneRelationalDelta(
   if ((delta.operatorActions?.length ?? 0) > 0) {
     await upsertOperatorActionAuditEvents(client, delta.operatorActions ?? []);
   }
+  if ((delta.mutationEvents?.length ?? 0) > 0) {
+    await appendControlPlaneMutationEvents(client, delta.mutationEvents ?? []);
+  }
+  if ((delta.idempotencyRecords?.length ?? 0) > 0) {
+    await upsertControlPlaneIdempotencyRecords(
+      client,
+      delta.idempotencyRecords ?? [],
+    );
+  }
 }
 
 export async function readControlPlaneStateFromPostgres(
   connectionString: string
 ) {
   const pool = getPool(connectionString);
-  await ensureSchema(pool);
+  await assertRuntimeSchema(pool);
 
   const result = await pool.query<{
     state_json: ControlPlaneState;
   }>(`SELECT state_json FROM ${CONTROL_PLANE_STATE_TABLE} WHERE id = 1`);
 
-  return result.rows[0]?.state_json ?? null;
+  const state = result.rows[0]?.state_json ?? null;
+  return state ? normalizeStoredControlPlaneState(state) : null;
+}
+
+export async function readControlPlaneSchemaStatusFromPostgres(
+  connectionString: string,
+) {
+  const pool = getPool(connectionString);
+  return readControlPlaneSchemaStatus(pool);
 }
 
 export async function writeControlPlaneStateToPostgres(
   connectionString: string,
   state: ControlPlaneState,
-  relationalDelta?: ControlPlaneRelationalDelta | null
+  relationalDelta?: ControlPlaneRelationalDelta | null,
+  options?: {
+    lockTenantId?: string | null;
+    lockResourceId?: string | null;
+  },
 ) {
   const pool = getPool(connectionString);
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
-    await ensureSchema(client);
+    await assertRuntimeSchema(client);
+    const lockTenantId = options?.lockTenantId ?? activeControlPlaneTenantId();
+    await setTenantRlsContext(client, lockTenantId);
+    await lockControlPlaneMutationScope(client, {
+      tenantId: lockTenantId,
+      resourceId: options?.lockResourceId ?? "control-plane-state",
+    });
     await client.query(
       `
         INSERT INTO ${CONTROL_PLANE_STATE_TABLE} (id, state_json, updated_at)
@@ -1205,12 +1457,94 @@ export async function writeControlPlaneStateToPostgres(
       `,
       [JSON.stringify(state)]
     );
-    if (hasRelationalDelta(relationalDelta)) {
-      await applyControlPlaneRelationalDelta(client, relationalDelta!);
+    const effectiveDelta = hasRelationalDelta(relationalDelta)
+      ? relationalDelta!
+      : requiresFullDeploymentEnv()
+        ? buildFullRelationalDelta(state)
+        : null;
+    if (effectiveDelta) {
+      await applyControlPlaneRelationalDelta(client, effectiveDelta);
     } else {
       await replaceReadModelTables(client, state);
+      await applyControlPlaneRelationalDelta(client, {
+        mutationEvents: state.mutations.events,
+        idempotencyRecords: state.mutations.idempotency,
+      });
     }
     await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {
+      // Ignore rollback failures after primary write failure.
+    });
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateControlPlaneStateInPostgres(
+  connectionString: string,
+  fallbackState: ControlPlaneState,
+  mutate: (draft: ControlPlaneState) => void | Promise<void>,
+  options?: {
+    buildRelationalDelta?: (
+      state: ControlPlaneState,
+    ) => ControlPlaneRelationalDelta | null | undefined;
+    lockTenantId?: string | null;
+    lockResourceId?: string | null;
+  },
+) {
+  const pool = getPool(connectionString);
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    await assertRuntimeSchema(client);
+    const lockTenantId = options?.lockTenantId ?? activeControlPlaneTenantId();
+    await setTenantRlsContext(client, lockTenantId);
+    await lockControlPlaneMutationScope(client, {
+      tenantId: lockTenantId,
+      resourceId: options?.lockResourceId ?? "control-plane-state",
+    });
+
+    const current = await client.query<{ state_json: ControlPlaneState }>(
+      `SELECT state_json FROM ${CONTROL_PLANE_STATE_TABLE} WHERE id = 1 FOR UPDATE`,
+    );
+    const draft = normalizeStoredControlPlaneState(
+      parseJsonValue<ControlPlaneState>(
+        current.rows[0]?.state_json,
+        fallbackState,
+      ),
+    );
+    await mutate(draft);
+    const relationalDelta = options?.buildRelationalDelta?.(draft) ?? null;
+
+    await client.query(
+      `
+        INSERT INTO ${CONTROL_PLANE_STATE_TABLE} (id, state_json, updated_at)
+        VALUES (1, $1::jsonb, NOW())
+        ON CONFLICT (id)
+        DO UPDATE SET state_json = EXCLUDED.state_json, updated_at = NOW()
+      `,
+      [JSON.stringify(draft)],
+    );
+
+    const effectiveDelta = hasRelationalDelta(relationalDelta)
+      ? relationalDelta!
+      : requiresFullDeploymentEnv()
+        ? buildFullRelationalDelta(draft)
+        : null;
+    if (effectiveDelta) {
+      await applyControlPlaneRelationalDelta(client, effectiveDelta);
+    } else {
+      await replaceReadModelTables(client, draft);
+      await applyControlPlaneRelationalDelta(client, {
+        mutationEvents: draft.mutations.events,
+        idempotencyRecords: draft.mutations.idempotency,
+      });
+    }
+    await client.query("COMMIT");
+    return draft;
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {
       // Ignore rollback failures after primary write failure.
@@ -1225,10 +1559,13 @@ export async function readExecutionSessionSummariesFromPostgres(
   connectionString: string
 ) {
   const pool = getPool(connectionString);
-  await ensureSchema(pool);
+  await assertRuntimeSchema(pool);
 
   const result = await pool.query<{
     id: string;
+    tenant_id: string;
+    created_by: string | null;
+    updated_by: string | null;
     external_session_id: string | null;
     project_id: string;
     project_name: string;
@@ -1265,6 +1602,9 @@ export async function readExecutionSessionSummariesFromPostgres(
   return result.rows.map((row) =>
     createExecutionSessionSummary({
       id: row.id,
+      tenantId: row.tenant_id,
+      createdBy: row.created_by,
+      updatedBy: row.updated_by,
       externalSessionId: row.external_session_id,
       projectId: row.project_id,
       projectName: row.project_name,
@@ -1298,10 +1638,13 @@ export async function readExecutionSessionEventsFromPostgres(
   connectionString: string
 ) {
   const pool = getPool(connectionString);
-  await ensureSchema(pool);
+  await assertRuntimeSchema(pool);
 
   const result = await pool.query<{
     id: string;
+    tenant_id: string;
+    created_by: string | null;
+    updated_by: string | null;
     session_id: string;
     project_id: string;
     group_id: string | null;
@@ -1325,6 +1668,9 @@ export async function readExecutionSessionEventsFromPostgres(
   return sortNormalizedEvents(
     result.rows.map((row) => ({
       id: row.id,
+      tenantId: row.tenant_id,
+      createdBy: row.created_by,
+      updatedBy: row.updated_by,
       sessionId: row.session_id,
       projectId: row.project_id,
       groupId: row.group_id,
@@ -1345,10 +1691,13 @@ export async function readApprovalRequestsFromPostgres(
   connectionString: string
 ) {
   const pool = getPool(connectionString);
-  await ensureSchema(pool);
+  await assertRuntimeSchema(pool);
 
   const result = await pool.query<{
     id: string;
+    tenant_id: string;
+    created_by: string | null;
+    updated_by: string | null;
     session_id: string;
     external_session_id: string | null;
     project_id: string;
@@ -1379,6 +1728,9 @@ export async function readApprovalRequestsFromPostgres(
 
   return result.rows.map((row) => ({
     id: row.id,
+    tenantId: row.tenant_id,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
     sessionId: row.session_id,
     externalSessionId: row.external_session_id,
     projectId: row.project_id,
@@ -1406,10 +1758,13 @@ export async function readRecoveryIncidentsFromPostgres(
   connectionString: string
 ) {
   const pool = getPool(connectionString);
-  await ensureSchema(pool);
+  await assertRuntimeSchema(pool);
 
   const result = await pool.query<{
     id: string;
+    tenant_id: string;
+    created_by: string | null;
+    updated_by: string | null;
     session_id: string;
     external_session_id: string | null;
     project_id: string;
@@ -1440,6 +1795,9 @@ export async function readRecoveryIncidentsFromPostgres(
 
   return result.rows.map((row) => ({
     id: row.id,
+    tenantId: row.tenant_id,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
     sessionId: row.session_id,
     externalSessionId: row.external_session_id,
     projectId: row.project_id,
@@ -1467,10 +1825,13 @@ export async function readAccountQuotaSnapshotsFromPostgres(
   connectionString: string
 ) {
   const pool = getPool(connectionString);
-  await ensureSchema(pool);
+  await assertRuntimeSchema(pool);
 
   const result = await pool.query<{
     account_id: string;
+    tenant_id: string;
+    created_by: string | null;
+    updated_by: string | null;
     auth_mode: AccountQuotaSnapshot["authMode"];
     source: AccountQuotaSnapshot["source"];
     observed_at: string;
@@ -1486,6 +1847,9 @@ export async function readAccountQuotaSnapshotsFromPostgres(
 
   return result.rows.map((row) => ({
     accountId: row.account_id,
+    tenantId: row.tenant_id,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
     authMode: row.auth_mode,
     source: row.source,
     observedAt: row.observed_at,
@@ -1498,15 +1862,19 @@ export async function readAccountQuotaUpdatesFromPostgres(
   connectionString: string
 ) {
   const pool = getPool(connectionString);
-  await ensureSchema(pool);
+  await assertRuntimeSchema(pool);
 
   const result = await pool.query<{
     sequence: number;
+    tenant_id: string;
+    created_by: string | null;
+    updated_by: string | null;
     account_id: string;
     source: AccountQuotaUpdate["source"];
     observed_at: string;
     summary: string;
     snapshot_json: unknown;
+    actor_context: unknown;
   }>(
     `
       SELECT *
@@ -1517,6 +1885,9 @@ export async function readAccountQuotaUpdatesFromPostgres(
 
   return result.rows.map((row) => ({
     sequence: asNumber(row.sequence),
+    tenantId: row.tenant_id,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
     accountId: row.account_id,
     source: row.source,
     observedAt: row.observed_at,
@@ -1529,6 +1900,10 @@ export async function readAccountQuotaUpdatesFromPostgres(
       buckets: [],
       raw: null,
     }),
+    actorContext: parseJsonValue<AccountQuotaUpdate["actorContext"]>(
+      row.actor_context,
+      null
+    ),
   }));
 }
 
@@ -1536,10 +1911,13 @@ export async function readOperatorActionAuditEventsFromPostgres(
   connectionString: string
 ) {
   const pool = getPool(connectionString);
-  await ensureSchema(pool);
+  await assertRuntimeSchema(pool);
 
   const result = await pool.query<{
     id: string;
+    tenant_id: string;
+    created_by: string | null;
+    updated_by: string | null;
     sequence: number;
     session_id: string;
     project_id: string;
@@ -1564,6 +1942,9 @@ export async function readOperatorActionAuditEventsFromPostgres(
 
   return result.rows.map((row) => ({
     id: row.id,
+    tenantId: row.tenant_id,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
     sequence: asNumber(row.sequence),
     sessionId: row.session_id,
     projectId: row.project_id,

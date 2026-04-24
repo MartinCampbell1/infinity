@@ -130,6 +130,37 @@ describe('founderos embedded credentials', () => {
 		expect(localStorage.token).toBe('');
 	});
 
+	test('does not persist or expose production cookie-bound bearer credentials to browser storage', () => {
+		localStorage.token = 'legacy.browser.token';
+
+		persistFounderosEmbeddedCredentials({
+			token: 'bearer.session.token',
+			sessionGrant: {
+				token: 'grant.token',
+				grantId: 'grant-1',
+				issuedAt: '2026-04-12T00:00:00.000Z',
+				expiresAt: '2026-04-12T00:30:00.000Z',
+				refreshAfter: '2026-04-12T00:15:00.000Z'
+			},
+			storageMode: 'http_only_cookie'
+		});
+
+		expect(sessionStorage.getItem('founderos.workspace.sessionToken')).toBeNull();
+		expect(sessionStorage.getItem('founderos.workspace.sessionGrant')).toBeNull();
+		expect(localStorage.getItem('founderos.workspace.sessionToken')).toBeNull();
+		expect(localStorage.getItem('founderos.workspace.sessionGrant')).toBeNull();
+		expect(readFounderosEmbeddedSessionToken()).toBeNull();
+		expect(readFounderosEmbeddedSessionGrant()).toEqual({
+			token: null,
+			grantId: 'grant-1',
+			issuedAt: '2026-04-12T00:00:00.000Z',
+			expiresAt: '2026-04-12T00:30:00.000Z',
+			refreshAfter: '2026-04-12T00:15:00.000Z'
+		});
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('');
+		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({});
+	});
+
 	test('falls back to the legacy localStorage token when no embedded token exists', () => {
 		localStorage.token = 'legacy.browser.token';
 
@@ -167,6 +198,42 @@ describe('founderos embedded credentials', () => {
 		expect(readFounderosEmbeddedSessionGrant()).toBeNull();
 		expect(resolveFounderosEmbeddedAccessToken()).toBe('');
 		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({});
+	});
+
+	test('fails closed in embedded production mode when only sessionStorage credential keys exist', () => {
+		(globalThis.window as { location: { href: string } }).location.href =
+			'http://localhost/workspace?embedded=1&project_id=project-1&session_id=session-1';
+		sessionStorage.setItem('founderos.workspace.sessionToken', 'stored.session.token');
+		sessionStorage.setItem(
+			'founderos.workspace.sessionGrant',
+			JSON.stringify({
+				token: 'stored.grant.token',
+				issuedAt: '2026-04-12T00:00:00.000Z',
+				expiresAt: '2026-04-12T00:30:00.000Z'
+			})
+		);
+
+		expect(readFounderosEmbeddedSessionToken()).toBeNull();
+		expect(readFounderosEmbeddedSessionGrant()).toBeNull();
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('');
+		expect(getFounderosEmbeddedSessionAuthHeaders()).toEqual({});
+	});
+
+	test('allows sessionStorage credentials only when explicit local dev storage is enabled', () => {
+		(globalThis.window as { location: { href: string } }).location.href =
+			'http://localhost/workspace?embedded=1&founderos_local_dev_storage=1&project_id=project-1&session_id=session-1';
+		persistFounderosEmbeddedCredentials({
+			token: 'bearer.session.token',
+			sessionGrant: {
+				token: 'grant.token',
+				issuedAt: '2026-04-12T00:00:00.000Z',
+				expiresAt: '2026-04-12T00:30:00.000Z'
+			},
+			storageMode: 'local_dev_session_storage'
+		});
+
+		expect(sessionStorage.getItem('founderos.workspace.sessionToken')).toBe('bearer.session.token');
+		expect(resolveFounderosEmbeddedAccessToken()).toBe('bearer.session.token');
 	});
 
 	test('fails closed in shell-issued session mode when embedded token is missing', () => {

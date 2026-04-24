@@ -187,7 +187,7 @@
 
 		const exchange = await exchangeFounderosLaunchSession($founderosLaunchContext, payload.auth);
 
-		if (!exchange.accepted || !exchange.token) {
+		if (!exchange.accepted || (!exchange.token && !exchange.cookieBound)) {
 			clearFounderosLaunchToken();
 			return {
 				valid: false,
@@ -198,7 +198,11 @@
 
 			persistFounderosEmbeddedCredentials({
 				token: exchange.token,
-				sessionGrant: exchange.sessionGrant
+				sessionGrant: exchange.sessionGrant,
+				storageMode:
+					exchange.storageMode === 'http_only_cookie'
+						? 'http_only_cookie'
+						: 'local_dev_session_storage'
 			});
 
 			if (!exchange.user) {

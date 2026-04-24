@@ -246,6 +246,12 @@ export interface WorkUnitRecord {
   dependencies: string[];
   acceptanceCriteria: string[];
   estimatedComplexity?: WorkUnitComplexity;
+  retryPolicy?: {
+    maxAttempts?: number;
+    backoffSeconds?: number;
+    executorPreference?: WorkUnitExecutor[];
+    failureClassification?: string;
+  };
   status: WorkUnitStatus;
   latestAttemptId?: string | null;
   createdAt: string;
@@ -276,11 +282,24 @@ export interface UpdateWorkUnitRequest {
   latestAttemptId?: string | null;
 }
 
-export type AttemptStatus = "started" | "succeeded" | "failed" | "abandoned";
+export type AttemptStatus =
+  | "queued"
+  | "leased"
+  | "running"
+  | "completed"
+  | "blocked"
+  | "canceled"
+  | "started"
+  | "succeeded"
+  | "failed"
+  | "abandoned";
 
 export const ATTEMPT_TERMINAL_STATUSES = [
+  "completed",
   "succeeded",
   "failed",
+  "blocked",
+  "canceled",
   "abandoned",
 ] as const satisfies readonly AttemptStatus[];
 
@@ -290,12 +309,38 @@ export interface AttemptRecord {
   batchId?: string | null;
   executorType: WorkUnitExecutor;
   status: AttemptStatus;
+  attemptNumber?: number;
+  parentAttemptId?: string | null;
+  retryReason?: string | null;
+  retryBackoffUntil?: string | null;
   startedAt: string;
   finishedAt?: string | null;
   summary?: string | null;
   artifactUris: string[];
   errorCode?: string | null;
   errorSummary?: string | null;
+  leaseHolder?: string | null;
+  leaseExpiresAt?: string | null;
+  lastHeartbeatAt?: string | null;
+}
+
+export interface ExecutorProofBundle {
+  executorKind: "codex" | "claude" | "local_command" | "webhook" | "synthetic";
+  summary: string;
+  changedFiles: string[];
+  logs: Array<{
+    name: string;
+    content: string;
+  }>;
+  tests: Array<{
+    name: string;
+    status: "passed" | "failed" | "skipped";
+    command?: string[] | null;
+    output?: string | null;
+  }>;
+  artifactUris: string[];
+  exitCode: number;
+  completedAt: string;
 }
 
 export type ExecutionBatchStatus =
@@ -304,7 +349,8 @@ export type ExecutionBatchStatus =
   | "running"
   | "blocked"
   | "completed"
-  | "failed";
+  | "failed"
+  | "canceled";
 
 export const EXECUTION_BATCH_STATUS_FLOW = [
   "queued",
@@ -316,6 +362,7 @@ export const EXECUTION_BATCH_STATUS_FLOW = [
 export const EXECUTION_BATCH_EXCEPTION_STATUSES = [
   "blocked",
   "failed",
+  "canceled",
 ] as const satisfies readonly ExecutionBatchStatus[];
 
 export interface ExecutionBatchRecord {
@@ -365,6 +412,7 @@ export type SupervisorActionRequest =
       batchId: string;
       attemptId: string;
       workUnitId: string;
+      executorProof?: ExecutorProofBundle | null;
     }
   | {
       actionKind: "fail_attempt";
@@ -455,6 +503,7 @@ export type DeliveryLaunchProofKind =
   | "synthetic_wrapper"
   | "attempt_scaffold"
   | "runnable_result";
+export type ReadinessTier = "local_solo" | "staging" | "production";
 
 export const DELIVERY_STATUS_FLOW = [
   "pending",
@@ -480,6 +529,8 @@ export interface DeliveryRecord {
   launchTargetLabel?: string | null;
   launchProofUrl?: string | null;
   launchProofAt?: string | null;
+  externalProofManifestPath?: string | null;
+  readinessTier?: ReadinessTier;
   handoffNotes?: string | null;
   command?: string | null;
   status: DeliveryStatus;
@@ -843,6 +894,45 @@ export function isCreateExecutionBatchRequest(
   );
 }
 
+function isExecutorProofBundle(value: unknown): value is ExecutorProofBundle {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  return (
+    ["codex", "claude", "local_command", "webhook", "synthetic"].includes(
+      String(candidate.executorKind)
+    ) &&
+    isNonEmptyString(candidate.summary) &&
+    isStringArray(candidate.changedFiles) &&
+    Array.isArray(candidate.logs) &&
+    candidate.logs.every(
+      (log) =>
+        typeof log === "object" &&
+        log !== null &&
+        isNonEmptyString((log as { name?: unknown }).name) &&
+        typeof (log as { content?: unknown }).content === "string"
+    ) &&
+    Array.isArray(candidate.tests) &&
+    candidate.tests.every((test) => {
+      if (typeof test !== "object" || test === null) {
+        return false;
+      }
+      const record = test as Record<string, unknown>;
+      return (
+        isNonEmptyString(record.name) &&
+        ["passed", "failed", "skipped"].includes(String(record.status)) &&
+        (record.command === undefined || record.command === null || isStringArray(record.command)) &&
+        (record.output === undefined || record.output === null || typeof record.output === "string")
+      );
+    }) &&
+    isStringArray(candidate.artifactUris) &&
+    typeof candidate.exitCode === "number" &&
+    Number.isFinite(candidate.exitCode) &&
+    isNonEmptyString(candidate.completedAt)
+  );
+}
+
 export function isSupervisorActionRequest(
   value: unknown
 ): value is SupervisorActionRequest {
@@ -856,7 +946,10 @@ export function isSupervisorActionRequest(
     return (
       isNonEmptyString(candidate.batchId) &&
       isNonEmptyString(candidate.attemptId) &&
-      isNonEmptyString(candidate.workUnitId)
+      isNonEmptyString(candidate.workUnitId) &&
+      (candidate.executorProof === undefined ||
+        candidate.executorProof === null ||
+        isExecutorProofBundle(candidate.executorProof))
     );
   }
   if (actionKind === "fail_attempt") {

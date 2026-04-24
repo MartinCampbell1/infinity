@@ -65,8 +65,8 @@ func TestKernelAttemptLifecycleActions(t *testing.T) {
 	if completeResponse.Batch.Status != "completed" {
 		t.Fatalf("expected completed batch, got %s", completeResponse.Batch.Status)
 	}
-	if completeResponse.Attempt.Status != "succeeded" {
-		t.Fatalf("expected succeeded attempt, got %s", completeResponse.Attempt.Status)
+	if completeResponse.Attempt.Status != "completed" {
+		t.Fatalf("expected completed attempt, got %s", completeResponse.Attempt.Status)
 	}
 
 	launchRecorder = httptest.NewRecorder()

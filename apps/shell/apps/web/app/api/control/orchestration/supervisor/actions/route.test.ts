@@ -22,6 +22,14 @@ const ORIGINAL_CONTROL_PLANE_STATE_DIR = process.env.FOUNDEROS_CONTROL_PLANE_STA
 const ORIGINAL_CONTROL_PLANE_DATABASE_URL = process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
 const ORIGINAL_EXECUTION_HANDOFF_DATABASE_URL = process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
 const ORIGINAL_EXECUTION_KERNEL_BASE_URL = process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
+const ORIGINAL_ALLOW_SYNTHETIC_EXECUTION = process.env.FOUNDEROS_ALLOW_SYNTHETIC_EXECUTION;
+const SUPERVISOR_ACTOR_HEADERS = {
+	"x-founderos-actor-type": "operator",
+	"x-founderos-actor-id": "operator-test",
+	"x-founderos-tenant-id": "tenant-test",
+	"x-founderos-request-id": "request-supervisor-test",
+	"x-founderos-auth-boundary": "token",
+};
 
 let tempStateDir = "";
 
@@ -31,6 +39,7 @@ beforeEach(async () => {
 	delete process.env.FOUNDEROS_CONTROL_PLANE_DATABASE_URL;
 	delete process.env.FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL;
 	delete process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL;
+	process.env.FOUNDEROS_ALLOW_SYNTHETIC_EXECUTION = "1";
 	await resetControlPlaneStateForTests();
 });
 
@@ -57,6 +66,11 @@ afterEach(async () => {
 	} else {
 		process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL = ORIGINAL_EXECUTION_KERNEL_BASE_URL;
 	}
+	if (ORIGINAL_ALLOW_SYNTHETIC_EXECUTION === undefined) {
+		delete process.env.FOUNDEROS_ALLOW_SYNTHETIC_EXECUTION;
+	} else {
+		process.env.FOUNDEROS_ALLOW_SYNTHETIC_EXECUTION = ORIGINAL_ALLOW_SYNTHETIC_EXECUTION;
+	}
 	if (tempStateDir) {
 		rmSync(tempStateDir, { recursive: true, force: true });
 		tempStateDir = "";
@@ -67,7 +81,10 @@ async function createPlannedTaskGraph() {
 	const initiativeResponse = await postInitiatives(
 		new Request("http://localhost/api/control/orchestration/initiatives", {
 			method: "POST",
-			headers: { "content-type": "application/json" },
+			headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 			body: JSON.stringify({
 				title: "Atlas Factory",
 				userRequest: "Build the Infinity-native project factory.",
@@ -81,7 +98,10 @@ async function createPlannedTaskGraph() {
 	const briefResponse = await postBriefs(
 		new Request("http://localhost/api/control/orchestration/briefs", {
 			method: "POST",
-			headers: { "content-type": "application/json" },
+			headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 			body: JSON.stringify({
 				initiativeId,
 				summary: "Approved brief for the project factory.",
@@ -109,7 +129,10 @@ async function createPlannedTaskGraph() {
 	const taskGraphResponse = await postTaskGraphs(
 		new Request("http://localhost/api/control/orchestration/task-graphs", {
 			method: "POST",
-			headers: { "content-type": "application/json" },
+			headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 			body: JSON.stringify({ briefId }),
 		})
 	);
@@ -268,7 +291,10 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 			const createResponse = await postBatches(
 				new Request("http://localhost/api/control/orchestration/batches", {
 					method: "POST",
-					headers: { "content-type": "application/json" },
+					headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 					body: JSON.stringify({
 						taskGraphId,
 						concurrencyLimit: 1,
@@ -282,7 +308,15 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 			const actionResponse = await postSupervisorAction(
 				new Request("http://localhost/api/control/orchestration/supervisor/actions", {
 					method: "POST",
-					headers: { "content-type": "application/json" },
+					headers: {
+						"content-type": "application/json",
+						"idempotency-key": "supervisor-complete-key-001",
+						"x-founderos-actor-type": "operator",
+						"x-founderos-actor-id": "operator-test",
+						"x-founderos-tenant-id": "tenant-test",
+						"x-founderos-request-id": "request-supervisor-test",
+						"x-founderos-auth-boundary": "token",
+					},
 					body: JSON.stringify({
 						actionKind: "complete_attempt",
 						batchId,
@@ -292,8 +326,31 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 				})
 			);
 			const actionBody = await actionResponse.json();
+			const replayResponse = await postSupervisorAction(
+				new Request("http://localhost/api/control/orchestration/supervisor/actions", {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						"idempotency-key": "supervisor-complete-key-001",
+						"x-founderos-actor-type": "operator",
+						"x-founderos-actor-id": "operator-test",
+						"x-founderos-tenant-id": "tenant-test",
+						"x-founderos-request-id": "request-supervisor-test",
+						"x-founderos-auth-boundary": "token",
+					},
+					body: JSON.stringify({
+						actionKind: "complete_attempt",
+						batchId,
+						attemptId: "attempt-foundation-001",
+						workUnitId,
+					}),
+				})
+			);
+			const replayBody = await replayResponse.json();
 
 			expect(actionResponse.status).toBe(200);
+			expect(replayResponse.status).toBe(200);
+			expect(replayBody).toEqual(actionBody);
 			expect(actionBody.batch.status).toBe("completed");
 			expect(actionBody.workUnit.status).toBe("completed");
 			expect(actionBody.supervisorActions).toEqual(
@@ -302,6 +359,17 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 						actionKind: "attempt.completed",
 						batchId,
 						workUnitId,
+						actorType: "operator",
+						actorId: "operator-test",
+						payload: expect.objectContaining({
+							actorContext: {
+								actorType: "operator",
+								actorId: "operator-test",
+								tenantId: "tenant-test",
+								requestId: "request-supervisor-test",
+								authBoundary: "token",
+							},
+						}),
 					}),
 				])
 			);
@@ -339,6 +407,17 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 					}),
 				])
 			);
+			const state = await readControlPlaneState();
+			expect(
+				state.orchestration.supervisorActions.filter(
+					(action) => action.actionKind === "attempt.completed",
+				),
+			).toHaveLength(1);
+			expect(
+				state.mutations.idempotency.some(
+					(record) => record.idempotencyKey === "supervisor-complete-key-001",
+				),
+			).toBe(true);
 		} finally {
 			await new Promise<void>((resolve, reject) =>
 				kernelServer.close((error) => (error ? reject(error) : resolve()))
@@ -511,7 +590,10 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 			const createResponse = await postBatches(
 				new Request("http://localhost/api/control/orchestration/batches", {
 					method: "POST",
-					headers: { "content-type": "application/json" },
+					headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 					body: JSON.stringify({
 						taskGraphId,
 						concurrencyLimit: 1,
@@ -525,7 +607,10 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 			const failResponse = await postSupervisorAction(
 				new Request("http://localhost/api/control/orchestration/supervisor/actions", {
 					method: "POST",
-					headers: { "content-type": "application/json" },
+					headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 					body: JSON.stringify({
 						actionKind: "fail_attempt",
 						batchId,
@@ -554,7 +639,10 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 			const reassignResponse = await postSupervisorAction(
 				new Request("http://localhost/api/control/orchestration/supervisor/actions", {
 					method: "POST",
-					headers: { "content-type": "application/json" },
+					headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 					body: JSON.stringify({
 						actionKind: "reassign_work_unit",
 						batchId,
@@ -673,7 +761,10 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 			const createResponse = await postBatches(
 				new Request("http://localhost/api/control/orchestration/batches", {
 					method: "POST",
-					headers: { "content-type": "application/json" },
+					headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 					body: JSON.stringify({
 						taskGraphId,
 						concurrencyLimit: 1,
@@ -696,7 +787,10 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 			const actionResponse = await postSupervisorAction(
 				new Request("http://localhost/api/control/orchestration/supervisor/actions", {
 					method: "POST",
-					headers: { "content-type": "application/json" },
+					headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 					body: JSON.stringify({
 						actionKind: "complete_attempt",
 						batchId,
@@ -845,7 +939,10 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 			const createResponse = await postBatches(
 				new Request("http://localhost/api/control/orchestration/batches", {
 					method: "POST",
-					headers: { "content-type": "application/json" },
+					headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 					body: JSON.stringify({
 						taskGraphId,
 						concurrencyLimit: 1,
@@ -859,7 +956,10 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 			const failResponse = await postSupervisorAction(
 				new Request("http://localhost/api/control/orchestration/supervisor/actions", {
 					method: "POST",
-					headers: { "content-type": "application/json" },
+					headers: {
+						"content-type": "application/json",
+						...SUPERVISOR_ACTOR_HEADERS,
+					},
 					body: JSON.stringify({
 						actionKind: "fail_attempt",
 						batchId,

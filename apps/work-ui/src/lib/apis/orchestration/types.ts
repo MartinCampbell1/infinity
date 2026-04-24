@@ -419,6 +419,8 @@ export type DeliveryRecord = {
 	launchTargetLabel?: string | null;
 	launchProofUrl?: string | null;
 	launchProofAt?: string | null;
+	externalProofManifestPath?: string | null;
+	readinessTier?: 'local_solo' | 'staging' | 'production';
 	handoffNotes?: string | null;
 	command?: string | null;
 	status: 'pending' | 'ready' | 'delivered' | 'rejected';

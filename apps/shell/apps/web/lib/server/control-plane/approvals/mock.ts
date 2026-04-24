@@ -10,6 +10,10 @@ import type {
 import type { ControlPlaneDirectoryMeta } from "../contracts/control-plane-meta";
 import type { OperatorActionAuditEvent } from "../contracts/operator-actions";
 import {
+  controlPlaneActorContext,
+  type ControlPlaneMutationActor,
+} from "../../http/control-plane-auth";
+import {
   type ExecutionProvider,
   type NormalizedExecutionEvent,
 } from "../contracts/session-events";
@@ -28,6 +32,13 @@ import {
   readApprovalRequestsFromPostgres,
   readOperatorActionAuditEventsFromPostgres,
 } from "../state/postgres";
+import {
+  activeControlPlaneTenantId,
+  tenantScopedRecordFields,
+  tenantScopedUpdateFields,
+  tenantIdForRecord,
+  withTenantMetadataRaw,
+} from "../state/tenancy";
 
 const DIRECTORY_AT = "2026-04-11T00:00:00.000Z";
 const DEFAULT_MUTATION_AT = "2026-04-11T12:00:00.000Z";
@@ -52,8 +63,17 @@ function buildApprovalActionEvent(
   outcome: "applied" | "idempotent" | "rejected",
   occurredAt: string,
   sequence: number,
-  reason?: string
+  reason?: string,
+  actor?: ControlPlaneMutationActor
 ): OperatorActionAuditEvent {
+  const mutationActor = actor ?? {
+    actorType: "operator" as const,
+    actorId: OPERATOR,
+    tenantId: "local",
+    requestId: `operator-action-${String(sequence).padStart(3, "0")}`,
+    authBoundary: "legacy_default",
+  };
+
   return {
     id: `operator-action-${String(sequence).padStart(3, "0")}`,
     sequence,
@@ -64,8 +84,9 @@ function buildApprovalActionEvent(
     targetId: request.id,
     kind: "approval.responded",
     outcome,
-    actorType: "operator",
-    actorId: OPERATOR,
+    actorType: mutationActor.actorType,
+    actorId: mutationActor.actorId,
+    ...tenantScopedRecordFields(mutationActor),
     occurredAt,
     summary:
       outcome === "rejected"
@@ -77,11 +98,15 @@ function buildApprovalActionEvent(
       sessionId: request.sessionId,
       requestStatus: request.status,
       reason: reason ?? null,
+      actorContext: controlPlaneActorContext(mutationActor),
     },
-    raw: {
-      source: getControlPlaneStorageSource(),
-      storage: getControlPlaneStorageKind(),
-    },
+    raw: withTenantMetadataRaw(
+      {
+        source: getControlPlaneStorageSource(),
+        storage: getControlPlaneStorageKind(),
+      },
+      mutationActor,
+    ),
   };
 }
 
@@ -187,7 +212,8 @@ export async function listApprovalOperatorActionsForRequest(approvalId: string) 
 }
 
 export async function createMockApprovalRequest(
-  input: ApprovalCreateRequest
+  input: ApprovalCreateRequest,
+  actor?: ControlPlaneMutationActor
 ): Promise<ApprovalRequest | null> {
   const requestedAt = nowIso();
   const id =
@@ -196,16 +222,23 @@ export async function createMockApprovalRequest(
       : `approval-${requestedAt.replace(/[^0-9]/g, "")}`;
   let created: ApprovalRequest | null = null;
   let appendedEvent: NormalizedExecutionEvent | null = null;
+  const requestTenantId = actor?.tenantId ?? activeControlPlaneTenantId();
 
   await updateControlPlaneState(
     (draft) => {
-      if (draft.approvals.requests.some((request) => request.id === id)) {
+      if (
+        draft.approvals.requests.some(
+          (request) =>
+            request.id === id && tenantIdForRecord(request) === requestTenantId,
+        )
+      ) {
         created = null;
         return;
       }
 
       created = {
         id,
+        ...tenantScopedRecordFields(actor),
         sessionId: input.sessionId,
         externalSessionId: input.externalSessionId ?? null,
         projectId: input.projectId,
@@ -225,11 +258,14 @@ export async function createMockApprovalRequest(
         resolvedBy: null,
         expiresAt: input.expiresAt ?? null,
         revision: 1,
-        raw: {
-          ...(input.raw ?? {}),
-          source: "control_plane_api",
-          storage: getControlPlaneStorageKind(),
-        },
+        raw: withTenantMetadataRaw(
+          {
+            ...(input.raw ?? {}),
+            source: "control_plane_api",
+            storage: getControlPlaneStorageKind(),
+          },
+          actor,
+        ),
       };
 
       draft.approvals.requests = [...draft.approvals.requests, created];
@@ -244,6 +280,7 @@ export async function createMockApprovalRequest(
         phase: "review",
         summary: created.summary,
         payload: {
+          actorContext: actor ? controlPlaneActorContext(actor) : null,
           approvalId: created.id,
           requestKind: created.requestKind,
           title: created.title,
@@ -257,13 +294,19 @@ export async function createMockApprovalRequest(
           requestedAt,
           projectName: created.projectName,
         },
-        raw: {
-          source: getControlPlaneStorageSource(),
-          storage: getControlPlaneStorageKind(),
-        },
+        raw: withTenantMetadataRaw(
+          {
+            source: getControlPlaneStorageSource(),
+            storage: getControlPlaneStorageKind(),
+          },
+          actor,
+        ),
+        ...tenantScopedRecordFields(actor),
       });
     },
     {
+      lockTenantId: requestTenantId,
+      lockResourceId: id,
       buildRelationalDelta(nextState) {
         if (!created) {
           return null;
@@ -287,7 +330,8 @@ export const createApprovalRequest = createMockApprovalRequest;
 
 export async function respondToMockApprovalRequest(
   approvalId: string,
-  decision: ApprovalDecision
+  decision: ApprovalDecision,
+  actor?: ControlPlaneMutationActor
 ): Promise<ApprovalRespondResult | null> {
   const current = await findMockApprovalRequest(approvalId);
   if (!current) {
@@ -300,10 +344,15 @@ export async function respondToMockApprovalRequest(
   let rejectedReason: string | null = null;
   let operatorAction: OperatorActionAuditEvent | null = null;
   let appendedEvent: NormalizedExecutionEvent | null = null;
+  const currentTenantId = tenantIdForRecord(current);
 
   const { state, integrationState } = await updateControlPlaneState(
     (draft) => {
-      const index = draft.approvals.requests.findIndex((request) => request.id === approvalId);
+      const index = draft.approvals.requests.findIndex(
+        (request) =>
+          request.id === approvalId &&
+          tenantIdForRecord(request) === currentTenantId,
+      );
       if (index < 0) {
         return;
       }
@@ -330,7 +379,8 @@ export async function respondToMockApprovalRequest(
           sequence,
           repeatedDecision
             ? "approval_already_resolved_same_decision"
-            : "approval_already_resolved_conflicting_decision"
+            : "approval_already_resolved_conflicting_decision",
+          actor
         );
         draft.approvals.operatorActions = [...draft.approvals.operatorActions, operatorAction];
         return;
@@ -338,10 +388,13 @@ export async function respondToMockApprovalRequest(
 
       const updatedRequest: ApprovalRequest = {
         ...draftCurrent,
+        ...tenantScopedUpdateFields(actor),
+        tenantId: currentTenantId,
+        createdBy: draftCurrent.createdBy ?? null,
         status: (decision === "deny" ? "denied" : "approved") as ApprovalRequestStatus,
         decision,
         resolvedAt: occurredAt,
-        resolvedBy: OPERATOR,
+        resolvedBy: actor?.actorId ?? OPERATOR,
         updatedAt: occurredAt,
         revision: draftCurrent.revision + 1,
       };
@@ -374,7 +427,8 @@ export async function respondToMockApprovalRequest(
           accountId: updatedRequest.accountId ?? null,
           workspaceId: updatedRequest.workspaceId ?? null,
           resolvedAt: occurredAt,
-          resolvedBy: OPERATOR,
+          resolvedBy: actor?.actorId ?? OPERATOR,
+          actorContext: actor ? controlPlaneActorContext(actor) : null,
           reason: updatedRequest.reason ?? null,
         },
         raw: {
@@ -391,11 +445,15 @@ export async function respondToMockApprovalRequest(
         decision,
         "applied",
         occurredAt,
-        sequence
+        sequence,
+        undefined,
+        actor
       );
       draft.approvals.operatorActions = [...draft.approvals.operatorActions, operatorAction];
     },
     {
+      lockTenantId: actor?.tenantId ?? currentTenantId,
+      lockResourceId: approvalId,
       buildRelationalDelta(nextState) {
         const approvalRequest =
           nextState.approvals.requests.find((request) => request.id === approvalId) ?? null;
@@ -413,7 +471,11 @@ export async function respondToMockApprovalRequest(
   );
 
   const approvalRequest =
-    state.approvals.requests.find((request) => request.id === approvalId) ?? current;
+    state.approvals.requests.find(
+      (request) =>
+        request.id === approvalId &&
+        tenantIdForRecord(request) === currentTenantId,
+    ) ?? current;
   const resolvedOperatorAction =
     operatorAction ?? state.approvals.operatorActions[state.approvals.operatorActions.length - 1] ?? null;
 

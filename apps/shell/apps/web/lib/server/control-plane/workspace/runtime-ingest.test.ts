@@ -5,18 +5,34 @@ import type {
   WorkspaceRuntimeBridgeIngestRequest,
 } from "../contracts/workspace-launch";
 import { createIsolatedControlPlaneStateDir } from "../state/test-helpers";
-import { readControlPlaneState } from "../state/store";
+import { readControlPlaneState, updateControlPlaneState } from "../state/store";
+import { TENANT_METADATA_KEY } from "../state/tenancy";
 import {
   isWorkspaceRuntimeBridgeIngestRequest,
   persistWorkspaceRuntimeBridgeMessage,
 } from "./runtime-ingest";
 
 let restoreStateDir: (() => void) | null = null;
+const TENANT_ENV_KEYS = [
+  "FOUNDEROS_ENABLE_TENANT_ISOLATION",
+  "FOUNDEROS_CONTROL_PLANE_TENANT_ID",
+] as const;
+const ORIGINAL_TENANT_ENV = Object.fromEntries(
+  TENANT_ENV_KEYS.map((key) => [key, process.env[key]]),
+) as Record<(typeof TENANT_ENV_KEYS)[number], string | undefined>;
 
 afterEach(() => {
   if (restoreStateDir) {
     restoreStateDir();
     restoreStateDir = null;
+  }
+  for (const key of TENANT_ENV_KEYS) {
+    const value = ORIGINAL_TENANT_ENV[key];
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
   }
 });
 
@@ -215,5 +231,98 @@ describe("persistWorkspaceRuntimeBridgeMessage", () => {
 
     expect(incident?.summary).toContain("quota_exceeded");
     expect(event?.kind).toBe("error.raised");
+  });
+
+  test("upserts recovery incidents by tenant and session together", async () => {
+    process.env.FOUNDEROS_ENABLE_TENANT_ISOLATION = "1";
+    process.env.FOUNDEROS_CONTROL_PLANE_TENANT_ID = "tenant-a";
+    const { restore } = createIsolatedControlPlaneStateDir();
+    restoreStateDir = restore;
+
+    await updateControlPlaneState((draft) => {
+      draft.recoveries.incidents.push({
+        id: "runtime-recovery-session-runtime-shared",
+        tenantId: "tenant-b",
+        createdBy: "operator-b",
+        updatedBy: "operator-b",
+        sessionId: "session-runtime-shared",
+        externalSessionId: null,
+        projectId: "project-runtime-b",
+        projectName: "Runtime Project B",
+        groupId: null,
+        accountId: null,
+        workspaceId: null,
+        status: "retryable",
+        severity: "medium",
+        recoveryActionKind: "retry",
+        summary: "Tenant B recovery must stay isolated.",
+        rootCause: null,
+        recommendedAction: null,
+        retryCount: 0,
+        openedAt: "2026-04-24T00:00:00.000Z",
+        lastObservedAt: "2026-04-24T00:00:00.000Z",
+        updatedAt: "2026-04-24T00:00:00.000Z",
+        resolvedAt: null,
+        revision: 1,
+        raw: {
+          [TENANT_METADATA_KEY]: {
+            tenantId: "tenant-b",
+            createdBy: "operator-b",
+            updatedBy: "operator-b",
+            requestId: "request-tenant-b-runtime",
+            authBoundary: "token",
+          },
+        },
+      });
+    });
+
+    const result = await persistWorkspaceRuntimeBridgeMessage(
+      {
+        hostContext: buildContext("session-runtime-shared", {
+          projectId: "project-runtime-a",
+          projectName: "Runtime Project A",
+        }),
+        message: {
+          type: "workspace.error",
+          payload: {
+            code: "tenant_a_error",
+            message: "Tenant A runtime error",
+          },
+        },
+      },
+      {
+        actorType: "system",
+        actorId: "workspace-runtime-a",
+        tenantId: "tenant-a",
+        requestId: "request-tenant-a-runtime",
+        authBoundary: "token",
+      },
+    );
+
+    expect(result.recoveryIncident).toEqual(
+      expect.objectContaining({
+        tenantId: "tenant-a",
+        sessionId: "session-runtime-shared",
+        projectId: "project-runtime-a",
+      }),
+    );
+
+    const tenantAState = await readControlPlaneState();
+    expect(tenantAState.recoveries.incidents).toEqual([
+      expect.objectContaining({
+        tenantId: "tenant-a",
+        summary: "Workspace error: tenant_a_error",
+      }),
+    ]);
+
+    process.env.FOUNDEROS_CONTROL_PLANE_TENANT_ID = "tenant-b";
+    const tenantBState = await readControlPlaneState();
+    expect(tenantBState.recoveries.incidents).toEqual([
+      expect.objectContaining({
+        tenantId: "tenant-b",
+        summary: "Tenant B recovery must stay isolated.",
+        revision: 1,
+      }),
+    ]);
   });
 });

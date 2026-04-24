@@ -1,4 +1,5 @@
 import type { NormalizedExecutionEvent } from "./session-events";
+import type { TenantScopedRecordFields } from "./tenancy";
 
 export type AccountAuthMode = "chatgpt" | "chatgptAuthTokens" | "apikey" | "unknown";
 
@@ -20,7 +21,7 @@ export interface AccountQuotaBucket {
   resetsAt?: string | null;
 }
 
-export interface AccountQuotaSnapshot {
+export interface AccountQuotaSnapshot extends TenantScopedRecordFields {
   accountId: string;
   authMode: AccountAuthMode;
   source: AccountQuotaSource;
@@ -29,13 +30,22 @@ export interface AccountQuotaSnapshot {
   raw?: Record<string, unknown> | null;
 }
 
-export interface AccountQuotaUpdate {
+export interface AccountQuotaUpdateActorContext {
+  actorType: "operator" | "system";
+  actorId: string;
+  tenantId: string;
+  requestId: string;
+  authBoundary: string;
+}
+
+export interface AccountQuotaUpdate extends TenantScopedRecordFields {
   sequence: number;
   accountId: string;
   source: AccountQuotaSource;
   observedAt: string;
   summary: string;
   snapshot: AccountQuotaSnapshot;
+  actorContext?: AccountQuotaUpdateActorContext | null;
 }
 
 export interface AccountCapacityState {

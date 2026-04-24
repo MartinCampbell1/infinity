@@ -1,11 +1,16 @@
+import {
+  PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY,
+  requiresFullDeploymentEnv,
+} from "../control-plane/workspace/rollout-config";
+
 const DEFAULT_SHELL_ORIGIN = "http://127.0.0.1:3737";
 const DEFAULT_WORKSPACE_ORIGIN = "http://127.0.0.1:3101";
 
 type EnvLike = Readonly<Record<string, string | undefined>>;
 
-export const PRIVILEGED_API_ALLOW_METHODS = "GET,POST,PATCH,OPTIONS";
+export const PRIVILEGED_API_ALLOW_METHODS = "GET,POST,PATCH,DELETE,OPTIONS";
 export const PRIVILEGED_API_ALLOW_HEADERS =
-  "Content-Type, Authorization, X-Founderos-Workspace-Session-Grant";
+  "Content-Type, Authorization, X-Founderos-Actor-Token, X-Founderos-Workspace-Session-Grant";
 
 function normalizeOrigin(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -50,8 +55,20 @@ function addOrigin(target: Set<string>, value: string | null | undefined) {
   }
 }
 
+function addOriginList(target: Set<string>, value: string | null | undefined) {
+  for (const origin of (value ?? "").split(",")) {
+    addOrigin(target, origin);
+  }
+}
+
 export function getPrivilegedApiAllowedOrigins(env: EnvLike = process.env) {
   const origins = new Set<string>();
+
+  addOriginList(origins, env[PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY]);
+
+  if (requiresFullDeploymentEnv(env)) {
+    return origins;
+  }
 
   addOrigin(origins, DEFAULT_SHELL_ORIGIN);
   addOrigin(origins, DEFAULT_WORKSPACE_ORIGIN);
@@ -59,7 +76,10 @@ export function getPrivilegedApiAllowedOrigins(env: EnvLike = process.env) {
   addOrigin(origins, env.FOUNDEROS_WORK_UI_BASE_URL);
 
   if (env.FOUNDEROS_WEB_HOST && env.FOUNDEROS_WEB_PORT) {
-    addOrigin(origins, `http://${env.FOUNDEROS_WEB_HOST}:${env.FOUNDEROS_WEB_PORT}`);
+    addOrigin(
+      origins,
+      `http://${env.FOUNDEROS_WEB_HOST}:${env.FOUNDEROS_WEB_PORT}`,
+    );
   }
   if (env.WORK_UI_HOST && env.WORK_UI_PORT) {
     addOrigin(origins, `http://${env.WORK_UI_HOST}:${env.WORK_UI_PORT}`);
@@ -100,6 +120,7 @@ export function buildPrivilegedApiCorsHeaders(
 
   return {
     "Access-Control-Allow-Origin": normalized,
+    "Access-Control-Allow-Credentials": "true",
     "Access-Control-Allow-Methods": PRIVILEGED_API_ALLOW_METHODS,
     "Access-Control-Allow-Headers": PRIVILEGED_API_ALLOW_HEADERS,
     Vary: "Origin",
@@ -107,5 +128,5 @@ export function buildPrivilegedApiCorsHeaders(
 }
 
 export function getPrivilegedApiCorsRejectionDetail() {
-  return "Cross-origin access to privileged shell routes is only allowed for the local shell and workspace origins.";
+  return "Cross-origin access to privileged shell routes is only allowed for explicitly configured shell and workspace origins.";
 }

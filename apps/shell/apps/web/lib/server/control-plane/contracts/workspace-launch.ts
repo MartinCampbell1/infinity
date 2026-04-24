@@ -324,27 +324,40 @@ export type WorkspaceLaunchSessionRequest =
 export interface WorkspaceIssuedSessionClaims extends WorkspaceLaunchRefs {
   v: 1;
   kind: "founderos_workspace_embedded_session";
+  sessionTokenId: string;
   issuedAt: string;
   expiresAt: string;
 }
 
+export type WorkspaceSessionDeliveryMode =
+  | "http_only_cookie"
+  | "local_dev_session_storage";
+
 export interface WorkspaceIssuedSession {
-  token: string;
+  token: string | null;
+  sessionTokenId: string;
   issuedAt: string;
   expiresAt: string;
+  refreshAfter: string;
+  deliveryMode: WorkspaceSessionDeliveryMode;
+  cookieName?: string | null;
 }
 
 export interface WorkspaceIssuedSessionGrantClaims extends WorkspaceLaunchRefs {
   v: 1;
   kind: "founderos_workspace_session_grant";
+  grantId: string;
   issuedAt: string;
   expiresAt: string;
 }
 
 export interface WorkspaceIssuedSessionGrant {
-  token: string;
+  token: string | null;
+  grantId: string;
   issuedAt: string;
   expiresAt: string;
+  refreshAfter: string;
+  revokedAt?: string | null;
 }
 
 export interface WorkspaceLaunchSessionBearerResponse {
@@ -357,6 +370,7 @@ export interface WorkspaceLaunchSessionBearerResponse {
   sessionId: string;
   sessionBearerToken: string | null;
   sessionBearerTokenEnvKey: string | null;
+  sessionDeliveryMode: WorkspaceSessionDeliveryMode;
   sessionGrant: WorkspaceIssuedSessionGrant;
 }
 

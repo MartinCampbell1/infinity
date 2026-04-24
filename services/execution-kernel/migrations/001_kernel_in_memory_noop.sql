@@ -1,0 +1,3 @@
+-- Versioned migration marker for the execution-kernel service.
+-- Phase 3 stored runtime state in memory/local JSON and had no durable
+-- Postgres tables. Durable kernel tables start in 002_durable_kernel_store.sql.

@@ -18,6 +18,13 @@ const ORIGINAL_VALIDATION_COMMANDS =
   process.env.FOUNDEROS_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
 const ORIGINAL_VALIDATION_COMMANDS_ALLOWED =
   process.env.FOUNDEROS_ALLOW_ORCHESTRATION_VALIDATION_COMMANDS_JSON;
+const OPERATOR_ACTOR_HEADERS = {
+  "x-founderos-actor-type": "operator",
+  "x-founderos-actor-id": "operator-test",
+  "x-founderos-tenant-id": "tenant-test",
+  "x-founderos-request-id": "request-recovery-test",
+  "x-founderos-auth-boundary": "token",
+};
 
 afterEach(() => {
   if (restoreStateDir) {
@@ -154,7 +161,10 @@ describe("/api/control/execution/recoveries/[recoveryId]", () => {
     const response = await postRecoveryAction(
       new Request("http://localhost/api/control/execution/recoveries/recovery-001", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...OPERATOR_ACTOR_HEADERS,
+        },
         body: JSON.stringify({
           actionKind: "failover",
           targetAccountId: "account-chatgpt-03",
@@ -167,6 +177,21 @@ describe("/api/control/execution/recoveries/[recoveryId]", () => {
 
     expect(response.status).toBe(200);
     expect(body.accepted).toBe(true);
+    expect(body.operatorAction).toEqual(
+      expect.objectContaining({
+        actorType: "operator",
+        actorId: "operator-test",
+        payload: expect.objectContaining({
+          actorContext: {
+            actorType: "operator",
+            actorId: "operator-test",
+            tenantId: "tenant-test",
+            requestId: "request-recovery-test",
+            authBoundary: "token",
+          },
+        }),
+      }),
+    );
     expect(body.runtimeSnapshot).toEqual(
       expect.objectContaining({
         latestEvent: expect.objectContaining({
@@ -213,7 +238,10 @@ describe("/api/control/execution/recoveries/[recoveryId]", () => {
         `http://localhost/api/control/execution/recoveries/${recoveryIncident?.id}`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...OPERATOR_ACTOR_HEADERS,
+          },
           body: JSON.stringify({ actionKind: "retry" }),
         },
       ),
@@ -303,7 +331,10 @@ describe("/api/control/execution/recoveries/[recoveryId]", () => {
         `http://localhost/api/control/execution/recoveries/${recoveryIncident?.id}`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...OPERATOR_ACTOR_HEADERS,
+          },
           body: JSON.stringify({ actionKind: "retry" }),
         },
       ),

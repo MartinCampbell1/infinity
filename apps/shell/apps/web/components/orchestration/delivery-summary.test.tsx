@@ -93,6 +93,11 @@ describe("DeliverySummary", () => {
     );
 
     expect(markup).toContain("Result summary");
+    expect(markup).toContain("Local runnable proof");
+    expect(markup).toContain("Readiness tier");
+    expect(markup).toContain("local_solo");
+    expect(markup).not.toContain("Handoff-ready result");
+    expect(markup).not.toContain("Handoff ready");
     expect(markup).toContain("Generated invoice app is ready.");
     expect(markup).toContain('data-delivery-proof-grid="grouped"');
     expect(markup).toContain("2xl:grid-cols-2");
@@ -119,6 +124,8 @@ describe("DeliverySummary", () => {
     expect(markup).toContain("/Users/martin/infinity/.control-plane/orchestration/assemblies/assembly-proof-001/runnable-result/launch-localhost.py");
     expect(markup).toContain("Proof kind");
     expect(markup).toContain("runnable_result");
+    expect(markup).toContain("External proof manifest");
+    expect(markup).toContain("not attached");
     expect(markup).toContain('data-secondary-evidence="source-work-units"');
     expect(markup).toContain("Secondary source evidence");
     expect(markup).toContain("Source work units");

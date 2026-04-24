@@ -1,9 +1,10 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 import type {
   WorkspaceIssuedSessionGrant,
   WorkspaceIssuedSessionGrantClaims,
   WorkspaceLaunchRefs,
+  WorkspaceSessionDeliveryMode,
 } from "../contracts/workspace-launch";
 import { resolveWorkspaceSessionGrantSecret } from "./rollout-config";
 
@@ -45,6 +46,10 @@ function signPayload(payloadSegment: string) {
     .digest("base64url");
 }
 
+function refreshAfter(issuedAt: Date, ttlMs: number) {
+  return new Date(issuedAt.getTime() + Math.floor(ttlMs / 2)).toISOString();
+}
+
 function constantTimeEqual(left: string, right: string) {
   const leftBuffer = Buffer.from(left);
   const rightBuffer = Buffer.from(right);
@@ -58,15 +63,18 @@ export function mintWorkspaceSessionGrant(params: {
   refs: WorkspaceLaunchRefs;
   now?: Date;
   ttlMs?: number;
+  grantId?: string;
 }): WorkspaceIssuedSessionGrant {
   const now = params.now ?? new Date();
   const ttlMs = params.ttlMs ?? WORKSPACE_SESSION_GRANT_TTL_MS;
   const refs = normalizeRefs(params.refs);
   const issuedAt = now.toISOString();
   const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
+  const grantId = params.grantId ?? randomUUID();
   const claims: WorkspaceIssuedSessionGrantClaims = {
     v: 1,
     kind: "founderos_workspace_session_grant",
+    grantId,
     projectId: refs.projectId,
     sessionId: refs.sessionId,
     groupId: refs.groupId ?? null,
@@ -81,9 +89,26 @@ export function mintWorkspaceSessionGrant(params: {
 
   return {
     token: `${payloadSegment}.${signatureSegment}`,
+    grantId,
     issuedAt,
     expiresAt,
+    refreshAfter: refreshAfter(now, ttlMs),
+    revokedAt: null,
   };
+}
+
+export function redactWorkspaceSessionGrantForDelivery(
+  grant: WorkspaceIssuedSessionGrant,
+  deliveryMode: WorkspaceSessionDeliveryMode,
+): WorkspaceIssuedSessionGrant {
+  if (deliveryMode === "http_only_cookie") {
+    return {
+      ...grant,
+      token: null,
+    };
+  }
+
+  return grant;
 }
 
 export function verifyWorkspaceSessionGrant(params: {
@@ -135,6 +160,8 @@ export function verifyWorkspaceSessionGrant(params: {
   const claimsMatch =
     claims.v === 1 &&
     claims.kind === "founderos_workspace_session_grant" &&
+    typeof claims.grantId === "string" &&
+    claims.grantId.trim().length > 0 &&
     claims.projectId === refs.projectId &&
     claims.sessionId === refs.sessionId &&
     (claims.groupId ?? null) === (refs.groupId ?? null) &&

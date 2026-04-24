@@ -40,7 +40,10 @@ func (handler *HTTPHandler) ServeHTTP(response http.ResponseWriter, request *htt
 		return
 
 	case request.Method == http.MethodPost &&
-		(strings.HasSuffix(request.URL.Path, "/resume") || strings.HasSuffix(request.URL.Path, "/discard")) &&
+		(strings.HasSuffix(request.URL.Path, "/resume") ||
+			strings.HasSuffix(request.URL.Path, "/discard") ||
+			strings.HasSuffix(request.URL.Path, "/retry-work-unit") ||
+			strings.HasSuffix(request.URL.Path, "/lease-next")) &&
 		strings.HasPrefix(request.URL.Path, "/api/v1/batches/"):
 		handler.batchAction(response, request)
 		return
@@ -50,7 +53,9 @@ func (handler *HTTPHandler) ServeHTTP(response http.ResponseWriter, request *htt
 		return
 
 	case strings.HasPrefix(request.URL.Path, "/api/v1/attempts/"):
-		if strings.HasSuffix(request.URL.Path, "/complete") || strings.HasSuffix(request.URL.Path, "/fail") {
+		if strings.HasSuffix(request.URL.Path, "/complete") ||
+			strings.HasSuffix(request.URL.Path, "/fail") ||
+			strings.HasSuffix(request.URL.Path, "/heartbeat") {
 			handler.attemptAction(response, request)
 		} else {
 			handler.attemptDetail(response, request)
@@ -149,6 +154,40 @@ func (handler *HTTPHandler) batchAction(response http.ResponseWriter, request *h
 		}
 		writeJSON(response, http.StatusOK, result)
 		return
+	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/retry-work-unit"):
+		var input events.RetryWorkUnitRequest
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil && !errors.Is(err, io.EOF) {
+			writeError(response, http.StatusBadRequest, "invalid retry payload")
+			return
+		}
+		result, err := handler.service.RetryWorkUnit(request.Context(), batchID, input)
+		if err != nil {
+			if errors.Is(err, service.ErrNotFound) {
+				writeError(response, http.StatusNotFound, "batch not found")
+				return
+			}
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, result)
+		return
+	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/lease-next"):
+		var input events.AttemptLeaseRequest
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil && !errors.Is(err, io.EOF) {
+			writeError(response, http.StatusBadRequest, "invalid lease payload")
+			return
+		}
+		result, err := handler.service.AcquireNextAttempt(request.Context(), batchID, input)
+		if err != nil {
+			if errors.Is(err, service.ErrNotFound) {
+				writeError(response, http.StatusNotFound, "batch not found")
+				return
+			}
+			writeError(response, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, result)
+		return
 	default:
 		writeError(response, http.StatusNotFound, "route not found")
 	}
@@ -208,6 +247,23 @@ func (handler *HTTPHandler) attemptAction(response http.ResponseWriter, request 
 				return
 			}
 			writeError(response, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, result)
+		return
+	case request.Method == http.MethodPost && strings.HasSuffix(request.URL.Path, "/heartbeat"):
+		var input events.AttemptHeartbeatRequest
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil && !errors.Is(err, io.EOF) {
+			writeError(response, http.StatusBadRequest, "invalid attempt heartbeat payload")
+			return
+		}
+		result, err := handler.service.HeartbeatAttempt(request.Context(), attemptID, input)
+		if err != nil {
+			if errors.Is(err, service.ErrNotFound) {
+				writeError(response, http.StatusNotFound, "attempt not found")
+				return
+			}
+			writeError(response, http.StatusBadRequest, err.Error())
 			return
 		}
 		writeJSON(response, http.StatusOK, result)

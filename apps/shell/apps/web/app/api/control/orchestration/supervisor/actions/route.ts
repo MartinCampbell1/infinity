@@ -6,6 +6,19 @@ import {
 } from "../../../../../../lib/server/orchestration/supervisor";
 import { triggerAutonomousLoopSafely } from "../../../../../../lib/server/orchestration/autonomy";
 import { isSupervisorActionRequest } from "../../../../../../lib/server/control-plane/contracts/orchestration";
+import { controlPlaneMutationActorFromRequest } from "../../../../../../lib/server/http/control-plane-auth";
+import {
+  controlPlaneStorageUnavailableResponse,
+  withControlPlaneStorageGuard,
+} from "../../../../../../lib/server/http/control-plane-storage-response";
+import {
+  controlPlaneIdempotencyKeyFromRequest,
+  hashControlPlaneMutationRequest,
+  isControlPlaneIdempotencyConflictError,
+  readControlPlaneIdempotentMutationResult,
+  recordControlPlaneMutationResult,
+} from "../../../../../../lib/server/control-plane/state/mutations";
+import type { SupervisorActionMutationResponse } from "../../../../../../lib/server/control-plane/contracts/orchestration";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +28,13 @@ function filterValue(request: Request, key: string) {
 }
 
 export async function GET(request: Request) {
-  return NextResponse.json(
-    await buildSupervisorActionsDirectoryResponse({
-      batchId: filterValue(request, "batch_id"),
-      taskGraphId: filterValue(request, "task_graph_id"),
-    })
+  return withControlPlaneStorageGuard(async () =>
+    NextResponse.json(
+      await buildSupervisorActionsDirectoryResponse({
+        batchId: filterValue(request, "batch_id"),
+        taskGraphId: filterValue(request, "task_graph_id"),
+      })
+    )
   );
 }
 
@@ -37,8 +52,75 @@ export async function POST(request: Request) {
 
   let response;
   try {
-    response = await performSupervisorAction(body);
+    const actor = controlPlaneMutationActorFromRequest(request);
+    if (!actor) {
+      return NextResponse.json(
+        {
+          code: "missing_actor",
+          detail: "Supervisor actions require an authenticated actor.",
+        },
+        { status: 401 },
+      );
+    }
+
+    const idempotencyKey = controlPlaneIdempotencyKeyFromRequest(request);
+    const requestHash = idempotencyKey
+      ? hashControlPlaneMutationRequest({
+          route: "supervisor.action",
+          body,
+        })
+      : null;
+    if (idempotencyKey && requestHash) {
+      const replay =
+        await readControlPlaneIdempotentMutationResult<SupervisorActionMutationResponse>({
+          tenantId: actor.tenantId,
+          idempotencyKey,
+          requestHash,
+        });
+      if (replay) {
+        return NextResponse.json(replay.responseJson, {
+          status: replay.statusCode,
+        });
+      }
+    }
+
+    response = await performSupervisorAction(body, actor);
+    if (response && idempotencyKey && requestHash) {
+      await recordControlPlaneMutationResult({
+        tenantId: actor.tenantId,
+        idempotencyKey,
+        requestHash,
+        mutationKind: "supervisor.action",
+        resourceKind: "supervisor_action",
+        resourceId: body.batchId,
+        actorId: actor.actorId,
+        statusCode: 200,
+        payload: {
+          actionKind: body.actionKind,
+          batchId: body.batchId,
+          workUnitId: body.workUnitId,
+        },
+        responseJson: response as unknown as Record<string, unknown>,
+      });
+    }
   } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+      accepted: false,
+    });
+    if (storageResponse) {
+      return storageResponse;
+    }
+    if (isControlPlaneIdempotencyConflictError(error)) {
+      return NextResponse.json(
+        {
+          code: error.code,
+          detail: error.message,
+          accepted: false,
+        },
+        { status: error.status },
+      );
+    }
+
     const detail =
       error instanceof Error
         ? error.message

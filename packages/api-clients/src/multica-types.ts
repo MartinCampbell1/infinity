@@ -6,6 +6,12 @@ export type ExecutionKernelWorkUnit = {
   scopePaths: string[];
   dependencies: string[];
   acceptanceCriteria: string[];
+  retryPolicy?: {
+    maxAttempts?: number;
+    backoffSeconds?: number;
+    executorPreference?: string[];
+    failureClassification?: string;
+  };
 };
 
 export type ExecutionKernelBatchStatus =
@@ -14,9 +20,16 @@ export type ExecutionKernelBatchStatus =
   | "running"
   | "blocked"
   | "completed"
-  | "failed";
+  | "failed"
+  | "canceled";
 
 export type ExecutionKernelAttemptStatus =
+  | "queued"
+  | "leased"
+  | "running"
+  | "completed"
+  | "blocked"
+  | "canceled"
   | "started"
   | "succeeded"
   | "failed"
@@ -41,23 +54,34 @@ export type ExecutionKernelAttemptRecord = {
   executorType: "droid" | "codex" | "human";
   status: ExecutionKernelAttemptStatus;
   recoveryState?: "retryable" | "resolved" | "archived" | "discarded" | string;
+  attemptNumber?: number;
+  parentAttemptId?: string | null;
+  retryReason?: string | null;
+  retryBackoffUntil?: string | null;
   startedAt: string;
   finishedAt?: string | null;
   summary?: string | null;
   artifactUris: string[];
   errorCode?: string | null;
   errorSummary?: string | null;
+  leaseHolder?: string | null;
+  leaseExpiresAt?: string | null;
+  lastHeartbeatAt?: string | null;
 };
 
 export type ExecutionKernelHealthResponse = {
   status: "ok" | "degraded";
   service: "execution-kernel";
   generatedAt: string;
-  authMode?: "localhost_only" | string;
-  deploymentScope?: "localhost_only_solo" | string;
-  maturity?: "localhost_solo_v1" | string;
-  storageKind?: "memory" | "file" | string;
-  durabilityTier?: "ephemeral_memory" | "local_file_snapshot" | string;
+  authMode?: "service_token_or_localhost_dev" | "localhost_only" | string;
+  deploymentScope?: "service_to_service_private" | "localhost_only_solo" | string;
+  maturity?: "service_auth_v1" | "localhost_solo_v1" | string;
+  storageKind?: "memory" | "file" | "postgres" | string;
+  durabilityTier?:
+    | "ephemeral_memory"
+    | "local_file_snapshot"
+    | "postgres_transactional"
+    | string;
   statePath?: string | null;
   stateConfigured?: boolean;
   runtimeState?: "idle" | "running" | "blocked" | string;
@@ -72,9 +96,15 @@ export type ExecutionKernelHealthResponse = {
   };
   attemptCounts?: {
     total: number;
+    queued?: number;
+    leased?: number;
+    running?: number;
+    blocked?: number;
+    canceled?: number;
     started: number;
     succeeded: number;
     failed: number;
+    completed?: number;
   };
   blockedBatchIds?: string[];
   failedAttemptIds?: string[];
@@ -111,6 +141,25 @@ export type ExecutionKernelAttemptEnvelope = {
 export type ExecutionKernelAttemptActionRequest = {
   errorCode?: string | null;
   errorSummary?: string | null;
+};
+
+export type ExecutionKernelRetryWorkUnitRequest = {
+  workUnitId: string;
+  executorType?: string | null;
+  reason?: string | null;
+  maxAttempts?: number | null;
+  backoffSeconds?: number | null;
+  failureClassification?: string | null;
+};
+
+export type ExecutionKernelAttemptLeaseRequest = {
+  holder: string;
+  leaseTtlSeconds?: number;
+};
+
+export type ExecutionKernelAttemptHeartbeatRequest = {
+  holder: string;
+  leaseTtlSeconds?: number;
 };
 
 export type ExecutionKernelAttemptActionEnvelope = {

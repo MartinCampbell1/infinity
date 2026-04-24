@@ -81,6 +81,13 @@ export const BROWSER_E2E_BLOCKED_RUN_STATE = {
   sessions: {
     events: [],
   },
+  tenancy: {
+    tenants: [],
+    users: [],
+    memberships: [],
+    projects: [],
+    workspaces: [],
+  },
   orchestration: {
     initiatives: [
       {
@@ -265,6 +272,10 @@ export const BROWSER_E2E_BLOCKED_RUN_STATE = {
     handoffPackets: [],
     validationProofs: [],
     secretPauses: [],
+  },
+  mutations: {
+    events: [],
+    idempotency: [],
   },
 } satisfies ControlPlaneState;
 

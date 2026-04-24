@@ -6,11 +6,14 @@ import {
   createOrchestrationInitiative,
 } from "../../../../../lib/server/orchestration/initiatives";
 import { isCreateInitiativeRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
+import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json(await buildInitiativesDirectoryResponse());
+  return withControlPlaneStorageGuard(async () =>
+    NextResponse.json(await buildInitiativesDirectoryResponse()),
+  );
 }
 
 export async function POST(request: Request) {
@@ -26,8 +29,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const initiative = await createOrchestrationInitiative(body);
-  const response = await buildInitiativeMutationResponse(initiative.id);
+  return withControlPlaneStorageGuard(async () => {
+    const initiative = await createOrchestrationInitiative(body);
+    const response = await buildInitiativeMutationResponse(initiative.id);
 
-  return NextResponse.json(response, { status: 201 });
+    return NextResponse.json(response, { status: 201 });
+  }, { accepted: false });
 }

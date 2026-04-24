@@ -1168,4 +1168,66 @@ describe("/api/control/orchestration/delivery", () => {
     );
     expect(deliveriesForInitiative).toHaveLength(1);
   });
+
+  test("replays the same delivery response for a repeated Idempotency-Key", async () => {
+    const { initiativeId, taskGraphId } = await createPlannedInitiative();
+    await completeAllWorkUnits(taskGraphId);
+
+    const assemblyResponse = await postAssembly(
+      new Request("http://localhost/api/control/orchestration/assembly", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(assemblyResponse.status).toBe(201);
+
+    const verificationResponse = await postVerification(
+      new Request("http://localhost/api/control/orchestration/verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    expect(verificationResponse.status).toBe(201);
+
+    const headers = {
+      "content-type": "application/json",
+      "idempotency-key": "delivery-key-001",
+    };
+    const firstDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const firstDeliveryBody = await firstDeliveryResponse.json();
+    const secondDeliveryResponse = await postDelivery(
+      new Request("http://localhost/api/control/orchestration/delivery", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ initiativeId }),
+      }),
+    );
+    const secondDeliveryBody = await secondDeliveryResponse.json();
+
+    expect(firstDeliveryResponse.status).toBe(201);
+    expect(secondDeliveryResponse.status).toBe(201);
+    expect(secondDeliveryBody).toEqual(firstDeliveryBody);
+
+    const state = await readControlPlaneState();
+    expect(
+      state.mutations.idempotency.some(
+        (record) => record.idempotencyKey === "delivery-key-001",
+      ),
+    ).toBe(true);
+    expect(
+      state.mutations.events.some(
+        (event) =>
+          event.mutationKind === "delivery.create" &&
+          event.resourceId === firstDeliveryBody.delivery.id,
+      ),
+    ).toBe(true);
+  });
 });

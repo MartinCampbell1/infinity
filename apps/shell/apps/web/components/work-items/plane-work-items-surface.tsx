@@ -7,6 +7,8 @@ import {
   routeScopeFromExecutionBindingRef,
   type ShellRouteScope,
 } from "@/lib/route-scope";
+import { resolveDeliveryReadinessCopy } from "../../lib/delivery-readiness";
+import { isStrictRolloutEnv } from "../../lib/server/control-plane/workspace/rollout-config";
 import type {
   DeliveryRecord,
   ExecutionBatchRecord,
@@ -89,7 +91,9 @@ function formatResultState(
     delivery.launchProofAt &&
     handoff?.status === "ready"
   ) {
-    return "Runnable + handoff ready";
+    return resolveDeliveryReadinessCopy(delivery, {
+      strictRolloutEnv: isStrictRolloutEnv(),
+    }).resultHeadline;
   }
   if (
     delivery?.launchProofKind === "runnable_result" &&

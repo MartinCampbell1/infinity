@@ -298,7 +298,7 @@ describe("PrimaryRunSurface", () => {
     expect(markup).toContain('data-run-proof-strip="assembly-verification-delivery"');
     expect(markup).toContain("Assembly ready");
     expect(markup).toContain("Verification passed");
-    expect(markup).toContain("Delivery ready");
+    expect(markup).toContain("Delivery ready · Local Solo");
     expect(markup).toContain("/execution/task-graphs/task-graph-1");
     expect(markup).toContain("/execution/delivery/delivery-1");
     expect(markup).toContain("assembly-manifest.json");

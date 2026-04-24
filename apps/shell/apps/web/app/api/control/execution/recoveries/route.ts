@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { buildRecoveryIncidentsDirectory } from "../../../../../lib/server/control-plane/recoveries";
 import type { RecoveryIncidentsDirectoryFilters } from "../../../../../lib/server/control-plane/contracts/recoveries";
+import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -16,5 +17,7 @@ export async function GET(request: Request) {
     workspaceId: url.searchParams.get("workspace_id"),
   };
 
-  return NextResponse.json(await buildRecoveryIncidentsDirectory(filters));
+  return withControlPlaneStorageGuard(async () =>
+    NextResponse.json(await buildRecoveryIncidentsDirectory(filters)),
+  );
 }

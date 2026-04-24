@@ -1,13 +1,20 @@
 export interface FounderosEmbeddedSessionGrant {
-	token: string;
+	token?: string | null;
+	grantId?: string | null;
 	issuedAt: string;
 	expiresAt: string;
+	refreshAfter?: string | null;
+	revokedAt?: string | null;
 }
 
 export interface FounderosEmbeddedAccessTokenOptions {
 	fallbackToken?: string | null;
 	allowLegacyToken?: boolean;
 }
+
+export type FounderosEmbeddedCredentialStorageMode =
+	| 'http_only_cookie'
+	| 'local_dev_session_storage';
 
 const isLaunchEnabled = (value: string | null) => value === '1' || value === 'true';
 
@@ -20,6 +27,29 @@ type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 const getSessionStorageBucket = (): StorageLike | null =>
 	typeof sessionStorage === 'undefined' ? null : sessionStorage;
+
+const isFounderosLocalDevCredentialStorageEnabled = () => {
+	if (typeof window === 'undefined') {
+		return false;
+	}
+
+	try {
+		const url = new URL(window.location.href);
+		const localHostname =
+			url.hostname === 'localhost' ||
+			url.hostname === '127.0.0.1' ||
+			url.hostname === '::1' ||
+			url.hostname === '0.0.0.0';
+		return localHostname && isLaunchEnabled(url.searchParams.get('founderos_local_dev_storage'));
+	} catch {
+		return false;
+	}
+};
+
+const getCredentialSessionStorageBucket = (): StorageLike | null =>
+	isFounderosEmbeddedRuntime() && !isFounderosLocalDevCredentialStorageEnabled()
+		? null
+		: getSessionStorageBucket();
 
 const getLegacyStorageBucket = (): StorageLike | null =>
 	typeof localStorage === 'undefined' ? null : localStorage;
@@ -56,12 +86,16 @@ const isSessionGrant = (value: unknown): value is FounderosEmbeddedSessionGrant 
 
 	const candidate = value as FounderosEmbeddedSessionGrant;
 	return (
-		typeof candidate.token === 'string' &&
-		candidate.token.trim().length > 0 &&
 		typeof candidate.issuedAt === 'string' &&
 		candidate.issuedAt.trim().length > 0 &&
 		typeof candidate.expiresAt === 'string' &&
-		candidate.expiresAt.trim().length > 0
+		candidate.expiresAt.trim().length > 0 &&
+		(candidate.token === undefined ||
+			candidate.token === null ||
+			(typeof candidate.token === 'string' && candidate.token.trim().length > 0)) &&
+		(candidate.grantId === undefined ||
+			candidate.grantId === null ||
+			(typeof candidate.grantId === 'string' && candidate.grantId.trim().length > 0))
 	);
 };
 
@@ -70,7 +104,7 @@ export const readFounderosEmbeddedSessionGrant = (): FounderosEmbeddedSessionGra
 		return embeddedSessionGrantMemory;
 	}
 
-	for (const storage of [getSessionStorageBucket(), getLegacyCompatibilityStorageBucket()]) {
+	for (const storage of [getCredentialSessionStorageBucket(), getLegacyCompatibilityStorageBucket()]) {
 		try {
 			const raw = readStoredString(storage, SESSION_GRANT_STORAGE_KEY);
 			if (!raw) {
@@ -96,7 +130,7 @@ export const readFounderosEmbeddedSessionToken = (): string | null => {
 	}
 
 	return (
-		readStoredString(getSessionStorageBucket(), SESSION_TOKEN_STORAGE_KEY) ??
+		readStoredString(getCredentialSessionStorageBucket(), SESSION_TOKEN_STORAGE_KEY) ??
 		readStoredString(getLegacyCompatibilityStorageBucket(), SESSION_TOKEN_STORAGE_KEY)
 	);
 };
@@ -142,17 +176,32 @@ export const resolveFounderosEmbeddedAccessToken = (
 export const persistFounderosEmbeddedCredentials = (params: {
 	token?: string | null;
 	sessionGrant?: FounderosEmbeddedSessionGrant | null;
+	storageMode?: FounderosEmbeddedCredentialStorageMode;
 }) => {
+	const storageMode = params.storageMode ?? 'local_dev_session_storage';
+	const shouldPersistToSessionStorage = storageMode === 'local_dev_session_storage';
+
 	if (params.token !== undefined) {
 		embeddedSessionTokenMemory =
-			params.token && String(params.token).trim().length > 0 ? String(params.token) : null;
+			shouldPersistToSessionStorage && params.token && String(params.token).trim().length > 0
+				? String(params.token)
+				: null;
 	}
 	if (params.sessionGrant !== undefined) {
-		embeddedSessionGrantMemory = params.sessionGrant ?? null;
+		embeddedSessionGrantMemory =
+			params.sessionGrant && !shouldPersistToSessionStorage
+				? { ...params.sessionGrant, token: null }
+				: (params.sessionGrant ?? null);
 	}
 
-	const sessionBucket = getSessionStorageBucket();
-	const legacyBucket = getLegacyStorageBucket();
+	const sessionBucket = getCredentialSessionStorageBucket();
+	const rawSessionBucket = getSessionStorageBucket();
+
+	if (!shouldPersistToSessionStorage) {
+		rawSessionBucket?.removeItem(SESSION_TOKEN_STORAGE_KEY);
+		rawSessionBucket?.removeItem(SESSION_GRANT_STORAGE_KEY);
+		return;
+	}
 
 	if (params.token) {
 		const nextToken = String(params.token);

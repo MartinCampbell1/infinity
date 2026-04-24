@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { buildExecutionBatchDetailResponse } from "../../../../../../lib/server/orchestration/batches";
+import { controlPlaneStorageUnavailableResponse } from "../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,11 @@ export async function GET(
   try {
     response = await buildExecutionBatchDetailResponse(batchId);
   } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error);
+    if (storageResponse) {
+      return storageResponse;
+    }
+
     return NextResponse.json(
       {
         detail:

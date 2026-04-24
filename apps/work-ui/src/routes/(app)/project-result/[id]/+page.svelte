@@ -113,6 +113,60 @@
 					.map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
 					.join(' ')
 			: 'Unknown';
+	const resolveDeliveryReadinessTier = (record: DeliveryRecord | null) => {
+		if (!record) {
+			return 'local_solo';
+		}
+		if (record.readinessTier === 'production' && record.externalProofManifestPath) {
+			return 'production';
+		}
+		if (record.readinessTier === 'staging') {
+			return 'staging';
+		}
+		return 'local_solo';
+	};
+	const resolveDeliveryReadinessCopy = (record: DeliveryRecord | null, ready: boolean) => {
+		const tier = resolveDeliveryReadinessTier(record);
+		const tierLabel = titleCase(tier);
+		if (!record) {
+			return {
+				tier,
+				tierLabel,
+				outcome: 'Delivery pending',
+				primary: 'Delivery proof appears after verification passes.'
+			};
+		}
+		if (!ready) {
+			return {
+				tier,
+				tierLabel,
+				outcome: titleCase(record.status),
+				primary: 'Delivery record exists, but runnable proof is still pending.'
+			};
+		}
+		if (tier === 'production') {
+			return {
+				tier,
+				tierLabel,
+				outcome: 'Production handoff ready',
+				primary: 'Production preview, external proof manifest, and handoff packet are ready.'
+			};
+		}
+		if (tier === 'staging') {
+			return {
+				tier,
+				tierLabel,
+				outcome: 'Staging runnable proof',
+				primary: 'Staging preview is ready, but no hosted proof manifest is attached yet.'
+			};
+		}
+		return {
+			tier,
+			tierLabel,
+			outcome: 'Local runnable proof',
+			primary: 'Local preview and handoff packet are ready. This is not production proof.'
+		};
+	};
 	const compactEvidenceValue = (value: string) => {
 		if (value.length <= 46) {
 			return value;
@@ -141,9 +195,10 @@
 		verification?.checks.filter((check) => check.status === 'passed').length ?? 0;
 	$: verificationTotalChecks = verification?.checks.length ?? 0;
 	$: deliveryReady = delivery?.status === 'ready' || delivery?.status === 'delivered';
+	$: deliveryReadiness = resolveDeliveryReadinessCopy(delivery, deliveryReady);
 	$: resultOutcome = delivery
 		? deliveryReady
-			? 'Handoff ready'
+			? deliveryReadiness.outcome
 			: titleCase(delivery.status)
 		: verification?.overallStatus === 'passed'
 			? 'Delivery pending'
@@ -160,6 +215,11 @@
 			label: 'Preview',
 			value: delivery?.previewUrl ? 'Available' : 'Pending',
 			detail: delivery?.previewUrl ? compactEvidenceValue(delivery.previewUrl) : 'No runnable preview yet.'
+		},
+		{
+			label: 'Readiness tier',
+			value: delivery ? deliveryReadiness.tierLabel : 'Local Solo',
+			detail: delivery?.externalProofManifestPath ?? 'hosted proof manifest not attached'
 		},
 		{
 			label: 'Verification',
@@ -189,7 +249,9 @@
 				{ label: 'Launch manifest', value: delivery.launchManifestPath ?? 'n/a' },
 				{ label: 'Launch proof URL', value: delivery.launchProofUrl ?? 'n/a' },
 				{ label: 'Launch command', value: delivery.command ?? 'n/a' },
-				{ label: 'Proof kind', value: delivery.launchProofKind ?? 'n/a' }
+				{ label: 'Proof kind', value: delivery.launchProofKind ?? 'n/a' },
+				{ label: 'Readiness tier', value: deliveryReadiness.tier },
+				{ label: 'External proof manifest', value: delivery.externalProofManifestPath ?? 'n/a' }
 			]
 		: [];
 
@@ -362,7 +424,7 @@
 								Primary result
 							</div>
 							<div class="mt-2 text-base font-semibold text-sky-50">
-								{deliveryReady ? 'Preview and handoff are ready.' : 'Delivery record exists, but handoff is not ready yet.'}
+								{deliveryReadiness.primary}
 							</div>
 							<div class="mt-3 flex flex-wrap gap-2">
 								{#if delivery.previewUrl}

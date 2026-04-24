@@ -3,6 +3,7 @@ import type {
   ControlPlaneIntegrationState,
 } from "./control-plane-meta";
 import type { OperatorActionAuditEvent } from "./operator-actions";
+import type { TenantScopedRecordFields } from "./tenancy";
 import type { WorkspaceRuntimeSnapshot } from "./workspace-launch";
 
 export type RecoveryIncidentStatus =
@@ -27,7 +28,7 @@ export type RecoveryActionKind =
   | "reopen"
   | "unknown";
 
-export interface RecoveryIncident {
+export interface RecoveryIncident extends TenantScopedRecordFields {
   id: string;
   sessionId: string;
   externalSessionId?: string | null;

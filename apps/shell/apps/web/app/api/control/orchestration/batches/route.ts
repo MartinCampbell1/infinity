@@ -6,6 +6,10 @@ import {
 } from "../../../../../lib/server/orchestration/batches";
 import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateExecutionBatchRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
+import {
+  controlPlaneStorageUnavailableResponse,
+  withControlPlaneStorageGuard,
+} from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +19,13 @@ function filterValue(request: Request, key: string) {
 }
 
 export async function GET(request: Request) {
-  return NextResponse.json(
-    await buildExecutionBatchesDirectoryResponse({
-      initiativeId: filterValue(request, "initiative_id"),
-      taskGraphId: filterValue(request, "task_graph_id"),
-    })
+  return withControlPlaneStorageGuard(async () =>
+    NextResponse.json(
+      await buildExecutionBatchesDirectoryResponse({
+        initiativeId: filterValue(request, "initiative_id"),
+        taskGraphId: filterValue(request, "task_graph_id"),
+      })
+    )
   );
 }
 
@@ -39,6 +45,13 @@ export async function POST(request: Request) {
   try {
     response = await createExecutionBatch(body);
   } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+      accepted: false,
+    });
+    if (storageResponse) {
+      return storageResponse;
+    }
+
     return NextResponse.json(
       {
         detail:

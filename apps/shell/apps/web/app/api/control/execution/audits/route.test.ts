@@ -7,6 +7,13 @@ import { POST as postRecoveryAction } from "../recoveries/[recoveryId]/route";
 import { GET as getAuditsDirectory } from "./route";
 
 let restoreStateDir: (() => void) | null = null;
+const OPERATOR_ACTOR_HEADERS = {
+  "x-founderos-actor-type": "operator",
+  "x-founderos-actor-id": "operator-audit-test",
+  "x-founderos-tenant-id": "tenant-test",
+  "x-founderos-request-id": "request-audit-test",
+  "x-founderos-auth-boundary": "token",
+};
 
 afterEach(() => {
   if (restoreStateDir) {
@@ -23,7 +30,10 @@ describe("/api/control/execution/audits", () => {
     const approvalResponse = await postApprovalRespond(
       new Request("http://localhost/api/control/execution/approvals/approval-001/respond", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...OPERATOR_ACTOR_HEADERS,
+        },
         body: JSON.stringify({
           decision: "approve_once",
         }),
@@ -63,7 +73,10 @@ describe("/api/control/execution/audits", () => {
     const recoveryResponse = await postRecoveryAction(
       new Request("http://localhost/api/control/execution/recoveries/recovery-001", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...OPERATOR_ACTOR_HEADERS,
+        },
         body: JSON.stringify({
           actionKind: "retry",
         }),

@@ -6,6 +6,7 @@ import {
 } from "../../../../../../lib/server/orchestration/work-units";
 import { triggerAutonomousLoopSafely } from "../../../../../../lib/server/orchestration/autonomy";
 import { isUpdateWorkUnitRequest } from "../../../../../../lib/server/control-plane/contracts/orchestration";
+import { withControlPlaneStorageGuard } from "../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -14,20 +15,22 @@ export async function GET(
   { params }: { params: Promise<{ workUnitId: string }> }
 ) {
   const { workUnitId } = await params;
-  const response = await buildWorkUnitDetailResponse(workUnitId);
+  return withControlPlaneStorageGuard(async () => {
+    const response = await buildWorkUnitDetailResponse(workUnitId);
 
-  if (!response) {
-    return NextResponse.json(
-      {
-        detail: `Work unit ${workUnitId} is not present in the shell orchestration directory.`,
-      },
-      { status: 404 }
-    );
-  }
+    if (!response) {
+      return NextResponse.json(
+        {
+          detail: `Work unit ${workUnitId} is not present in the shell orchestration directory.`,
+        },
+        { status: 404 }
+      );
+    }
 
-  await triggerAutonomousLoopSafely(response.taskGraph?.initiativeId ?? null);
+    await triggerAutonomousLoopSafely(response.taskGraph?.initiativeId ?? null);
 
-  return NextResponse.json(response);
+    return NextResponse.json(response);
+  });
 }
 
 export async function PATCH(
@@ -47,15 +50,17 @@ export async function PATCH(
     );
   }
 
-  const response = await updateOrchestrationWorkUnit(workUnitId, body);
-  if (!response) {
-    return NextResponse.json(
-      {
-        detail: `Work unit ${workUnitId} is not present in the shell orchestration directory.`,
-      },
-      { status: 404 }
-    );
-  }
+  return withControlPlaneStorageGuard(async () => {
+    const response = await updateOrchestrationWorkUnit(workUnitId, body);
+    if (!response) {
+      return NextResponse.json(
+        {
+          detail: `Work unit ${workUnitId} is not present in the shell orchestration directory.`,
+        },
+        { status: 404 }
+      );
+    }
 
-  return NextResponse.json(response);
+    return NextResponse.json(response);
+  }, { accepted: false });
 }

@@ -10,6 +10,8 @@ import {
   withShellRouteScope,
   type ShellRouteScope,
 } from "@/lib/route-scope";
+import { resolveDeliveryReadinessCopy } from "../../lib/delivery-readiness";
+import { isStrictRolloutEnv } from "../../lib/server/control-plane/workspace/rollout-config";
 import {
   PlaneButton,
   PlaneProgressBar,
@@ -362,7 +364,14 @@ export function PrimaryRunSurface({
       tone: currentDelivery ? "success" : "pending",
     },
     {
-      label: currentDelivery?.status === "ready" ? "Delivery ready" : "Delivery pending",
+      label:
+        currentDelivery?.status === "ready"
+          ? `Delivery ready · ${
+              resolveDeliveryReadinessCopy(currentDelivery, {
+                strictRolloutEnv: isStrictRolloutEnv(),
+              }).tierLabel
+            }`
+          : "Delivery pending",
       value: currentDelivery?.launchProofKind ?? currentDelivery?.id ?? "not attached",
       href: deliveryHref,
       tone: currentDelivery?.status === "ready" ? "success" : "pending",

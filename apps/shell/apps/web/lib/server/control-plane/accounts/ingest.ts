@@ -12,8 +12,16 @@ import {
   type ExecutionSessionPhase,
   type NormalizedExecutionEvent,
 } from "../events";
+import {
+  controlPlaneActorContext,
+  type ControlPlaneMutationActor,
+} from "../../http/control-plane-auth";
 import { appendNormalizedEvents } from "../events/store";
 import { updateControlPlaneState } from "../state/store";
+import {
+  tenantScopedRecordFields,
+  withTenantMetadataRaw,
+} from "../state/tenancy";
 import { deriveAccountCapacityState } from "./capacity";
 import { buildMockQuotaIngestResponse } from "./responses";
 
@@ -141,9 +149,13 @@ function buildQuotaUpdatedEvents(params: {
   capacity: AccountCapacityState;
   existingEvents: readonly NormalizedExecutionEvent[];
   producer: AccountQuotaSource;
+  actor?: ControlPlaneMutationActor;
 }): NormalizedExecutionEvent[] {
   const projections = materializeSessionProjections(params.existingEvents);
   const source = resolveEventSource(params.snapshot.source);
+  const actorContext = params.actor
+    ? controlPlaneActorContext(params.actor)
+    : null;
 
   return params.sessionIds.flatMap((sessionId, index) => {
     const session = projections[sessionId];
@@ -179,19 +191,27 @@ function buildQuotaUpdatedEvents(params: {
           nextResetAt: params.capacity.nextResetAt ?? null,
           observedAt: params.snapshot.observedAt,
           bucketCount: params.snapshot.buckets.length,
+          actorContext,
         },
-        raw: params.snapshot.raw ?? null,
+        raw: withTenantMetadataRaw(params.snapshot.raw ?? null, params.actor),
+        ...tenantScopedRecordFields(params.actor),
       } satisfies NormalizedExecutionEvent,
     ];
   });
 }
 
 export async function ingestMockQuotaProducerSnapshot(
-  request: AccountQuotaProducerIngestRequest
+  request: AccountQuotaProducerIngestRequest,
+  actor?: ControlPlaneMutationActor
 ): Promise<ControlPlaneAccountQuotaIngestResponse<AccountCapacityState, AccountQuotaUpdate>> {
-  const snapshot: AccountQuotaSnapshot = JSON.parse(JSON.stringify(request.snapshot));
+  const snapshot: AccountQuotaSnapshot = {
+    ...JSON.parse(JSON.stringify(request.snapshot)),
+    ...tenantScopedRecordFields(actor),
+    raw: withTenantMetadataRaw(request.snapshot.raw ?? null, actor),
+  };
   const capacity = deriveAccountCapacityState(snapshot);
   const summary = normalizeSummary(request.summary, snapshot, capacity);
+  const actorContext = actor ? controlPlaneActorContext(actor) : null;
 
   let updateRecord: AccountQuotaUpdate | null = null;
   let affectedSessionIds: string[] = [];
@@ -212,11 +232,13 @@ export async function ingestMockQuotaProducerSnapshot(
 
       updateRecord = {
         sequence: nextSequence,
+        ...tenantScopedRecordFields(actor),
         accountId: snapshot.accountId,
         source: snapshot.source,
         observedAt: snapshot.observedAt,
         summary,
         snapshot,
+        actorContext,
       };
 
       draft.accounts.updates = [...draft.accounts.updates, updateRecord];
@@ -233,6 +255,7 @@ export async function ingestMockQuotaProducerSnapshot(
         capacity,
         existingEvents: draft.sessions.events,
         producer: request.producer,
+        actor,
       });
 
       if (persistedEvents.length > 0) {

@@ -6,6 +6,7 @@ import {
 } from "../../../../../../../lib/server/control-plane/contracts/workspace-launch";
 import { buildWorkspaceLaunchBootstrap } from "../../../../../../../lib/server/control-plane/workspace/bootstrap";
 import { verifyWorkspaceLaunchToken } from "../../../../../../../lib/server/control-plane/workspace/launch-token";
+import { withControlPlaneStorageGuard } from "../../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -115,10 +116,12 @@ export async function POST(
     );
   }
 
-  const responseBody = await buildWorkspaceLaunchBootstrap({
-    refs,
-    openedFrom: body.openedFrom ?? "unknown",
-  });
+  return withControlPlaneStorageGuard(async () => {
+    const responseBody = await buildWorkspaceLaunchBootstrap({
+      refs,
+      openedFrom: body.openedFrom ?? "unknown",
+    });
 
-  return NextResponse.json(responseBody);
+    return NextResponse.json(responseBody);
+  }, { accepted: false });
 }

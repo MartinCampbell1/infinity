@@ -1,0 +1,23 @@
+{
+  "latestVersion": 3,
+  "migrations": [
+    {
+      "version": 1,
+      "name": "control_plane_state",
+      "file": "001_control_plane_state.sql",
+      "checksum": "dfeeb1312f04dd8f3a1760e826f97d34d459f41f6ad783d04dc4357ae8c3eae0"
+    },
+    {
+      "version": 2,
+      "name": "tenant_rbac",
+      "file": "002_tenant_rbac.sql",
+      "checksum": "57595c849705c921842c72655e5ae70d8c2780df713ef6427782a72a60e9bdc5"
+    },
+    {
+      "version": 3,
+      "name": "mutation_journal_idempotency",
+      "file": "003_mutation_journal_idempotency.sql",
+      "checksum": "be1f1a99787cc7cabee0ede64ad2e20bc5ac13103eff98e29d1f4f0c2e779192"
+    }
+  ]
+}

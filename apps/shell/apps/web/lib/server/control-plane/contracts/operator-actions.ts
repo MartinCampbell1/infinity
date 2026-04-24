@@ -1,5 +1,6 @@
 import type { ControlPlaneDirectoryMeta } from "./control-plane-meta";
 import type { ExecutionSessionSummary } from "./session-events";
+import type { TenantScopedRecordFields } from "./tenancy";
 
 export type OperatorActionTargetKind = "approval_request" | "recovery_incident";
 
@@ -18,7 +19,7 @@ export type OperatorActionOutcome =
   | "failed"
   | "unknown";
 
-export interface OperatorActionAuditEvent {
+export interface OperatorActionAuditEvent extends TenantScopedRecordFields {
   id: string;
   sequence: number;
   sessionId: string;

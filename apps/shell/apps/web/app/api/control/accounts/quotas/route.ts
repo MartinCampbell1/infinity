@@ -12,6 +12,8 @@ import type {
   AccountAuthMode,
   AccountQuotaProducerIngestRequest,
 } from "../../../../../lib/server/control-plane/contracts/quota";
+import { controlPlaneMutationActorFromRequest } from "../../../../../lib/server/http/control-plane-auth";
+import { controlPlaneStorageUnavailableResponse } from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +49,23 @@ export async function GET(request: Request) {
   const accountId = searchParams.get("accountId");
   const includeUpdates = searchParams.get("includeUpdates") !== "0";
 
-  let snapshots = await listControlPlaneQuotaSnapshots();
+  let snapshots;
+  let accounts;
+  let updates;
+  try {
+    snapshots = await listControlPlaneQuotaSnapshots();
+    accounts = await listControlPlaneAccounts();
+    updates = includeUpdates
+      ? await listControlPlaneQuotaUpdates(since)
+      : [];
+  } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error);
+    if (storageResponse) {
+      return storageResponse;
+    }
+    throw error;
+  }
+
   if (authMode) {
     snapshots = snapshots.filter((snapshot) => snapshot.authMode === authMode);
   }
@@ -55,7 +73,6 @@ export async function GET(request: Request) {
     snapshots = snapshots.filter((snapshot) => snapshot.accountId === accountId);
   }
 
-  const accounts = await listControlPlaneAccounts();
   const accountMap = new Map(accounts.map((account) => [account.id, account]));
 
   const snapshotsWithCapacity = snapshots.map((snapshot) => ({
@@ -63,8 +80,8 @@ export async function GET(request: Request) {
     capacity: accountMap.get(snapshot.accountId)?.capacity ?? null,
   }));
 
-  const updates = includeUpdates
-    ? (await listControlPlaneQuotaUpdates(since)).filter((update) => {
+  const filteredUpdates = includeUpdates
+    ? updates.filter((update) => {
         if (authMode && update.snapshot.authMode !== authMode) {
           return false;
         }
@@ -78,9 +95,9 @@ export async function GET(request: Request) {
   return NextResponse.json(
     buildQuotaFeedResponse({
       since,
-      nextSince: updates.length ? updates[updates.length - 1]?.sequence ?? since : since,
+      nextSince: filteredUpdates.length ? filteredUpdates[filteredUpdates.length - 1]?.sequence ?? since : since,
       snapshots: snapshotsWithCapacity,
-      updates,
+      updates: filteredUpdates,
     })
   );
 }
@@ -107,6 +124,28 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await ingestQuotaProducerSnapshot(body);
+  const actor = controlPlaneMutationActorFromRequest(request);
+  if (!actor) {
+    return NextResponse.json(
+      {
+        code: "missing_actor",
+        detail: "Quota producer ingest requires an authenticated actor.",
+      },
+      { status: 401 },
+    );
+  }
+
+  let result;
+  try {
+    result = await ingestQuotaProducerSnapshot(body, actor);
+  } catch (error) {
+    const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+      accepted: false,
+    });
+    if (storageResponse) {
+      return storageResponse;
+    }
+    throw error;
+  }
   return NextResponse.json(result);
 }

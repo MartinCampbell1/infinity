@@ -253,6 +253,8 @@ describe('founderos bootstrap', () => {
 			accepted: true,
 			note: 'Shell-issued embedded session exchanged successfully.',
 			token: 'embedded.session.token',
+			storageMode: 'unknown',
+			cookieBound: false,
 			user: {
 				id: 'founderos-embedded-user',
 				email: 'operator@infinity.local',
@@ -263,9 +265,71 @@ describe('founderos bootstrap', () => {
 			},
 			sessionGrant: {
 				token: 'grant.token',
+				grantId: null,
 				issuedAt: '2026-04-12T00:00:00.000Z',
-				expiresAt: '2026-04-12T00:30:00.000Z'
+				expiresAt: '2026-04-12T00:30:00.000Z',
+				refreshAfter: null,
+				revokedAt: null
 			}
+		});
+		expect(fetchImpl).toHaveBeenCalledWith(
+			'http://127.0.0.1:3737/api/control/execution/workspace/session-2026-04-11-001/session',
+			expect.objectContaining({ credentials: 'include' })
+		);
+	});
+
+	test('accepts cookie-bound production session exchange responses without a JSON bearer token', async () => {
+		const fetchImpl = vi.fn(async () =>
+			new Response(
+				JSON.stringify({
+					accepted: true,
+					note: 'Cookie-bound session exchanged successfully.',
+					session: {
+						token: null,
+						issuedAt: '2026-04-12T00:00:00.000Z',
+						expiresAt: '2026-04-12T00:30:00.000Z',
+						refreshAfter: '2026-04-12T00:15:00.000Z',
+						deliveryMode: 'http_only_cookie',
+						cookieName: 'founderos_workspace_session'
+					},
+					user: {
+						id: 'founderos-embedded-user',
+						email: 'operator@infinity.local',
+						name: 'Infinity Operator',
+						role: 'user',
+						profile_image_url: '/user.png',
+						permissions: { chat: { temporary: false } }
+					},
+					sessionGrant: {
+						token: null,
+						grantId: 'grant-1',
+						issuedAt: '2026-04-12T00:00:00.000Z',
+						expiresAt: '2026-04-12T00:30:00.000Z',
+						refreshAfter: '2026-04-12T00:15:00.000Z'
+					}
+				})
+			)
+		);
+
+		const result = await exchangeFounderosLaunchSession(
+			launchContext(),
+			{
+				sessionExchangePath: '/api/control/execution/workspace/session-2026-04-11-001/session'
+			},
+			fetchImpl as typeof fetch
+		);
+
+		expect(result.accepted).toBe(true);
+		expect(result.token).toBeNull();
+		expect(result.storageMode).toBe('http_only_cookie');
+		expect(result.cookieBound).toBe(true);
+		expect(result.sessionGrant).toEqual({
+			token: null,
+			grantId: 'grant-1',
+			issuedAt: '2026-04-12T00:00:00.000Z',
+			expiresAt: '2026-04-12T00:30:00.000Z',
+			refreshAfter: '2026-04-12T00:15:00.000Z',
+			revokedAt: null
 		});
 	});
 
@@ -288,6 +352,8 @@ describe('founderos bootstrap', () => {
 
 		expect(result.accepted).toBe(false);
 		expect(result.token).toBeNull();
+		expect(result.storageMode).toBe('unknown');
+		expect(result.cookieBound).toBe(false);
 		expect(result.user).toBeNull();
 		expect(result.sessionGrant).toBeNull();
 		expect(result.note).toMatch(/invalid response/i);

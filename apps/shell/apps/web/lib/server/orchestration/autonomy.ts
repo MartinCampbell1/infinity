@@ -19,6 +19,7 @@ import {
   appendAutonomousRunEvent,
   updateAutonomousRunStage,
 } from "./autonomous-run";
+import { createExecutorAdapter } from "./executor-adapters";
 
 const AUTONOMOUS_BRIEF_AUTHOR = "hermes-intake";
 const AUTONOMOUS_REPO_SCOPE = [
@@ -207,9 +208,14 @@ async function maybeLaunchRunnableBatch(initiativeId: string) {
   return !!response?.batch;
 }
 
-async function maybeCompleteStartedAttempts(initiativeId: string) {
+async function maybeRunExecutorAttempts(initiativeId: string) {
   const detail = await latestTaskGraphDetailForInitiative(initiativeId);
   if (!detail?.taskGraph) {
+    return false;
+  }
+
+  const adapter = createExecutorAdapter();
+  if (!adapter) {
     return false;
   }
 
@@ -231,13 +237,40 @@ async function maybeCompleteStartedAttempts(initiativeId: string) {
       continue;
     }
 
-    for (const attempt of batchDetail.attempts.filter((candidate) => candidate.status === "started")) {
-      const result = await performSupervisorAction({
-        actionKind: "complete_attempt",
+    for (const attempt of batchDetail.attempts.filter((candidate) =>
+      ["leased", "running", "started"].includes(candidate.status)
+    )) {
+      const workUnit =
+        batchDetail.workUnits.find((candidate) => candidate.id === attempt.workUnitId) ?? null;
+      if (!workUnit) {
+        continue;
+      }
+
+      const proof = await adapter.run({
+        initiativeId: batch.initiativeId,
+        taskGraphId: batch.taskGraphId,
         batchId: batch.id,
-        attemptId: attempt.id,
-        workUnitId: attempt.workUnitId,
+        workUnit,
+        attempt,
       });
+
+      const result =
+        proof.exitCode === 0
+          ? await performSupervisorAction({
+              actionKind: "complete_attempt",
+              batchId: batch.id,
+              attemptId: attempt.id,
+              workUnitId: attempt.workUnitId,
+              executorProof: proof,
+            })
+          : await performSupervisorAction({
+              actionKind: "fail_attempt",
+              batchId: batch.id,
+              attemptId: attempt.id,
+              workUnitId: attempt.workUnitId,
+              errorCode: "EXECUTOR_FAILED",
+              errorSummary: proof.summary,
+            });
 
       if (result) {
         progressed = true;
@@ -319,7 +352,7 @@ export async function runAutonomousLoopForInitiative(initiativeId: string) {
     progressed = (await maybeNormalizeAndApproveBrief(initiativeId)) || progressed;
     progressed = (await maybePlanApprovedBrief(initiativeId)) || progressed;
     progressed = (await maybeLaunchRunnableBatch(initiativeId)) || progressed;
-    progressed = (await maybeCompleteStartedAttempts(initiativeId)) || progressed;
+    progressed = (await maybeRunExecutorAttempts(initiativeId)) || progressed;
     progressed = (await maybeLaunchRunnableBatch(initiativeId)) || progressed;
     progressed = (await maybeAssembleCompletedRun(initiativeId)) || progressed;
     progressed = (await maybeVerifyAssembly(initiativeId)) || progressed;

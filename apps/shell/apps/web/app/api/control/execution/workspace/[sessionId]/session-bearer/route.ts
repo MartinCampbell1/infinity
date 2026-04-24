@@ -6,6 +6,7 @@ import {
 } from "../../../../../../../lib/server/control-plane/contracts/workspace-launch";
 import { buildWorkspaceSessionBearerResponse } from "../../../../../../../lib/server/control-plane/workspace/session-bearer";
 import { verifyWorkspaceLaunchToken } from "../../../../../../../lib/server/control-plane/workspace/launch-token";
+import { withControlPlaneStorageGuard } from "../../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -115,7 +116,9 @@ export async function POST(
     );
   }
 
-  const responseBody = await buildWorkspaceSessionBearerResponse(refs);
+  return withControlPlaneStorageGuard(async () => {
+    const responseBody = await buildWorkspaceSessionBearerResponse(refs);
 
-  return NextResponse.json(responseBody);
+    return NextResponse.json(responseBody);
+  }, { accepted: false });
 }

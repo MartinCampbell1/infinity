@@ -7,6 +7,7 @@
 
 	import { terminalServers, settings, selectedTerminalId, user } from '$lib/stores';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { resolveFounderosEmbeddedAccessToken } from '$lib/founderos/credentials';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
 	const i18n = getContext('i18n');
@@ -51,7 +52,9 @@
 
 		connecting = true;
 
-		const token = localStorage.getItem('token') ?? '';
+		const token = resolveFounderosEmbeddedAccessToken({
+			allowLegacyToken: false
+		});
 
 		try {
 			let sessionId: string;
@@ -85,7 +88,8 @@
 				// Create session via proxy
 				const res = await fetch(`${base}/terminals/${info.serverId}/api/terminals`, {
 					method: 'POST',
-					headers: { Authorization: `Bearer ${token}` }
+					credentials: 'include',
+					headers: token ? { Authorization: `Bearer ${token}` } : {}
 				});
 				if (!res.ok) throw new Error(`Failed to create session: ${res.status}`);
 				const session = await res.json();
@@ -100,7 +104,7 @@
 
 			ws.onopen = () => {
 				// First-message auth (no token in URL)
-				if (ws) {
+				if (ws && authToken) {
 					ws.send(JSON.stringify({ type: 'auth', token: authToken }));
 				}
 				connected = true;
