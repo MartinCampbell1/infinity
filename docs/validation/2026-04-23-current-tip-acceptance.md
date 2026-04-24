@@ -3,116 +3,129 @@
 Date: 2026-04-24
 Workspace: `/Users/martin/infinity`
 Branch: `master`
-Validated implementation commit: `66c4628`
-Post-GO hardening commit: `d0592d2`
-Validation packet: `handoff-packets/validation/2026-04-24T01-12-18Z`
+Validated implementation commit: `02234f7`
+Validation packet: `handoff-packets/validation/2026-04-24T02-26-34Z`
+Browser E2E packet: `handoff-packets/browser-e2e/browser-e2e-2026-04-24T02-28-01Z`
 
 ## Scope
 
-This note records the freshest validation evidence for the latest validated implementation checkpoint on the canonical branch.
+This note records the freshest validation evidence for the runnable-result browser E2E remediation slice.
 
-It supersedes the older `8631b71` and `78cba44` acceptance snapshots.
+It supersedes the older `2026-04-24T01-12-18Z` acceptance snapshot and the earlier `66c4628`, `d0592d2`, and `41799f4` closeout checkpoints.
 
-## Fresh reruns on the validated implementation worktree
+## Final release status
 
-These were rerun during the current closeout pass:
+Most recent successful full validation:
 
-- `npm --workspace @founderos/web exec vitest run app/api/control/execution/approvals/route.test.ts 'app/api/control/execution/approvals/[approvalId]/respond/route.test.ts' components/execution/control-plane-directory-surfaces.test.tsx`
-- `npm --workspace open-webui exec vitest run src/lib/founderos/shell-origin.test.ts src/routes/auth/auth-page.test.ts`
-- `npm run shell:typecheck`
-- `NODE_OPTIONS='--max-old-space-size=1280' npm run work-ui:check`
-- `npm run test:frontend:ci --workspace open-webui`
-- `python3 scripts/validation/finalize_critic_report_test.py`
-- `python3 scripts/validation/run_browser_e2e_solo_test.py`
-- `python3 scripts/validation/run_infinity_validation_release_honesty_test.py`
-- `python3 scripts/validation/run_infinity_validation_state_hygiene_test.py`
-- `cd /Users/martin/infinity/services/execution-kernel && go test ./...`
-- `git diff --check`
-- `npm run validate:full`
-
-Most recent successful full validation observed during this closeout:
-
-- run dir: `handoff-packets/validation/2026-04-24T01-12-18Z`
+- run dir: `handoff-packets/validation/2026-04-24T02-26-34Z`
 - status: `passed-final-release`
+- functional status: `passed`
 - release readiness: `final_ready`
-- repo checks: `passed`
+- release blocking reasons: `none`
+- repo checks: `passed` (`7/7`)
 - browser product E2E: `passed`
 - critic: `completed_external_critic`
-- critic score: `8.2`
+- critic score: `9.4`
 - unresolved must-fix: `0`
+- tracked state unchanged during validator run: `true`
 - shell origin: `http://127.0.0.1:3738`
 - work-ui origin: `http://127.0.0.1:3102`
 - kernel origin: `http://127.0.0.1:8799`
-- shell port requested/actual: `3737` / `3738`
-- work-ui port requested/actual: `3101` / `3102`
-- kernel port requested/actual: `8798` / `8799`
-- browser E2E report: `handoff-packets/browser-e2e/browser-e2e-2026-04-24T01-13-18Z/report.json`
+
+The independent critic explicitly confirmed the four previously requested polish items:
+
+- root breadcrumb is product-facing: `Control plane > Home`
+- primary run surface shows `Assembly ready`, `Verification passed`, and `Delivery ready` near the run header
+- delivery proof values have readable shortcuts plus expandable/copyable full values
+- generated preview title is concise: `Tip calculator`
+
+## Fresh verification
+
+Focused TDD checks run during the closeout:
+
+- `npm --workspace @founderos/web exec vitest run components/shell/shell-frame.test.tsx components/execution/primary-run-surface.test.tsx components/orchestration/delivery-summary.test.tsx app/api/control/orchestration/delivery/route.test.ts --testNamePattern "root breadcrumb|inspectable task graph|explicit runnable-result|tip calculator prompts"`
+- `npm --workspace @founderos/web exec vitest run components/shell/shell-frame.test.tsx components/execution/primary-run-surface.test.tsx components/orchestration/delivery-summary.test.tsx app/api/control/orchestration/delivery/route.test.ts`
+- `npm --workspace @founderos/web exec vitest run lib/server/orchestration/autonomy-loop-yield.test.ts`
+- `python3 scripts/validation/run_browser_e2e_solo_test.py`
+- `npm --workspace open-webui exec vitest run 'src/routes/(app)/project-result/project-result-page-structure.test.ts' src/lib/orchestration/project-result.test.ts`
+- `npm run shell:typecheck`
+- `NODE_OPTIONS='--max-old-space-size=1280' npm run work-ui:check`
+- `git diff --check`
+
+Full validation:
+
+- `npm run validate:full`
+- `shell_lint`: passed
+- `shell_typecheck`: passed
+- `shell_test`: passed
+- `shell_build`: passed
+- `work_ui_check`: passed
+- `work_ui_test`: passed
+- `work_ui_build`: passed
+- `browser_e2e_solo`: passed in `338.52s`
+
+## Browser E2E proof
+
+From `handoff-packets/browser-e2e/browser-e2e-2026-04-24T02-28-01Z/report.json`:
+
+- preview HTTP status: `200`
+- delivery status: `ready`
+- launch proof kind: `runnable_result`
+- verification overall status: `passed`
+- failed checks: `[]`
+- restart continuity checked: `true`
+- task graph cards visible: `true`
+- attempt labels visible: `true`
+- completed attempt evidence visible: `true`
+
+Preview DOM assertions:
+
+- `has_tip_calculator: true`
+- `has_bill_amount_input: true`
+- `has_tip_percent_input: true`
+- `has_runnable_app_marker: true`
+- `not_placeholder: true`
+
+Preview interaction assertion:
+
+- input scenario: bill amount `100`, tip percent `20`
+- observed tip amount: `$20.00`
+- observed total with tip: `$120.00`
 
 ## Autonomous proof
 
-From `handoff-packets/validation/2026-04-24T01-12-18Z/autonomous-proof.json`:
+From `handoff-packets/validation/2026-04-24T02-26-34Z/autonomous-proof.json`:
 
-- root frontdoor stayed on `/`
-- autonomous one-prompt: `true`
-- manual stage labels: `[]`
+- manual stage labels in Work UI result snapshots are empty
 - `preview_ready: true`
 - `launch_ready: true`
 - `launch_kind: runnable_result`
 - `handoff_ready: true`
 
-The launch manifest used by the truthful delivery proof is assembly-backed:
+The launch manifest used by the delivery proof is assembly-backed:
 
 - `/Users/martin/infinity/.local-state/orchestration/assemblies/.../runnable-result/launch-manifest.json`
 
-## Approval and fallback proof
+## Remediation closed in `02234f7`
 
-The 2026-04-24 post-hardening packet explicitly closes the Phase 5.3 critic must-fix items:
+The closeout commit fixes the remaining production-readiness issues for the single-user browser E2E slice:
 
-- standalone Work UI recovery showed the effective fallback shell origin `http://127.0.0.1:3738`
-- `api-snapshots/approval-created-pending.json` recorded `pending: 1`
-- `screenshots/shell_pending_approval.png` showed a real pending approval with enabled operator actions
-- `api-snapshots/approval-resolved-after-respond.json` recorded `approved` and `pending: 0`
-- `screenshots/shell_approvals.png` showed the resolved approval and operator audit event
+- product-facing root shell wording and breadcrumb accessibility
+- visible assembly, verification, and delivery proof strip on the primary run surface
+- delivery handoff proof rows with scan-friendly compact values, copy actions, full-value disclosure, and all-proof disclosure
+- generated runnable preview title normalization so the app H1 is a concise product name while the full prompt remains secondary copy
+- summary-first Work UI result route with raw proof moved under secondary details
+- browser E2E readiness gating before screenshots
+- transient HTTP polling retry and longer continuity timeout for local overloaded runs
+- non-test autonomous loop yielding so API polling remains responsive while local orchestration advances
 
 ## Tree hygiene
 
-Validator-induced tree drift was rechecked directly.
+Validator-induced tree drift was rechecked by the validation packet:
 
 - `git status --short` was captured before `npm run validate:full`
 - `git status --short` was captured again after the validator finished
-- the two snapshots matched exactly inside the packet
+- the two snapshots matched inside the packet
 - fallback validation ports `3738`, `3102`, and `8799` were checked after the run and were clean
 
 This means the validator did not introduce any new tracked-file drift.
-
-For `apps/shell/apps/web/next-env.d.ts`, the current canonical post-validation state is:
-
-```ts
-import "./.next/types/routes.d.ts";
-```
-
-## Post-GO hardening
-
-The final independent critic returned `pass: true` with no unresolved `must_fix`. It left two `should_fix` items:
-
-- derive the run detail headline status chip from the same final delivery/projection state as the delivery CTA
-- add copy/open or expanded disclosure affordances for long delivery proof paths and launch URLs
-
-These were closed in the bounded post-GO hardening commit `d0592d2` and revalidated by the final packet `2026-04-24T01-12-18Z`:
-
-- delivered runs now use a `delivered` headline status and current-stage metric when delivery evidence is ready
-- delivery proof rows now keep the compact scan view and add expandable `Full value` blocks with selectable full paths/URLs/commands
-
-Focused hardening verification:
-
-- `npm --workspace @founderos/web exec vitest run components/execution/primary-run-surface.test.tsx`
-- `npm --workspace @founderos/web exec vitest run components/orchestration/delivery-summary.test.tsx`
-- `npm run shell:typecheck`
-- `git diff --check`
-- independent hardening critic gate: `GO`
-- final screenshot critic gate: `GO`, score `8.2`, unresolved `must_fix: 0`
-
-The post-hardening final critic left only non-blocking visual polish suggestions for a future pass:
-
-- make full proof values copyable/default-visible without expanding each row
-- reduce duplicate lower-page delivery evidence density
