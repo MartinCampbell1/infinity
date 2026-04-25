@@ -25,5 +25,7 @@ describe("execution known limitations page", () => {
     expect(markup).toContain("baseline external delivery smoke passed once");
     expect(markup).toContain("future staging delivery still needs fresh external proof");
     expect(markup).toContain("docs/known-limitations.md");
+    expect(markup).toContain("docs/production-readiness.md");
+    expect(markup).toContain("docs/ops/staging-topology.md");
   });
 });

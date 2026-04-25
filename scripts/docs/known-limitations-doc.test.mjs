@@ -21,6 +21,8 @@ test("known limitations page keeps proof tiers honest", () => {
   assert.match(limitations, /P0-BE-14 staging delivery baseline has passed once/);
   assert.match(limitations, /each future staging delivery still\s+needs fresh external proof/);
   assert.match(limitations, /Production wording is allowed only when strict rollout env is enabled/);
+  assert.match(limitations, /docs\/production-readiness\.md/);
+  assert.match(limitations, /docs\/ops\/staging-topology\.md/);
   assert.match(limitations, /use the lowest proven tier/);
 });
 

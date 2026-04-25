@@ -52,3 +52,6 @@ green local run does not get mistaken for a hosted production release.
 
 When evidence is mixed, use the lowest proven tier. Do not upgrade copy from
 local to staging, or from staging to production, until the matching proof exists.
+Consult `docs/production-readiness.md` and `docs/ops/staging-topology.md` before
+accepting staging or production wording, and keep this truth table aligned with
+those source documents.

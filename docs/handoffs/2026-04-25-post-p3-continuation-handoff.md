@@ -3,17 +3,19 @@
 ## Current Branch State
 
 - Branch: `codex/p0-be-14-staging-smoke`
-- Last completed work commit before this production-readiness docs refresh:
-  `2dd0f82 docs: define readiness terms in glossary`
-- Remote delta before this production-readiness docs refresh: branch was ahead
-  of `origin/codex/p0-be-14-staging-smoke` by 13 commits.
-- Remote delta after this production-readiness docs refresh commit: branch is
-  expected to be ahead of `origin/codex/p0-be-14-staging-smoke` by 14 commits.
+- Last completed work commit before this known-limitations docs refresh:
+  `19fb485 docs: link staging topology from readiness`
+- Remote delta before this known-limitations docs refresh: branch was ahead of
+  `origin/codex/p0-be-14-staging-smoke` by 14 commits.
+- Remote delta after this known-limitations docs refresh commit: if
+  `origin/codex/p0-be-14-staging-smoke` has not moved, branch is expected to be
+  ahead by 15 commits.
 - Worktree status before this handoff refresh started: clean.
 
-## Completed Commits Since Remote Before This Production-Readiness Docs Refresh Commit
+## Completed Commits Since Remote Before This Known-Limitations Docs Refresh Commit
 
 ```text
+19fb485 docs: link staging topology from readiness
 2dd0f82 docs: define readiness terms in glossary
 3dedf46 docs: cross-link readiness checks in quickstart
 4a686f9 docs: guard staging topology contract
@@ -29,7 +31,7 @@ a4bc139 chore: close p3 remediation batch
 9d73a3b chore: save audit remediation checkpoint
 ```
 
-After this production-readiness docs refresh is committed, that new commit should
+After this known-limitations docs refresh is committed, that new commit should
 be the newest commit on the branch.
 
 ## What Changed After The Savepoint
@@ -76,6 +78,9 @@ Additional small commits aligned docs with the actual branch state:
   external proof manifest for operators.
 - `docs/production-readiness.md` now points hosted staging proof back to the
   staging topology contract before treating it as stronger than local proof.
+- `docs/known-limitations.md` now points the operator truth table back to
+  production-readiness and staging-topology docs before staging/production
+  wording is accepted.
 
 ## Verification Observed In This Continuation
 
@@ -107,8 +112,11 @@ npm run docs:operator-glossary:test
 npm run docs:production-readiness:test
 # passed after adding staging-topology contract cross-reference: 3/3
 
+npm run docs:known-limitations:test
+# passed after adding readiness/topology source-doc references: 3/3
+
 cd apps/shell/apps/web && npx vitest run app/'(shell)'/execution/help/known-limitations/page.test.tsx
-# passed: 1/1
+# passed after asserting source-doc links in shell help route: 1/1
 
 git diff --check
 # passed with no output
@@ -227,6 +235,18 @@ durable result summaries are:
   `docs/ops/staging-topology.md`, and the doc test asserts the cross-reference
   plus the softened "stronger than local proof" wording.
 
+### Known-limitations source-doc alignment
+
+- Result: independent critic review returned `GO` after targeted docs and route
+  tests passed.
+- Scope: `docs/known-limitations.md`,
+  `scripts/docs/known-limitations-doc.test.mjs`,
+  `apps/shell/apps/web/app/(shell)/execution/help/known-limitations/page.test.tsx`,
+  and this handoff refresh.
+- Finding: the Markdown truth table now names the production-readiness and
+  staging-topology source docs, and both the Markdown doc test and shell help
+  route test assert those references.
+
 ## Not Run
 
 - No push was performed.
@@ -235,8 +255,9 @@ durable result summaries are:
 
 ## Current Stop Point
 
-After committing this production-readiness docs refresh, the branch should be
-ahead of origin by 14 commits with a clean worktree.
+After committing this known-limitations docs refresh, the branch should be ahead
+of origin by 15 commits with a clean worktree if
+`origin/codex/p0-be-14-staging-smoke` has not moved.
 
 The next meaningful operator decision is whether to push
 `codex/p0-be-14-staging-smoke` or start a new bounded workstream beyond the
