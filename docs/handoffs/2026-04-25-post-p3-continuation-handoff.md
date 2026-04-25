@@ -3,17 +3,18 @@
 ## Current Branch State
 
 - Branch: `codex/p0-be-14-staging-smoke`
-- Last completed work commit before this operator-glossary docs refresh:
-  `3dedf46 docs: cross-link readiness checks in quickstart`
-- Remote delta before this operator-glossary docs refresh: branch was ahead of
-  `origin/codex/p0-be-14-staging-smoke` by 12 commits.
-- Remote delta after this operator-glossary docs refresh commit: branch is
-  expected to be ahead of `origin/codex/p0-be-14-staging-smoke` by 13 commits.
+- Last completed work commit before this production-readiness docs refresh:
+  `2dd0f82 docs: define readiness terms in glossary`
+- Remote delta before this production-readiness docs refresh: branch was ahead
+  of `origin/codex/p0-be-14-staging-smoke` by 13 commits.
+- Remote delta after this production-readiness docs refresh commit: branch is
+  expected to be ahead of `origin/codex/p0-be-14-staging-smoke` by 14 commits.
 - Worktree status before this handoff refresh started: clean.
 
-## Completed Commits Since Remote Before This Operator-Glossary Docs Refresh Commit
+## Completed Commits Since Remote Before This Production-Readiness Docs Refresh Commit
 
 ```text
+2dd0f82 docs: define readiness terms in glossary
 3dedf46 docs: cross-link readiness checks in quickstart
 4a686f9 docs: guard staging topology contract
 e410666 docs: clarify staging readiness tier
@@ -28,7 +29,7 @@ a4bc139 chore: close p3 remediation batch
 9d73a3b chore: save audit remediation checkpoint
 ```
 
-After this operator-glossary docs refresh is committed, that new commit should
+After this production-readiness docs refresh is committed, that new commit should
 be the newest commit on the branch.
 
 ## What Changed After The Savepoint
@@ -73,6 +74,8 @@ Additional small commits aligned docs with the actual branch state:
   wording.
 - `docs/operator-glossary.md` now defines readiness tier, staging topology, and
   external proof manifest for operators.
+- `docs/production-readiness.md` now points hosted staging proof back to the
+  staging topology contract before treating it as stronger than local proof.
 
 ## Verification Observed In This Continuation
 
@@ -100,6 +103,9 @@ npm run docs:operator-quickstart:test
 
 npm run docs:operator-glossary:test
 # passed after adding readiness/topology/proof-manifest terms: 3/3
+
+npm run docs:production-readiness:test
+# passed after adding staging-topology contract cross-reference: 3/3
 
 cd apps/shell/apps/web && npx vitest run app/'(shell)'/execution/help/known-limitations/page.test.tsx
 # passed: 1/1
@@ -211,6 +217,16 @@ durable result summaries are:
   production-honesty wording, including the `local_solo`, `staging`, and
   `production` tier values.
 
+### Production-readiness staging topology cross-reference
+
+- Result: read-only critic `GO`; optional wording softening applied after
+  critic feedback.
+- Scope: `docs/production-readiness.md`,
+  `scripts/docs/production-readiness-doc.test.mjs`, and this handoff refresh.
+- Finding: production-readiness now points hosted staging evidence back to
+  `docs/ops/staging-topology.md`, and the doc test asserts the cross-reference
+  plus the softened "stronger than local proof" wording.
+
 ## Not Run
 
 - No push was performed.
@@ -219,8 +235,8 @@ durable result summaries are:
 
 ## Current Stop Point
 
-After committing this operator-glossary docs refresh, the branch should be
-ahead of origin by 13 commits with a clean worktree.
+After committing this production-readiness docs refresh, the branch should be
+ahead of origin by 14 commits with a clean worktree.
 
 The next meaningful operator decision is whether to push
 `codex/p0-be-14-staging-smoke` or start a new bounded workstream beyond the

@@ -12,12 +12,18 @@ test("production readiness keeps tier rules and external smoke requirements", ()
   for (const required of [
     "## Readiness tiers",
     "## External delivery smoke",
+    "docs/ops/staging-topology.md",
     "FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV=1",
     "FOUNDEROS_EXTERNAL_DELIVERY_ALLOW_MUTATIONS=1",
     "A passing smoke must prove all of these in one run",
   ]) {
     assert.match(doc, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+
+  assert.match(
+    doc,
+    /use that topology check before treating hosted\s+staging evidence as stronger than local proof/,
+  );
 });
 
 test("production readiness records the latest P0-BE-14 staging evidence", () => {

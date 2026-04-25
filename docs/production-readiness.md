@@ -11,6 +11,10 @@ local runnable result is useful, but it is not a production release claim.
 | `staging` | Strict rollout environment is enabled and the delivery is evaluated against hosted staging proof, not localhost evidence. | `FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV=1`, explicit shell/workspace rollout envs, and fresh external staging proof for the release under review. |
 | `production` | The delivery can use production wording. | Strict rollout env plus an attached external proof manifest. |
 
+The hosted staging environment contract is defined in
+`docs/ops/staging-topology.md`; use that topology check before treating hosted
+staging evidence as stronger than local proof.
+
 ## Copy rule
 
 `delivery.ready`, local preview proof, and a local handoff packet must be shown
