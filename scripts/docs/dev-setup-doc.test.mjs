@@ -27,6 +27,9 @@ test("docs/dev-setup.md names critical local commands and env vars", () => {
     "npm run work-ui:check",
     "npm run security:audit:critical",
     "npm run release:packet",
+    "npm run docs:dev-setup:test",
+    "npm run docs:known-limitations:test",
+    "npm run docs:production-readiness:test",
     "FOUNDEROS_MIGRATION_TEST_DATABASE_URL",
     "FOUNDEROS_CONTROL_PLANE_STATE_DIR",
   ]) {

@@ -128,6 +128,17 @@ npm run security:audit:critical
 npm run release:packet -- --output-dir /tmp/infinity-release-packet
 ```
 
+Focused documentation checks:
+
+```bash
+npm run docs:dev-setup:test
+npm run docs:operator-quickstart:test
+npm run docs:operator-glossary:test
+npm run docs:known-limitations:test
+npm run docs:security-model:test
+npm run docs:production-readiness:test
+```
+
 Validation commands:
 
 ```bash
