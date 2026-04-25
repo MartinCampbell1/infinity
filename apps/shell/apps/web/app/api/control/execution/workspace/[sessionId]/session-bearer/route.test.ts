@@ -108,6 +108,11 @@ describe("/api/control/execution/workspace/[sessionId]/session-bearer", () => {
 
     expect(response.status).toBe(400);
     const payload = await response.json();
-    expect(payload.error).toMatch(/sessionId/i);
+    expect(payload.error).toEqual(
+      expect.objectContaining({
+        code: "session_id_mismatch",
+        message: expect.stringMatching(/sessionId/i),
+      })
+    );
   });
 });

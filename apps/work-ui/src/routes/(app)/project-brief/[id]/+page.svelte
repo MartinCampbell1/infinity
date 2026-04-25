@@ -248,7 +248,7 @@
 <HermesEmbeddedWorkspaceFrame
 	title="Project brief"
 	subtitle="Secondary brief drill-down for clarification, inspection, and recovery while the shell stays primary."
-	badge={saveState === 'saving' ? 'Saving' : loadState === 'ready' ? 'Ready' : 'Loading'}
+	badge={saveState === 'saving' ? 'Saving' : loadState === 'ready' ? 'Brief loaded' : 'Loading'}
 	metaItems={metaItems}
 >
 			{#if loadState === 'loading' || loadState === 'idle'}

@@ -20,7 +20,10 @@ import {
 import { buildWorkspaceRuntimeSnapshot } from "../../../../../../../lib/server/control-plane/workspace/runtime-ingest";
 import type { SessionWorkspaceHostContext } from "../../../../../../../lib/server/control-plane/contracts/workspace-launch";
 import { controlPlaneMutationActorFromRequest } from "../../../../../../../lib/server/http/control-plane-auth";
-import { controlPlaneStorageUnavailableResponse } from "../../../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  controlPlaneStorageUnavailableResponse,
+} from "../../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -38,24 +41,21 @@ export async function POST(
   }
 
   if (!isApprovalRespondRequest(body)) {
-    return NextResponse.json(
-      {
-        detail:
-          "Request body must include decision with one of approve_once, approve_session, approve_always, or deny.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_approval_response_body",
+      message:
+        "Request body must include decision with one of approve_once, approve_session, approve_always, or deny.",
+      status: 400,
+    });
   }
 
   const actor = controlPlaneMutationActorFromRequest(request);
   if (!actor) {
-    return NextResponse.json(
-      {
-        code: "missing_actor",
-        detail: "Approval response requires an authenticated actor.",
-      },
-      { status: 401 },
-    );
+    return apiErrorResponse({
+      code: "missing_actor",
+      message: "Approval response requires an authenticated actor.",
+      status: 401,
+    });
   }
 
   const idempotencyKey = controlPlaneIdempotencyKeyFromRequest(request);
@@ -87,14 +87,12 @@ export async function POST(
         return storageResponse;
       }
       if (isControlPlaneIdempotencyConflictError(error)) {
-        return NextResponse.json(
-          {
-            code: error.code,
-            detail: error.message,
-            accepted: false,
-          },
-          { status: error.status },
-        );
+        return apiErrorResponse({
+          code: error.code,
+          message: error.message,
+          status: error.status,
+          details: { accepted: false },
+        });
       }
       throw error;
     }
@@ -114,12 +112,11 @@ export async function POST(
   }
 
   if (!result) {
-    return NextResponse.json(
-      {
-        detail: `Approval request ${approvalId} is not present in the shell control-plane directory.`,
-      },
-      { status: 404 }
-    );
+    return apiErrorResponse({
+      code: "approval_request_not_found",
+      message: `Approval request ${approvalId} is not present in the shell control-plane directory.`,
+      status: 404,
+    });
   }
 
   const statusCode = result.accepted ? 200 : 409;
@@ -194,14 +191,12 @@ export async function POST(
         return storageResponse;
       }
       if (isControlPlaneIdempotencyConflictError(error)) {
-        return NextResponse.json(
-          {
-            code: error.code,
-            detail: error.message,
-            accepted: false,
-          },
-          { status: error.status },
-        );
+        return apiErrorResponse({
+          code: error.code,
+          message: error.message,
+          status: error.status,
+          details: { accepted: false },
+        });
       }
       throw error;
     }

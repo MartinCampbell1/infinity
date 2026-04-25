@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@founderos/ui/tokens.css";
 
 @source "./lib/**/*.{svelte,ts,js}";
 @source "./routes/**/*.{svelte,ts,js}";

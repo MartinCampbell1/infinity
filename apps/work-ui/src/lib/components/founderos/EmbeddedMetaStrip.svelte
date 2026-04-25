@@ -122,8 +122,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.9rem;
-		padding: 0.6rem 0.85rem;
+		gap: var(--space-6);
+		padding: var(--space-5) var(--space-6);
 		border-bottom: 1px solid rgb(255 255 255 / 0.08);
 		background: linear-gradient(180deg, rgb(15 23 42 / 0.88), rgb(15 23 42 / 0.7));
 		backdrop-filter: blur(10px);
@@ -137,18 +137,18 @@
 		display: flex;
 		flex: 1 1 auto;
 		flex-direction: column;
-		gap: 0.3rem;
+		gap: var(--space-1);
 	}
 
 	.founderos-work-banner__headline {
 		display: flex;
 		align-items: center;
-		gap: 0.55rem;
+		gap: var(--space-4);
 		flex-wrap: wrap;
 	}
 
 	.founderos-work-banner__project {
-		font-size: 0.88rem;
+		font-size: var(--font-size-small);
 		line-height: 1.2rem;
 		font-weight: 600;
 		color: rgb(248 250 252 / 0.96);
@@ -157,11 +157,11 @@
 	.founderos-work-banner__session {
 		display: inline-flex;
 		align-items: center;
-		padding: 0.15rem 0.45rem;
-		border-radius: 9999px;
+		padding: 2px var(--space-2);
+		border-radius: var(--radius-pill);
 		border: 1px solid rgb(255 255 255 / 0.08);
 		background: rgb(255 255 255 / 0.06);
-		font-size: 0.68rem;
+		font-size: var(--font-size-micro);
 		line-height: 1rem;
 		color: rgb(226 232 240 / 0.78);
 	}
@@ -169,34 +169,34 @@
 	.founderos-work-banner__pills {
 		display: flex;
 		align-items: center;
-		gap: 0.45rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 
 	.founderos-pill {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.3rem;
-		padding: 0.15rem 0.5rem;
-		border-radius: 9999px;
+		gap: var(--space-1);
+		padding: 2px var(--space-3);
+		border-radius: var(--radius-pill);
 		border: 1px solid rgb(255 255 255 / 0.08);
 		background: rgb(255 255 255 / 0.06);
-		font-size: 0.68rem;
+		font-size: var(--font-size-micro);
 		line-height: 1rem;
 		color: rgb(226 232 240 / 0.78);
 	}
 
 	.founderos-pill--quota[data-pressure='medium'] {
-		border-color: rgb(251 191 36 / 0.2);
-		background: rgb(245 158 11 / 0.14);
-		color: rgb(253 224 71);
+		border-color: var(--status-pending-border);
+		background: var(--status-pending-bg);
+		color: var(--status-pending-fg);
 	}
 
 	.founderos-pill--quota[data-pressure='high'],
 	.founderos-pill--quota[data-pressure='exhausted'] {
-		border-color: rgb(248 113 113 / 0.24);
-		background: rgb(239 68 68 / 0.12);
-		color: rgb(254 202 202);
+		border-color: var(--status-failed-border);
+		background: var(--status-failed-bg);
+		color: var(--status-failed-fg);
 	}
 
 	.founderos-work-banner__action {
@@ -204,16 +204,17 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0.38rem 0.72rem;
-		border-radius: 9999px;
+		padding: var(--space-2) var(--space-5);
+		border-radius: var(--radius-pill);
 		border: 1px solid rgb(255 255 255 / 0.12);
 		background: rgb(255 255 255 / 0.06);
-		font-size: 0.75rem;
+		font-size: var(--font-size-mini);
 		line-height: 1rem;
 		font-weight: 600;
 		color: rgb(226 232 240 / 0.92);
 		text-decoration: none;
-		transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+		transition: background-color var(--transition-fade), border-color var(--transition-fade),
+			color var(--transition-fade);
 	}
 
 	.founderos-work-banner__action:hover {
@@ -222,8 +223,7 @@
 	}
 
 	.monospace {
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-			'Courier New', monospace;
+		font-family: var(--font-mono);
 	}
 
 	@media (max-width: 640px) {

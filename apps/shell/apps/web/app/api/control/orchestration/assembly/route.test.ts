@@ -222,7 +222,7 @@ describe("/api/control/orchestration/assembly", () => {
     const createBody = await createResponse.json();
 
     expect(createResponse.status).toBe(400);
-    expect(createBody.detail).toMatch(/could not be created/i);
+    expect(createBody.error?.message).toMatch(/could not be created/i);
   });
 
   test("assembly creation regenerates when a new task-graph generation completes", async () => {

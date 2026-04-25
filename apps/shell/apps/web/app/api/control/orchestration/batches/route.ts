@@ -8,6 +8,7 @@ import {
 import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateExecutionBatchRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
 import {
+  apiErrorResponse,
   controlPlaneStorageUnavailableResponse,
   withControlPlaneStorageGuard,
 } from "../../../../../lib/server/http/control-plane-storage-response";
@@ -33,13 +34,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!isCreateExecutionBatchRequest(body)) {
-    return NextResponse.json(
-      {
-        detail:
-          "Batch creation requires taskGraphId and optional workUnitIds/concurrencyLimit.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_batch_creation_body",
+      message:
+        "Batch creation requires taskGraphId and optional workUnitIds/concurrencyLimit.",
+      status: 400,
+    });
   }
 
   let response;
@@ -61,25 +61,23 @@ export async function POST(request: Request) {
           : 400
       : 400;
 
-    return NextResponse.json(
-      {
-        detail:
-          error instanceof Error
-            ? error.message
-            : "Batch launch request was rejected before reaching the execution kernel.",
-      },
-      { status }
-    );
+    return apiErrorResponse({
+      code: "batch_launch_rejected",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Batch launch request was rejected before reaching the execution kernel.",
+      status,
+    });
   }
 
   if (!response) {
-    return NextResponse.json(
-      {
-        detail:
-          "Task graph was not found or it did not expose runnable work units for batch launch.",
-      },
-      { status: 404 }
-    );
+    return apiErrorResponse({
+      code: "batch_task_graph_not_runnable",
+      message:
+        "Task graph was not found or it did not expose runnable work units for batch launch.",
+      status: 404,
+    });
   }
 
   await triggerAutonomousLoopSafely(response.batch.initiativeId);

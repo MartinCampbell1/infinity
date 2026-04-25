@@ -148,8 +148,9 @@
 			return {
 				tier,
 				tierLabel,
-				outcome: 'Production handoff ready',
-				primary: 'Production preview, external proof manifest, and handoff packet are ready.'
+				outcome: 'Production proof complete',
+				primary:
+					'Hosted preview, external proof manifest, and handoff packet are attached as production-tier evidence.'
 			};
 		}
 		if (tier === 'staging') {
@@ -157,14 +158,14 @@
 				tier,
 				tierLabel,
 				outcome: 'Staging runnable proof',
-				primary: 'Staging preview is ready, but no hosted proof manifest is attached yet.'
+				primary: 'Staging preview is available, but no hosted proof manifest is attached yet.'
 			};
 		}
 		return {
 			tier,
 			tierLabel,
 			outcome: 'Local runnable proof',
-			primary: 'Local preview and handoff packet are ready. This is not production proof.'
+			primary: 'Local preview and handoff packet are available. This is not production proof.'
 		};
 	};
 	const compactEvidenceValue = (value: string) => {
@@ -226,7 +227,7 @@
 			value: verification
 				? `${verificationPassedChecks}/${verificationTotalChecks}`
 				: assembly
-					? 'Ready'
+					? 'Ready to verify'
 					: 'Pending',
 			detail: verification ? titleCase(verification.overallStatus) : 'Verification has not run yet.'
 		},
@@ -386,12 +387,16 @@
 	<title>Project Result</title>
 </svelte:head>
 
-<HermesEmbeddedWorkspaceFrame
-	title="Project result"
-	subtitle="Secondary verification and delivery drill-down while the shell workspace stays the canonical outcome surface."
-	badge={actionState === 'running' ? 'Verifying' : loadState === 'ready' ? 'Ready' : 'Loading'}
-	metaItems={metaItems}
->
+	<HermesEmbeddedWorkspaceFrame
+		title="Project result"
+		subtitle="Secondary verification and delivery drill-down while the shell workspace stays the canonical outcome surface."
+		badge={actionState === 'running'
+			? 'Verifying'
+			: loadState === 'ready'
+				? 'Result loaded'
+				: 'Loading'}
+		metaItems={metaItems}
+	>
 			{#if loadState === 'loading' || loadState === 'idle'}
 				<div class="rounded-[24px] border border-white/8 bg-slate-900/80 px-5 py-5 text-sm text-slate-200">
 					Loading project result…

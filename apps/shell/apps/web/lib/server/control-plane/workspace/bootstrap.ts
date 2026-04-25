@@ -1,3 +1,5 @@
+import { buildWorkspaceLaunchSessionPath } from "@founderos/api-clients/workspace-launch-routes";
+
 import type {
   SessionWorkspaceHostContext,
   WorkspaceLaunchBootstrapResponse,
@@ -65,9 +67,11 @@ function buildBootstrapUiState(
 function buildBootstrapAuthState(
   sessionId: string
 ): WorkspaceLaunchBootstrapAuthState {
-  const exchangePath = `/api/control/execution/workspace/${encodeURIComponent(
-    sessionId
-  )}/session`;
+  const exchangePath = buildWorkspaceLaunchSessionPath(sessionId);
+
+  if (!exchangePath) {
+    throw new Error("Workspace bootstrap requires a session id to build auth routes.");
+  }
 
   return {
     mode: "session_exchange",

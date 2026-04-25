@@ -11,3 +11,4 @@ export * from "./parity-targets";
 export * from "./orchestration";
 export * from "./multica";
 export * from "./multica-types";
+export * from "./workspace-launch-routes";

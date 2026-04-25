@@ -204,6 +204,11 @@ describe("/api/control/accounts/quotas", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body.error).toContain("Invalid quota producer ingest body");
+    expect(body.error).toEqual(
+      expect.objectContaining({
+        code: "invalid_quota_producer_body",
+        message: expect.stringContaining("Invalid quota producer ingest body"),
+      })
+    );
   });
 });

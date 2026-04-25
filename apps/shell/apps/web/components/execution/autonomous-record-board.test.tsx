@@ -67,6 +67,44 @@ vi.mock("@/components/execution/plane-run-primitives", () => ({
 import { AutonomousRecordBoard } from "./autonomous-record-board";
 
 describe("AutonomousRecordBoard", () => {
+  test("renders empty states with an actionable next step", () => {
+    const markup = renderToStaticMarkup(
+      <AutonomousRecordBoard
+        eyebrow="Execution"
+        title="Runs"
+        description="Operator run board."
+        emptyTitle="No runs"
+        emptyDescription="No runs yet."
+        emptyAction={{
+          href: "/execution?project_id=project-1",
+          label: "Open execution hub",
+        }}
+        items={[]}
+      />,
+    );
+
+    expect(markup).toContain("No runs");
+    expect(markup).toContain("No runs yet.");
+    expect(markup).toContain('href="/execution?project_id=project-1"');
+    expect(markup).toContain("Open execution hub");
+  });
+
+  test("uses the execution hub as the default empty action", () => {
+    const markup = renderToStaticMarkup(
+      <AutonomousRecordBoard
+        eyebrow="Execution"
+        title="Tasks"
+        description="Operator task board."
+        emptyTitle="No tasks"
+        emptyDescription="No tasks yet."
+        items={[]}
+      />,
+    );
+
+    expect(markup).toContain('href="/execution"');
+    expect(markup).toContain("Open execution hub");
+  });
+
   test("renders missing run routes and sidebar actions as disabled with reasons", () => {
     const markup = renderToStaticMarkup(
       <AutonomousRecordBoard

@@ -6,7 +6,10 @@ import {
 } from "../../../../../lib/server/orchestration/assembly";
 import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateAssemblyRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
-import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  withControlPlaneStorageGuard,
+} from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -28,24 +31,22 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!isCreateAssemblyRequest(body)) {
-    return NextResponse.json(
-      {
-        detail: "Assembly creation requires initiativeId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_assembly_creation_body",
+      message: "Assembly creation requires initiativeId.",
+      status: 400,
+    });
   }
 
   return withControlPlaneStorageGuard(async () => {
     const response = await createAssembly(body);
     if (!response) {
-      return NextResponse.json(
-        {
-          detail:
-            "Assembly could not be created because the initiative has no task graph or not every work unit is completed.",
-        },
-        { status: 400 }
-      );
+      return apiErrorResponse({
+        code: "assembly_not_ready",
+        message:
+          "Assembly could not be created because the initiative has no task graph or not every work unit is completed.",
+        status: 400,
+      });
     }
 
     await triggerAutonomousLoopSafely(response.assembly.initiativeId);

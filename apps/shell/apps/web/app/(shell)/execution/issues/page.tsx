@@ -2,6 +2,7 @@ import React from "react";
 
 import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-board";
 import {
+  buildExecutionRecoveriesScopeHref,
   buildExecutionRunScopeHref,
   readShellRouteScopeFromQueryRecord,
 } from "@/lib/route-scope";
@@ -128,6 +129,10 @@ export default async function ExecutionIssuesPage({
       items={items}
       emptyTitle="No blocking execution issues"
       emptyDescription="Secret pauses and runtime-unavailable events appear here only when the shell cannot honestly continue the autonomous path."
+      emptyAction={{
+        href: buildExecutionRecoveriesScopeHref(routeScope),
+        label: "Open recoveries",
+      }}
     />
   );
 }

@@ -19,7 +19,9 @@ import {
   ShellMetricCard,
   ShellPage,
   ShellRefreshButton,
+  ShellRetryButton,
   ShellSectionCard,
+  ShellSkeletonCardGrid,
   ShellStatusBanner,
 } from "@/components/shell/shell-screen-primitives";
 import {
@@ -288,7 +290,16 @@ export function ExecutionAgentsWorkspace({
   const { isRefreshing, refresh, refreshNonce } = useShellManualRefresh();
   const [query, setQuery] = useState("");
 
-  const loadSnapshot = useCallback(() => fetchShellExecutionAgentsSnapshot(), []);
+  const loadSnapshot = useCallback(() => {
+    const url = new URL("/api/shell/execution/agents", "http://founderos-shell.local");
+    if (routeScope.projectId) {
+      url.searchParams.set("project_id", routeScope.projectId);
+    }
+    if (query.trim()) {
+      url.searchParams.set("q", query.trim());
+    }
+    return fetchShellExecutionAgentsSnapshot(`${url.pathname}${url.search}`);
+  }, [query, routeScope.projectId]);
   const selectLoadState = useCallback(
     (snapshot: ShellExecutionAgentsSnapshot) => snapshot.projectsLoadState,
     []
@@ -333,6 +344,12 @@ export function ExecutionAgentsWorkspace({
     () => snapshot.actionRuns.filter((run) => matchesRun(run, query)).slice(0, 8),
     [query, snapshot.actionRuns]
   );
+  const isInitialLoading =
+    loadState === "loading" &&
+    snapshot.projects.length === 0 &&
+    snapshot.agents.length === 0 &&
+    snapshot.actionRuns.length === 0;
+  const hasLoadError = loadState === "error" || errorMessages.length > 0;
 
   return (
     <ShellPage>
@@ -342,7 +359,9 @@ export function ExecutionAgentsWorkspace({
         meta={
           <>
             <span>{snapshot.projects.length} tracked projects</span>
-            <span>{snapshot.agentsSummary?.totals.agents ?? snapshot.agents.length} runtime agents</span>
+            <span>
+              {snapshot.agentsFiltered ?? snapshot.agentsSummary?.totals.agents ?? snapshot.agents.length} runtime agents
+            </span>
             <span>{snapshot.actionRunsSummary?.totals.runs ?? snapshot.actionRuns.length} action runs</span>
           </>
         }
@@ -367,28 +386,42 @@ export function ExecutionAgentsWorkspace({
         </ShellStatusBanner>
       ))}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <ShellMetricCard
-          label="Projects"
-          value={String(snapshot.projects.length)}
-          detail="Tracked execution projects in the runtime fleet."
-        />
-        <ShellMetricCard
-          label="Active agents"
-          value={String(snapshot.agentsSummary?.totals.active ?? 0)}
-          detail="Runtime agents currently executing or holding an active role."
-        />
-        <ShellMetricCard
-          label="Needs attention"
-          value={String((snapshot.agentsSummary?.totals.blocked ?? 0) + (snapshot.agentsSummary?.totals.needs_approval ?? 0))}
-          detail="Blocked or approval-gated runtime agents."
-        />
-        <ShellMetricCard
-          label="Action runs"
-          value={String(snapshot.actionRunsSummary?.totals.runs ?? snapshot.actionRuns.length)}
-          detail="Recent execution-plane action runs."
-        />
-      </div>
+      {hasLoadError ? (
+        <div className="flex justify-end">
+          <ShellRetryButton
+            busy={isRefreshing || loadState === "loading"}
+            onClick={refresh}
+            compact
+          />
+        </div>
+      ) : null}
+
+      {isInitialLoading ? (
+        <ShellSkeletonCardGrid count={4} className="md:grid-cols-2 xl:grid-cols-4" />
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ShellMetricCard
+            label="Projects"
+            value={String(snapshot.projects.length)}
+            detail="Tracked execution projects in the runtime fleet."
+          />
+          <ShellMetricCard
+            label="Active agents"
+            value={String(snapshot.agents.filter((agent) => agent.status === "active").length)}
+            detail="Runtime agents currently executing or holding an active role."
+          />
+          <ShellMetricCard
+            label="Needs attention"
+            value={String((snapshot.agentsSummary?.totals.blocked ?? 0) + (snapshot.agentsSummary?.totals.needs_approval ?? 0))}
+            detail="Blocked or approval-gated runtime agents."
+          />
+          <ShellMetricCard
+            label="Action runs"
+            value={String(snapshot.actionRunsSummary?.totals.runs ?? snapshot.actionRuns.length)}
+            detail="Recent execution-plane action runs."
+          />
+        </div>
+      )}
 
       <ShellSectionCard
         title="Runtime board"
@@ -407,7 +440,9 @@ export function ExecutionAgentsWorkspace({
             description="Execution-plane ordered runtime agents."
             contentClassName="grid gap-2.5"
           >
-            {agents.length > 0 ? (
+            {isInitialLoading ? (
+              <ShellSkeletonCardGrid count={3} />
+            ) : agents.length > 0 ? (
               agents.map((agent) => (
                 <RuntimeAgentCard
                   key={agent.agent_id}
@@ -431,7 +466,9 @@ export function ExecutionAgentsWorkspace({
             description="Latest execution-plane action batches and single-agent runs."
             contentClassName="grid gap-2.5"
           >
-            {actionRuns.length > 0 ? (
+            {isInitialLoading ? (
+              <ShellSkeletonCardGrid count={3} />
+            ) : actionRuns.length > 0 ? (
               actionRuns.map((run) => (
                 <ActionRunCard
                   key={run.id}
@@ -456,7 +493,9 @@ export function ExecutionAgentsWorkspace({
           description="Current project runtime status across the execution fleet."
           contentClassName="grid gap-2.5"
         >
-          {projects.length > 0 ? (
+          {isInitialLoading ? (
+            <ShellSkeletonCardGrid count={3} />
+          ) : projects.length > 0 ? (
             projects.map((project) => (
               <ProjectCard
                 key={project.id}

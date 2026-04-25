@@ -1,3 +1,8 @@
+import {
+	buildWorkspaceLaunchBootstrapUrl,
+	buildWorkspaceLaunchSessionUrl
+} from '@founderos/api-clients/workspace-launch-routes';
+
 import type { SessionWorkspaceHostContext } from '$lib/founderos/types';
 import type { FounderosLaunchContext } from '$lib/founderos';
 
@@ -258,11 +263,7 @@ const isBootstrapPayload = (value: unknown): value is FounderosLaunchBootstrapPa
 };
 
 export const resolveFounderosLaunchBootstrapUrl = (context: FounderosLaunchContext) => {
-	if (!context.hostOrigin || !context.sessionId) {
-		return null;
-	}
-
-	return `${context.hostOrigin}/api/control/execution/workspace/${encodeURIComponent(context.sessionId)}/bootstrap`;
+	return buildWorkspaceLaunchBootstrapUrl(context.hostOrigin, context.sessionId);
 };
 
 export const fetchFounderosLaunchBootstrap = async (
@@ -369,9 +370,7 @@ export const resolveFounderosLaunchSessionUrl = (
 		return null;
 	}
 
-	return `${context.hostOrigin}/api/control/execution/workspace/${encodeURIComponent(
-		context.sessionId
-	)}/session`;
+	return buildWorkspaceLaunchSessionUrl(context.hostOrigin, context.sessionId);
 };
 
 export const exchangeFounderosLaunchSession = async (

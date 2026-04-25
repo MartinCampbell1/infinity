@@ -11,8 +11,15 @@ describe('project result page structure', () => {
 		expect(pageSource).toContain('Secondary proof details');
 		expect(pageSource).toContain('Readiness tier');
 		expect(pageSource).toContain('Local runnable proof');
+		expect(pageSource).toContain('Production proof complete');
+		expect(pageSource).toContain('Staging preview is available');
+		expect(pageSource).toContain('Local preview and handoff packet are available');
+		expect(pageSource).toContain('Ready to verify');
+		expect(pageSource).toContain('Result loaded');
 		expect(pageSource).not.toContain('Handoff ready');
+		expect(pageSource).not.toContain('Production handoff ready');
 		expect(pageSource).not.toContain('Preview and handoff are ready.');
+		expect(pageSource).not.toContain("? 'Ready'");
 		expect(pageSource).not.toContain("<li>Path: {delivery.localOutputPath ?? 'n/a'}</li>");
 		expect(pageSource).not.toContain("<li>Command: {delivery.command ?? 'n/a'}</li>");
 	});

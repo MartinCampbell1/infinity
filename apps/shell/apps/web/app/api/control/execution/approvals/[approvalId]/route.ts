@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 import {
   buildApprovalRequestDetailResponse,
 } from "../../../../../../lib/server/control-plane/approvals";
-import { withControlPlaneStorageGuard } from "../../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  withControlPlaneStorageGuard,
+} from "../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +19,11 @@ export async function GET(
     const response = await buildApprovalRequestDetailResponse(approvalId);
 
     if (!response) {
-      return NextResponse.json(
-        {
-          detail: `Approval request ${approvalId} is not present in the shell control-plane directory.`,
-        },
-        { status: 404 }
-      );
+      return apiErrorResponse({
+        code: "approval_request_not_found",
+        message: `Approval request ${approvalId} is not present in the shell control-plane directory.`,
+        status: 404,
+      });
     }
 
     return NextResponse.json(response);

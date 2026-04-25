@@ -106,21 +106,24 @@ async function expectStorageUnavailable(
   const body = await response.json();
 
   expect(response.status).toBe(503);
-  expect(body).toEqual(
+  expect(body.error).toEqual(
     expect.objectContaining({
       code: "control_plane_storage_unavailable",
-      readOnly: true,
-      degraded: true,
-      storageKind: "unknown",
-      integrationState: "degraded",
-      ...expectedExtras,
-      storagePolicy: expect.objectContaining({
-        deploymentEnv: "production",
-        mode: "normal",
-        localFileAllowed: false,
-        fileStateImportAllowed: false,
-        postgresRequired: true,
-        degradedMode: "read_only",
+      message: expect.stringContaining("requires Postgres-backed"),
+      details: expect.objectContaining({
+        readOnly: true,
+        degraded: true,
+        storageKind: "unknown",
+        integrationState: "degraded",
+        ...expectedExtras,
+        storagePolicy: expect.objectContaining({
+          deploymentEnv: "production",
+          mode: "normal",
+          localFileAllowed: false,
+          fileStateImportAllowed: false,
+          postgresRequired: true,
+          degradedMode: "read_only",
+        }),
       }),
     }),
   );

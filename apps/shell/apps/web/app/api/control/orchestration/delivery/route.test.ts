@@ -963,7 +963,7 @@ describe("/api/control/orchestration/delivery", () => {
     const replayBody = await replayResponse.json();
 
     expect(replayResponse.status).toBe(409);
-    expect(replayBody.code).toBe("idempotency_key_conflict");
+    expect(replayBody.error?.code).toBe("idempotency_key_conflict");
 
     const listResponse = await getDelivery(
       new Request(
@@ -1067,7 +1067,7 @@ describe("/api/control/orchestration/delivery", () => {
     const deliveryBody = await deliveryResponse.json();
 
     expect(deliveryResponse.status).toBe(400);
-    expect(deliveryBody.detail).toMatch(/requires a passed verification/i);
+    expect(deliveryBody.error?.message).toMatch(/requires a passed verification/i);
   });
 
   test("delivery stays ready when a scaffold attempt proof is corrupted because the runnable proof is assembly-backed", async () => {

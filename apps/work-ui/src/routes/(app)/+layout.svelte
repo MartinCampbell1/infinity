@@ -32,10 +32,12 @@
 		} from '$lib/founderos/bootstrap';
 	import { founderosLaunchContext } from '$lib/founderos';
 	import { verifyFounderosLaunchIntegrity } from '$lib/founderos/launch';
-	import { buildFounderosRootHref, buildFounderosShellHref } from '$lib/founderos/navigation';
+	import { buildFounderosShellHref } from '$lib/founderos/navigation';
 	import { resolveFounderosShellOrigin } from '$lib/founderos/shell-origin';
+	import { resolveFounderosShellReturnPath } from '$lib/founderos/shell-return';
 	import { mergeEnabledTerminalServerData } from '$lib/founderos/terminal-servers';
 	import type { SessionWorkspaceHostContext } from '$lib/founderos/types';
+	import { registerWorkspaceKeyboardShortcuts } from '$lib/composables/workspace-keyboard-shortcuts';
 	import {
 		applyFounderosHostContextPatch,
 		createFounderosHostActionRelay,
@@ -87,49 +89,10 @@
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
 	import UpdateInfoToast from '$lib/components/layout/UpdateInfoToast.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
-	import { Shortcut, shortcuts } from '$lib/shortcuts';
 
 	const i18n = getContext<I18nStore>('i18n') as Writable<I18nType>;
 	const HERMES_ONLY_CHAT = true;
 	const { saveAs } = fileSaver;
-
-	const resolveShellReturnPath = (context: SessionWorkspaceHostContext | null) => {
-		if (context?.sessionId) {
-			const searchParams = new URLSearchParams();
-			if (context.projectId) {
-				searchParams.set('project_id', context.projectId);
-			}
-			searchParams.set('session_id', context.sessionId);
-			if (context.groupId) {
-				searchParams.set('group_id', context.groupId);
-			}
-			if (context.accountId) {
-				searchParams.set('account_id', context.accountId);
-			}
-			if (context.workspaceId) {
-				searchParams.set('workspace_id', context.workspaceId);
-			}
-			if (context.openedFrom) {
-				searchParams.set('opened_from', context.openedFrom);
-			}
-			return `/execution/workspace/${encodeURIComponent(context.sessionId)}?${searchParams.toString()}`;
-		}
-
-		switch (context?.openedFrom) {
-			case 'dashboard':
-				return '/execution';
-			case 'review':
-				return '/execution/review';
-			case 'group_board':
-				return '/execution/groups';
-			case 'deep_link':
-				return '/execution/sessions';
-			case 'execution_board':
-			case 'unknown':
-			default:
-				return '/execution';
-		}
-	};
 
 	const applyFounderosLaunchBootstrap = async (
 		payload: FounderosLaunchBootstrapPayload,
@@ -224,6 +187,7 @@
 	let founderosBridgeCleanup: () => void = () => {};
 	let founderosEventCleanup: () => void = () => {};
 	let founderosHostActionCleanup: () => void = () => {};
+	let keyboardShortcutCleanup: () => void = () => {};
 	let founderosBridgeSignature = '';
 	let embeddedMode = false;
 	let loaded = false;
@@ -479,113 +443,12 @@
 			}).catch((e) => console.error('Failed to load user settings:', e))
 		]);
 
-		// Helper function to check if the pressed keys match the shortcut definition
-		const isShortcutMatch = (
-			event: KeyboardEvent,
-			shortcut?: (typeof shortcuts)[Shortcut]
-		): boolean => {
-			const keys = shortcut?.keys || [];
-
-			const normalized = keys.map((k) => k.toLowerCase());
-			const needCtrl = normalized.includes('ctrl') || normalized.includes('mod');
-			const needShift = normalized.includes('shift');
-			const needAlt = normalized.includes('alt');
-
-			const mainKeys = normalized.filter((k) => !['ctrl', 'shift', 'alt', 'mod'].includes(k));
-
-			// Get the main key pressed
-			const keyPressed = event.key.toLowerCase();
-
-			// Check modifiers
-			if (needShift && !event.shiftKey) return false;
-
-			if (needCtrl && !(event.ctrlKey || event.metaKey)) return false;
-			if (!needCtrl && (event.ctrlKey || event.metaKey)) return false;
-			if (needAlt && !event.altKey) return false;
-			if (!needAlt && event.altKey) return false;
-
-			if (mainKeys.length && !mainKeys.includes(keyPressed)) return false;
-
-			return true;
-		};
-
-		const clickLastByClass = (className: string) => {
-			const element = [...document.getElementsByClassName(className)].at(-1);
-			if (element instanceof HTMLElement) {
-				element.click();
-			}
-		};
-
-		const setupKeyboardShortcuts = () => {
-			document.addEventListener('keydown', async (event) => {
-				if (isShortcutMatch(event, shortcuts[Shortcut.SEARCH])) {
-					console.log('Shortcut triggered: SEARCH');
-					event.preventDefault();
-					showSearch.set(!$showSearch);
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.NEW_CHAT])) {
-					console.log('Shortcut triggered: NEW_CHAT');
-					event.preventDefault();
-					document.getElementById('sidebar-new-chat-button')?.click();
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.FOCUS_INPUT])) {
-					console.log('Shortcut triggered: FOCUS_INPUT');
-					event.preventDefault();
-					document.getElementById('chat-input')?.focus();
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.COPY_LAST_CODE_BLOCK])) {
-					console.log('Shortcut triggered: COPY_LAST_CODE_BLOCK');
-					event.preventDefault();
-					clickLastByClass('copy-code-button');
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.COPY_LAST_RESPONSE])) {
-					console.log('Shortcut triggered: COPY_LAST_RESPONSE');
-					event.preventDefault();
-					clickLastByClass('copy-response-button');
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.TOGGLE_SIDEBAR])) {
-					console.log('Shortcut triggered: TOGGLE_SIDEBAR');
-					event.preventDefault();
-					showSidebar.set(!$showSidebar);
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.DELETE_CHAT])) {
-					console.log('Shortcut triggered: DELETE_CHAT');
-					event.preventDefault();
-					document.getElementById('delete-chat-button')?.click();
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.OPEN_SETTINGS])) {
-					console.log('Shortcut triggered: OPEN_SETTINGS');
-					event.preventDefault();
-					showSettings.set(!$showSettings);
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.SHOW_SHORTCUTS])) {
-					console.log('Shortcut triggered: SHOW_SHORTCUTS');
-					event.preventDefault();
-					showShortcuts.set(!$showShortcuts);
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.CLOSE_MODAL])) {
-					console.log('Shortcut triggered: CLOSE_MODAL');
-					event.preventDefault();
-					showSettings.set(false);
-					showShortcuts.set(false);
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.OPEN_MODEL_SELECTOR])) {
-					console.log('Shortcut triggered: OPEN_MODEL_SELECTOR');
-					event.preventDefault();
-					document.getElementById('model-selector-0-button')?.click();
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.NEW_TEMPORARY_CHAT])) {
-					console.log('Shortcut triggered: NEW_TEMPORARY_CHAT');
-					event.preventDefault();
-					temporaryChatEnabled.set(HERMES_ONLY_CHAT ? false : !$temporaryChatEnabled);
-					await goto(buildFounderosRootHref($founderosLaunchContext));
-					setTimeout(() => {
-						document.getElementById('new-chat-button')?.click();
-					}, 0);
-				} else if (isShortcutMatch(event, shortcuts[Shortcut.GENERATE_MESSAGE_PAIR])) {
-					console.log('Shortcut triggered: GENERATE_MESSAGE_PAIR');
-					event.preventDefault();
-					document.getElementById('generate-message-pair-button')?.click();
-				} else if (
-					isShortcutMatch(event, shortcuts[Shortcut.REGENERATE_RESPONSE]) &&
-					document.activeElement?.id === 'chat-input'
-				) {
-					console.log('Shortcut triggered: REGENERATE_RESPONSE');
-					event.preventDefault();
-					clickLastByClass('regenerate-response-button');
-				}
-			});
-		};
-		setupKeyboardShortcuts();
+		keyboardShortcutCleanup = registerWorkspaceKeyboardShortcuts({
+			document,
+			getLaunchContext: () => get(founderosLaunchContext),
+			navigate: goto,
+			hermesOnlyChat: HERMES_ONLY_CHAT
+		});
 
 		if ($user?.role === 'admin' && ($settings?.showChangelog ?? true)) {
 			showChangelog.set(($settings?.version ?? null) !== ($config?.version ?? null));
@@ -646,6 +509,7 @@
 		founderosBridgeCleanup();
 		founderosEventCleanup();
 		founderosHostActionCleanup();
+		keyboardShortcutCleanup();
 		teardownFounderosBridge();
 	});
 
@@ -655,7 +519,7 @@
 		browser ? window.location.origin : null
 	);
 	$: shellReturnHref = buildFounderosShellHref(
-		resolveShellReturnPath($founderosHostContext ?? null),
+		resolveFounderosShellReturnPath($founderosHostContext ?? null),
 		$founderosLaunchContext,
 		shellOrigin
 	);

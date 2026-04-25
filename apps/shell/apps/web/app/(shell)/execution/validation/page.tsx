@@ -4,6 +4,7 @@ import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-
 import {
   buildExecutionContinuityScopeHref,
   readShellRouteScopeFromQueryRecord,
+  withShellRouteScope,
 } from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
 import { isStrictRolloutEnv } from "@/lib/server/control-plane/workspace/rollout-config";
@@ -68,7 +69,7 @@ export default async function ExecutionValidationPage({
             ? `launch proof · ${readiness?.badgeLabel ?? "Missing proof"}`
             : null,
           proof?.handoffReady && deliveryHandoffReady
-            ? `handoff packet ready · ${readiness?.badgeLabel ?? "Missing proof"}`
+            ? `production handoff packet · ${readiness?.badgeLabel ?? "Missing proof"}`
             : null,
         ],
         href: run
@@ -88,6 +89,10 @@ export default async function ExecutionValidationPage({
       items={items}
       emptyTitle="No verification runs yet"
       emptyDescription="Validation records appear automatically after assembly is ready."
+      emptyAction={{
+        href: withShellRouteScope("/execution/runs", routeScope),
+        label: "Open runs",
+      }}
     />
   );
 }

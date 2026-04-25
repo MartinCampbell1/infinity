@@ -20,12 +20,16 @@ vi.mock("next/link", () => ({
 }));
 
 const mockUsePathname = vi.fn(() => "/execution/approvals");
+const mockRouterPush = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockUsePathname(),
+  useRouter: () => ({
+    push: mockRouterPush,
+  }),
 }));
 
-import { ShellFrame } from "./shell-frame";
+import { SHELL_SHORTCUT_SECTIONS, ShellFrame, ShellShortcutHelpDialog } from "./shell-frame";
 
 describe("ShellFrame navigation", () => {
   test("uses a product-facing root breadcrumb aligned with the run control plane nav", () => {
@@ -85,5 +89,48 @@ describe("ShellFrame navigation", () => {
     expect(markup).not.toMatch(
       /href="\/execution\/approvals"[\s\S]*?<span[^>]*>\s*1\s*<\/span>/,
     );
+  });
+
+  test("renders cockpit shortcut help with route actions and accessible dialog semantics", () => {
+    const markup = renderToStaticMarkup(
+      <ShellShortcutHelpDialog open onClose={() => {}} />,
+    );
+
+    expect(markup).toContain('role="dialog"');
+    expect(markup).toContain('aria-modal="true"');
+    expect(markup).toContain("Keyboard shortcuts");
+    expect(markup).toContain("Open run control plane");
+    expect(markup).toContain("Open planner lane");
+    expect(markup).toContain("Open approvals");
+    expect(markup).toContain("Open validation");
+    expect(markup).toContain("Start a new run");
+    expect(SHELL_SHORTCUT_SECTIONS.flatMap((section) => section.items).map((item) => item.label))
+      .toEqual(
+        expect.arrayContaining([
+          "Open keyboard help",
+          "Open cockpit shortcuts",
+          "Start a new run",
+          "Open run control plane",
+          "Open planner lane",
+          "Open approvals",
+          "Open validation",
+        ]),
+      );
+  });
+
+  test("wires the topbar search affordance to the shortcut dialog", () => {
+    mockUsePathname.mockReturnValue("/execution/runs");
+
+    const markup = renderToStaticMarkup(
+      <ShellFrame>
+        <main>Runs board</main>
+      </ShellFrame>,
+    );
+
+    expect(markup).toContain('aria-haspopup="dialog"');
+    expect(markup).toContain('aria-controls="shell-shortcuts-dialog"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain("Search runs, tasks, agents...");
+    expect(markup).toContain("⌘K");
   });
 });

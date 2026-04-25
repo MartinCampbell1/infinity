@@ -5,25 +5,16 @@ import type { AutopilotExecutionEventRecord } from "@founderos/api-clients";
 import type { ShellExecutionEventsSnapshot } from "../../../../../lib/execution-events-model";
 import type { NormalizedExecutionEvent } from "../../../../../lib/server/control-plane/events";
 import { getExecutionSessionEvents } from "../../../../../lib/server/control-plane/sessions";
+import {
+  directoryCacheHeaders,
+  matchesDirectorySearchQuery,
+  paginateDirectoryItems,
+  parseDirectoryPagination,
+  readDirectoryFilter,
+  readDirectorySearchQuery,
+} from "../../../../../lib/server/http/directory-pagination";
 
 export const dynamic = "force-dynamic";
-
-function parseLimit(searchParams: URLSearchParams) {
-  const raw = Number(searchParams.get("limit") ?? 250);
-  if (!Number.isFinite(raw) || raw <= 0) {
-    return 250;
-  }
-  return Math.min(Math.floor(raw), 500);
-}
-
-function parseOptional(searchParams: URLSearchParams, key: string) {
-  const value = searchParams.get(key);
-  if (!value) {
-    return null;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : null;
-}
 
 function asString(value: unknown) {
   return typeof value === "string" ? value : null;
@@ -81,60 +72,157 @@ function toAutopilotExecutionEventRecord(event: NormalizedExecutionEvent): Autop
   };
 }
 
+function eventRuntimeAgentIds(event: NormalizedExecutionEvent) {
+  const primary = asString(event.payload.runtimeAgentId);
+  const many = Array.isArray(event.payload.runtimeAgentIds)
+    ? event.payload.runtimeAgentIds.filter(
+        (value): value is string => typeof value === "string" && value.trim().length > 0,
+      )
+    : [];
+  return [primary, ...many].filter(
+    (value): value is string => typeof value === "string" && value.trim().length > 0,
+  );
+}
+
 function matchesFilter(
-  record: AutopilotExecutionEventRecord,
+  event: NormalizedExecutionEvent,
   filters: {
     projectId: string | null;
+    groupId: string | null;
     orchestratorSessionId: string | null;
     runtimeAgentId: string | null;
+    initiativeId: string | null;
+    orchestrator: string | null;
+    kind: string | null;
+    status: string | null;
+    source: string | null;
+    provider: string | null;
+    query: string | null;
   }
 ) {
-  if (filters.projectId && record.project_id !== filters.projectId) {
+  if (filters.projectId && event.projectId !== filters.projectId) {
+    return false;
+  }
+  if (filters.groupId && (event.groupId ?? "") !== filters.groupId) {
     return false;
   }
   if (
     filters.orchestratorSessionId &&
-    record.orchestrator_session_id !== filters.orchestratorSessionId
+    event.sessionId !== filters.orchestratorSessionId
   ) {
     return false;
   }
   if (filters.runtimeAgentId) {
-    const runtimeAgentIds = [
-      record.runtime_agent_id,
-      ...(record.runtime_agent_ids ?? []),
-    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+    const runtimeAgentIds = eventRuntimeAgentIds(event);
     if (!runtimeAgentIds.includes(filters.runtimeAgentId)) {
       return false;
     }
   }
-  return true;
+  if (
+    filters.initiativeId &&
+    event.projectId !== filters.initiativeId &&
+    asString(event.payload.initiativeId) !== filters.initiativeId
+  ) {
+    return false;
+  }
+  if (
+    filters.orchestrator &&
+    event.provider !== filters.orchestrator &&
+    event.source !== filters.orchestrator &&
+    asString(event.payload.orchestrator) !== filters.orchestrator
+  ) {
+    return false;
+  }
+  if (filters.kind && event.kind !== filters.kind) {
+    return false;
+  }
+  if (filters.status && eventStatus(event) !== filters.status) {
+    return false;
+  }
+  if (filters.source && event.source !== filters.source) {
+    return false;
+  }
+  if (filters.provider && event.provider !== filters.provider) {
+    return false;
+  }
+
+  return matchesDirectorySearchQuery(
+    [
+      event.id,
+      event.sessionId,
+      event.projectId,
+      event.groupId,
+      event.source,
+      event.provider,
+      event.kind,
+      eventStatus(event),
+      event.phase,
+      event.summary,
+      event.payload.projectName,
+      event.payload.title,
+      event.payload.runtimeAgentId,
+      event.payload.runtimeAgentIds,
+      event.payload.agentActionRunId,
+      event.payload.toolName,
+      event.payload.approvalId,
+      event.payload.issueId,
+      event.payload.accountId,
+      event.payload.workspaceId,
+      event.payload.initiativeId,
+      event.payload.orchestrator,
+    ],
+    filters.query,
+  );
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const limit = parseLimit(searchParams);
+  const pagination = parseDirectoryPagination(searchParams, {
+    defaultLimit: 250,
+    maxLimit: 500,
+  });
   const filters = {
-    projectId: parseOptional(searchParams, "project_id"),
-    orchestratorSessionId: parseOptional(searchParams, "orchestrator_session_id"),
-    runtimeAgentId: parseOptional(searchParams, "runtime_agent_id"),
+    projectId: readDirectoryFilter(searchParams, "project_id"),
+    groupId: readDirectoryFilter(searchParams, "group_id"),
+    orchestratorSessionId: readDirectoryFilter(searchParams, "orchestrator_session_id"),
+    runtimeAgentId: readDirectoryFilter(searchParams, "runtime_agent_id"),
+    initiativeId: readDirectoryFilter(searchParams, "initiative_id"),
+    orchestrator: readDirectoryFilter(searchParams, "orchestrator"),
+    kind: readDirectoryFilter(searchParams, "kind") ?? readDirectoryFilter(searchParams, "event"),
+    status: readDirectoryFilter(searchParams, "status"),
+    source: readDirectoryFilter(searchParams, "source"),
+    provider: readDirectoryFilter(searchParams, "provider"),
+    query: readDirectorySearchQuery(searchParams),
   };
 
-  const allEvents = (await getExecutionSessionEvents()).map(toAutopilotExecutionEventRecord);
-  const filteredEvents = allEvents.filter((event) => matchesFilter(event, filters)).slice(0, limit);
+  const normalizedEvents = await getExecutionSessionEvents();
+  const matchingEvents = normalizedEvents
+    .filter((event) => matchesFilter(event, filters))
+    .map(toAutopilotExecutionEventRecord);
+  const page = paginateDirectoryItems(matchingEvents, pagination);
+  const generatedAt = new Date().toISOString();
 
   const response: ShellExecutionEventsSnapshot = {
-    generatedAt: new Date().toISOString(),
-    events: filteredEvents,
-    totalEvents: allEvents.length,
-    filteredEvents: filteredEvents.length,
-    latestEventAt: filteredEvents[0]?.timestamp ?? null,
+    generatedAt,
+    events: page.items,
+    totalEvents: normalizedEvents.length,
+    filteredEvents: matchingEvents.length,
+    pageInfo: page.pageInfo,
+    latestEventAt: page.items[0]?.timestamp ?? null,
     eventsLoadState: "ready",
     eventsError: null,
     filters: {
       ...filters,
-      limit,
+      limit: pagination.limit,
+      cursor: pagination.cursor,
     },
   };
 
-  return NextResponse.json(response);
+  return NextResponse.json(response, {
+    headers: directoryCacheHeaders({
+      route: "/api/shell/execution/events",
+      generatedAt,
+      itemCount: matchingEvents.length,
+    }),
+  });
 }

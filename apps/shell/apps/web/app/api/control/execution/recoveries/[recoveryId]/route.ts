@@ -14,7 +14,10 @@ import {
 import { buildWorkspaceRuntimeSnapshot } from "../../../../../../lib/server/control-plane/workspace/runtime-ingest";
 import type { SessionWorkspaceHostContext } from "../../../../../../lib/server/control-plane/contracts/workspace-launch";
 import { controlPlaneMutationActorFromRequest } from "../../../../../../lib/server/http/control-plane-auth";
-import { controlPlaneStorageUnavailableResponse } from "../../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  controlPlaneStorageUnavailableResponse,
+} from "../../../../../../lib/server/http/control-plane-storage-response";
 import { retryOrchestrationRecovery } from "../../../../../../lib/server/orchestration/retry";
 
 export const dynamic = "force-dynamic";
@@ -36,12 +39,11 @@ export async function GET(
   }
 
   if (!response) {
-    return NextResponse.json(
-      {
-        detail: `Recovery incident ${recoveryId} is not present in the shell control-plane directory.`,
-      },
-      { status: 404 }
-    );
+    return apiErrorResponse({
+      code: "recovery_incident_not_found",
+      message: `Recovery incident ${recoveryId} is not present in the shell control-plane directory.`,
+      status: 404,
+    });
   }
 
   return NextResponse.json(response);
@@ -61,35 +63,31 @@ export async function POST(
   }
 
   if (!isRecoveryRecordActionRequest(body) || body.actionKind === "unknown") {
-    return NextResponse.json(
-      {
-        detail:
-          "Request body must include actionKind with one of retry, failover, resolve, or reopen.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_recovery_action_body",
+      message:
+        "Request body must include actionKind with one of retry, failover, resolve, or reopen.",
+      status: 400,
+    });
   }
 
   const targetAccountId = body.targetAccountId;
 
   if (targetAccountId !== undefined && typeof targetAccountId !== "string") {
-    return NextResponse.json(
-      {
-        detail: "targetAccountId must be a string when provided.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_target_account_id",
+      message: "targetAccountId must be a string when provided.",
+      status: 400,
+    });
   }
 
   const actor = controlPlaneMutationActorFromRequest(request);
   if (!actor) {
-    return NextResponse.json(
-      {
-        code: "missing_actor",
-        detail: "Recovery action requires an authenticated actor.",
-      },
-      { status: 401 },
-    );
+    return apiErrorResponse({
+      code: "missing_actor",
+      message: "Recovery action requires an authenticated actor.",
+      status: 401,
+    });
   }
 
   let result;
@@ -116,12 +114,11 @@ export async function POST(
   }
 
   if (!result) {
-    return NextResponse.json(
-      {
-        detail: `Recovery incident ${recoveryId} is not present in the shell control-plane directory.`,
-      },
-      { status: 404 }
-    );
+    return apiErrorResponse({
+      code: "recovery_incident_not_found",
+      message: `Recovery incident ${recoveryId} is not present in the shell control-plane directory.`,
+      status: 404,
+    });
   }
 
   const orchestrationRetry =

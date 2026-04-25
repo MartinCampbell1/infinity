@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 
 import {
-  buildControlPlaneStorageUnavailableProblem,
   getControlPlaneIntegrationState,
   getControlPlaneStorageKind,
   getControlPlaneStorageSource,
-  isControlPlaneStorageUnavailableError,
 } from "../../../../../../../lib/server/control-plane/state/store";
 import {
   isWorkspaceRuntimeBridgeIngestRequest,
@@ -13,6 +11,8 @@ import {
 } from "../../../../../../../lib/server/control-plane/workspace/runtime-ingest";
 import type { WorkspaceRuntimeIngestResponse } from "../../../../../../../lib/server/control-plane/contracts/workspace-launch";
 import { controlPlaneMutationActorFromRequest } from "../../../../../../../lib/server/http/control-plane-auth";
+import { apiErrorResponse } from "../../../../../../../lib/server/http/api-error-response";
+import { controlPlaneStorageUnavailableResponse } from "../../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -30,35 +30,32 @@ export async function POST(
   }
 
   if (!isWorkspaceRuntimeBridgeIngestRequest(body)) {
-    return NextResponse.json(
-      {
-        detail:
-          "Request body must include hostContext and one supported workspace or host bridge message, or a workspace runtime producer batch.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_workspace_runtime_body",
+      message:
+        "Request body must include hostContext and one supported workspace or host bridge message, or a workspace runtime producer batch.",
+      status: 400,
+    });
   }
 
   if (body.hostContext.sessionId !== sessionId) {
-    return NextResponse.json(
-      {
-        detail:
-          "Route sessionId must match body.hostContext.sessionId for runtime ingest.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "session_id_mismatch",
+      message:
+        "Route sessionId must match body.hostContext.sessionId for runtime ingest.",
+      status: 400,
+      details: { routeSessionId: sessionId, bodySessionId: body.hostContext.sessionId },
+    });
   }
 
   try {
     const actor = controlPlaneMutationActorFromRequest(request);
     if (!actor) {
-      return NextResponse.json(
-        {
-          code: "missing_actor",
-          detail: "Workspace runtime ingest requires an authenticated actor.",
-        },
-        { status: 401 },
-      );
+      return apiErrorResponse({
+        code: "missing_actor",
+        message: "Workspace runtime ingest requires an authenticated actor.",
+        status: 401,
+      });
     }
 
     const result = await persistWorkspaceRuntimeBridgeMessage(
@@ -79,34 +76,28 @@ export async function POST(
 
     return NextResponse.json(response);
   } catch (error) {
-    if (isControlPlaneStorageUnavailableError(error)) {
-      const problem = buildControlPlaneStorageUnavailableProblem(error);
-      return NextResponse.json(
-        {
-          ...problem,
-          accepted: false,
-        },
-        { status: error.status },
-      );
+    const storageResponse = controlPlaneStorageUnavailableResponse(error, {
+      accepted: false,
+    });
+    if (storageResponse) {
+      return storageResponse;
     }
 
     if (error instanceof Error && error.message.startsWith("Unsupported workspace runtime bridge message")) {
-      return NextResponse.json(
-        {
-          detail: error.message,
-        },
-        { status: 400 }
-      );
+      return apiErrorResponse({
+        code: "unsupported_workspace_runtime_message",
+        message: error.message,
+        status: 400,
+      });
     }
 
-    return NextResponse.json(
-      {
-        detail:
-          error instanceof Error
-            ? error.message
-            : "Workspace runtime ingest failed.",
-      },
-      { status: 500 }
-    );
+    return apiErrorResponse({
+      code: "workspace_runtime_ingest_failed",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Workspace runtime ingest failed.",
+      status: 500,
+    });
   }
 }

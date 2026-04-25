@@ -5,7 +5,10 @@ import {
   createOrchestrationWorkUnit,
 } from "../../../../../lib/server/orchestration/work-units";
 import { isCreateWorkUnitRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
-import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  withControlPlaneStorageGuard,
+} from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -27,24 +30,22 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!isCreateWorkUnitRequest(body)) {
-    return NextResponse.json(
-      {
-        detail:
-          "Work unit creation requires taskGraphId, title, description, executorType, scopePaths, dependencies, and acceptanceCriteria.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_work_unit_creation_body",
+      message:
+        "Work unit creation requires taskGraphId, title, description, executorType, scopePaths, dependencies, and acceptanceCriteria.",
+      status: 400,
+    });
   }
 
   return withControlPlaneStorageGuard(async () => {
     const response = await createOrchestrationWorkUnit(body);
     if (!response) {
-      return NextResponse.json(
-        {
-          detail: `Task graph ${body.taskGraphId} is not present in the shell orchestration directory.`,
-        },
-        { status: 404 }
-      );
+      return apiErrorResponse({
+        code: "task_graph_not_found",
+        message: `Task graph ${body.taskGraphId} is not present in the shell orchestration directory.`,
+        status: 404,
+      });
     }
 
     return NextResponse.json(response, { status: 201 });

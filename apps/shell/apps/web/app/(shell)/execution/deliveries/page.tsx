@@ -4,6 +4,7 @@ import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-
 import {
   buildExecutionDeliveryScopeHref,
   readShellRouteScopeFromQueryRecord,
+  withShellRouteScope,
 } from "@/lib/route-scope";
 import { resolveDeliveryReadinessCopy } from "../../../../lib/delivery-readiness";
 import { isStrictRolloutEnv } from "../../../../lib/server/control-plane/workspace/rollout-config";
@@ -68,6 +69,10 @@ export default async function ExecutionDeliveriesPage({
       items={items}
       emptyTitle="No deliveries yet"
       emptyDescription="Delivery records appear automatically after verification passes."
+      emptyAction={{
+        href: withShellRouteScope("/execution/validation", routeScope),
+        label: "Open validation",
+      }}
     />
   );
 }

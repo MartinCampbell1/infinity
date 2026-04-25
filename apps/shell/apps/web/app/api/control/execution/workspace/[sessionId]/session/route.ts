@@ -11,6 +11,7 @@ import {
 } from "../../../../../../../lib/server/control-plane/workspace/session";
 import { verifyWorkspaceLaunchToken } from "../../../../../../../lib/server/control-plane/workspace/launch-token";
 import { buildWorkspaceSessionClearCookieHeader } from "../../../../../../../lib/server/control-plane/workspace/session-token";
+import { apiErrorResponse } from "../../../../../../../lib/server/http/api-error-response";
 import { withControlPlaneStorageGuard } from "../../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
@@ -86,21 +87,20 @@ export async function POST(
   const body = parseBody(await request.json().catch(() => null));
 
   if (!body) {
-    return NextResponse.json(
-      {
-        error: "Invalid workspace session body.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_workspace_session_body",
+      message: "Invalid workspace session body.",
+      status: 400,
+    });
   }
 
   if (body.sessionId && body.sessionId !== sessionId) {
-    return NextResponse.json(
-      {
-        error: "Workspace session body does not match the route sessionId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "session_id_mismatch",
+      message: "Workspace session body does not match the route sessionId.",
+      status: 400,
+      details: { routeSessionId: sessionId, bodySessionId: body.sessionId },
+    });
   }
 
   const refs = normalizeWorkspaceLaunchRefs({
@@ -112,12 +112,11 @@ export async function POST(
   });
 
   if (!refs.projectId || !refs.sessionId) {
-    return NextResponse.json(
-      {
-        error: "Workspace session exchange requires projectId and sessionId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "missing_workspace_launch_refs",
+      message: "Workspace session exchange requires projectId and sessionId.",
+      status: 400,
+    });
   }
 
   const verification = verifyWorkspaceLaunchToken({
@@ -158,21 +157,20 @@ export async function DELETE(
   const body = parseRevokeBody(await request.json().catch(() => null));
 
   if (!body) {
-    return NextResponse.json(
-      {
-        error: "Invalid workspace session revoke body.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_workspace_session_revoke_body",
+      message: "Invalid workspace session revoke body.",
+      status: 400,
+    });
   }
 
   if (body.sessionId && body.sessionId !== sessionId) {
-    return NextResponse.json(
-      {
-        error: "Workspace session revoke body does not match the route sessionId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "session_id_mismatch",
+      message: "Workspace session revoke body does not match the route sessionId.",
+      status: 400,
+      details: { routeSessionId: sessionId, bodySessionId: body.sessionId },
+    });
   }
 
   const refs = normalizeWorkspaceLaunchRefs({
@@ -184,12 +182,11 @@ export async function DELETE(
   });
 
   if (!refs.projectId || !refs.sessionId) {
-    return NextResponse.json(
-      {
-        error: "Workspace session revoke requires projectId and sessionId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "missing_workspace_launch_refs",
+      message: "Workspace session revoke requires projectId and sessionId.",
+      status: 400,
+    });
   }
 
   const verification = verifyWorkspaceLaunchToken({
@@ -243,21 +240,20 @@ export async function PATCH(
   const body = parseBody(await request.json().catch(() => null));
 
   if (!body) {
-    return NextResponse.json(
-      {
-        error: "Invalid workspace session refresh body.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_workspace_session_refresh_body",
+      message: "Invalid workspace session refresh body.",
+      status: 400,
+    });
   }
 
   if (body.sessionId && body.sessionId !== sessionId) {
-    return NextResponse.json(
-      {
-        error: "Workspace session refresh body does not match the route sessionId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "session_id_mismatch",
+      message: "Workspace session refresh body does not match the route sessionId.",
+      status: 400,
+      details: { routeSessionId: sessionId, bodySessionId: body.sessionId },
+    });
   }
 
   const refs = normalizeWorkspaceLaunchRefs({
@@ -269,12 +265,11 @@ export async function PATCH(
   });
 
   if (!refs.projectId || !refs.sessionId) {
-    return NextResponse.json(
-      {
-        error: "Workspace session refresh requires projectId and sessionId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "missing_workspace_launch_refs",
+      message: "Workspace session refresh requires projectId and sessionId.",
+      status: 400,
+    });
   }
 
   const cookieVerification = await verifyWorkspaceSessionCookie({

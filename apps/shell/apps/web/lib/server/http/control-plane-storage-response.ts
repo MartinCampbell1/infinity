@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
-
 import {
   buildControlPlaneStorageUnavailableProblem,
   isControlPlaneStorageUnavailableError,
 } from "../control-plane/state/store";
+import { apiErrorResponse } from "./api-error-response";
+
+export { apiErrorResponse } from "./api-error-response";
 
 export function controlPlaneStorageUnavailableResponse(
   error: unknown,
@@ -13,12 +14,23 @@ export function controlPlaneStorageUnavailableResponse(
     return null;
   }
 
-  return NextResponse.json(
+  const problem = buildControlPlaneStorageUnavailableProblem(error);
+
+  return apiErrorResponse(
     {
-      ...buildControlPlaneStorageUnavailableProblem(error),
-      ...extras,
+      code: problem.code,
+      message: problem.detail,
+      status: error.status,
+      details: {
+        ...extras,
+        storagePolicy: problem.storagePolicy,
+        storageKind: problem.storageKind,
+        integrationState: problem.integrationState,
+        degraded: problem.degraded,
+        readOnly: problem.readOnly,
+      },
     },
-    { status: error.status },
+    undefined,
   );
 }
 

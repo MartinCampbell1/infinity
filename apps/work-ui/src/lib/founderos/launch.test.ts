@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
+import { buildWorkspaceLaunchTokenUrl } from '@founderos/api-clients/workspace-launch-routes';
 
 import {
 	resolveFounderosLaunchVerificationUrl,
@@ -30,6 +31,9 @@ describe('founderos launch verification', () => {
 	test('resolves the shell verification endpoint from host origin and sessionId', () => {
 		expect(resolveFounderosLaunchVerificationUrl(launchContext())).toBe(
 			'http://127.0.0.1:3737/api/control/execution/workspace/session-2026-04-11-001/launch-token'
+		);
+		expect(resolveFounderosLaunchVerificationUrl(launchContext())).toBe(
+			buildWorkspaceLaunchTokenUrl('http://127.0.0.1:3737', 'session-2026-04-11-001')
 		);
 		expect(resolveFounderosLaunchVerificationUrl(launchContext({ hostOrigin: null }))).toBe(null);
 	});
@@ -80,4 +84,3 @@ describe('founderos launch verification', () => {
 		expect(result.state).toBe('expired');
 	});
 });
-

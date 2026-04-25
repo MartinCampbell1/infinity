@@ -18,6 +18,8 @@ coverage/
 .DS_Store
 .omc/
 output/
+artifacts/
 .tmp_*.png
 handoff-packets/validation/
 handoff-packets/browser-e2e/
+handoff-packets/release/

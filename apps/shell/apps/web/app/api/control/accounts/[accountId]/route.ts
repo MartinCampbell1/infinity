@@ -4,7 +4,10 @@ import {
   buildAccountDetailResponse,
   findControlPlaneAccount,
 } from "../../../../../lib/server/control-plane/accounts";
-import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  withControlPlaneStorageGuard,
+} from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +20,11 @@ export async function GET(
     const account = await findControlPlaneAccount(accountId);
 
     if (!account) {
-      return NextResponse.json(
-        { detail: `Account ${accountId} was not found in the shell control-plane directory.` },
-        { status: 404 }
-      );
+      return apiErrorResponse({
+        code: "account_not_found",
+        message: `Account ${accountId} was not found in the shell control-plane directory.`,
+        status: 404,
+      });
     }
 
     return NextResponse.json(buildAccountDetailResponse(account));

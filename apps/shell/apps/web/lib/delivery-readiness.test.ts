@@ -103,7 +103,8 @@ describe("delivery readiness copy", () => {
     );
     expect(copy.tier).toBe("production");
     expect(copy.badgeLabel).toBe("Production proof");
-    expect(copy.statusDetail).toBe("production handoff ready");
+    expect(copy.statusDetail).toBe("production proof complete");
+    expect(copy.resultHeadline).toBe("Production proof complete");
     expect(copy.primaryHandoffReady).toBe(true);
     expect(resolveDeliveryProofChecklist(productionDelivery).every((item) => item.satisfied)).toBe(
       true,

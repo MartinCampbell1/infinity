@@ -6,7 +6,10 @@ import {
   projectDeliveryForCurrentReadiness,
 } from "../../../../../lib/server/orchestration/delivery";
 import { isCreateVerificationRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
-import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  withControlPlaneStorageGuard,
+} from "../../../../../lib/server/http/control-plane-storage-response";
 import {
   activeControlPlaneTenantId,
 } from "../../../../../lib/server/control-plane/state/tenancy";
@@ -40,12 +43,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!isCreateVerificationRequest(body)) {
-    return NextResponse.json(
-      {
-        detail: "Delivery creation requires initiativeId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_delivery_creation_body",
+      message: "Delivery creation requires initiativeId.",
+      status: 400,
+    });
   }
 
   return withControlPlaneStorageGuard(async () => {
@@ -81,14 +83,12 @@ export async function POST(request: Request) {
         }
       } catch (error) {
         if (isControlPlaneIdempotencyConflictError(error)) {
-          return NextResponse.json(
-            {
-              code: error.code,
-              detail: error.message,
-              accepted: false,
-            },
-            { status: error.status },
-          );
+          return apiErrorResponse({
+            code: error.code,
+            message: error.message,
+            status: error.status,
+            details: { accepted: false },
+          });
         }
         throw error;
       }
@@ -96,12 +96,11 @@ export async function POST(request: Request) {
 
     const response = await createDelivery(body);
     if (!response) {
-      return NextResponse.json(
-        {
-          detail: "Delivery requires a passed verification for the initiative.",
-        },
-        { status: 400 }
-      );
+      return apiErrorResponse({
+        code: "delivery_not_ready",
+        message: "Delivery requires a passed verification for the initiative.",
+        status: 400,
+      });
     }
 
     if (idempotencyKey && requestHash) {
@@ -122,14 +121,12 @@ export async function POST(request: Request) {
         });
       } catch (error) {
         if (isControlPlaneIdempotencyConflictError(error)) {
-          return NextResponse.json(
-            {
-              code: error.code,
-              detail: error.message,
-              accepted: false,
-            },
-            { status: error.status },
-          );
+          return apiErrorResponse({
+            code: error.code,
+            message: error.message,
+            status: error.status,
+            details: { accepted: false },
+          });
         }
         throw error;
       }

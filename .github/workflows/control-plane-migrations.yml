@@ -34,3 +34,6 @@ jobs:
       - run: npm run shell:control-plane:migrations:smoke
         env:
           FOUNDEROS_MIGRATION_TEST_DATABASE_URL: postgres://founderos:founderos@127.0.0.1:5432/founderos_migration_test
+      - run: npm run shell:control-plane:migrations:drift
+        env:
+          FOUNDEROS_MIGRATION_TEST_DATABASE_URL: postgres://founderos:founderos@127.0.0.1:5432/founderos_migration_test

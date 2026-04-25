@@ -1,0 +1,33 @@
+name: Supply Chain Security
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  sbom-and-critical-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - run: npm run security:sbom -- --output artifacts/security/infinity-sbom.cdx.json
+
+      - run: npm run security:audit:critical
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: infinity-cyclonedx-sbom
+          path: artifacts/security/infinity-sbom.cdx.json
+          if-no-files-found: error

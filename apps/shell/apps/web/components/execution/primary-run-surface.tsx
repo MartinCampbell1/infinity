@@ -484,11 +484,19 @@ export function PrimaryRunSurface({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 rounded-[14px] border border-white/8 bg-[var(--shell-surface-card)] px-4 py-4">
+          <div
+            className="run-stage-strip flex items-center gap-3 rounded-[14px] border border-white/8 bg-[var(--shell-surface-card)] px-4 py-4"
+            data-run-stage-strip
+          >
             {stages.map((stage, index) => (
-              <div key={stage.key} className="flex flex-1 items-center gap-3">
+              <div
+                key={stage.key}
+                className="run-stage-step flex flex-1 items-center gap-3"
+                data-stage-state={stage.state}
+                aria-current={stage.state === "active" ? "step" : undefined}
+              >
                 <div
-                  className={`inline-flex items-center gap-2 text-[11px] ${
+                  className={`run-stage-label inline-flex items-center gap-2 text-[11px] ${
                     stage.state === "active"
                       ? "font-medium text-white"
                       : stage.state === "done"
@@ -497,7 +505,7 @@ export function PrimaryRunSurface({
                   }`}
                 >
                   <span
-                    className={`h-2 w-2 rounded-full ${
+                    className={`run-stage-dot h-2 w-2 rounded-full ${
                       stage.state === "done"
                         ? "bg-emerald-400"
                         : stage.state === "active"
@@ -509,9 +517,10 @@ export function PrimaryRunSurface({
                 </div>
                 {index < stages.length - 1 ? (
                   <div
-                    className={`h-px flex-1 ${
+                    className={`run-stage-connector h-px flex-1 ${
                       stage.state === "done" ? "bg-emerald-400/35" : "bg-white/8"
                     }`}
+                    data-stage-connector-state={stage.state === "done" ? "complete" : "pending"}
                   />
                 ) : null}
               </div>

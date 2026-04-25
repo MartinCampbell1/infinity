@@ -1,5 +1,6 @@
 import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-board";
 import {
+  buildExecutionScopeHref,
   buildExecutionContinuityScopeHref,
   readShellRouteScopeFromQueryRecord,
 } from "@/lib/route-scope";
@@ -37,6 +38,10 @@ export default async function ExecutionSpecPage({
       items={items}
       emptyTitle="No spec docs yet"
       emptyDescription="A spec doc appears automatically after the shell authors the first brief."
+      emptyAction={{
+        href: buildExecutionScopeHref(routeScope),
+        label: "Open execution hub",
+      }}
     />
   );
 }

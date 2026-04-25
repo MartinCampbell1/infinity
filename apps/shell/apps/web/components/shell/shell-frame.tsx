@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Pause,
   GitBranch,
+  Keyboard,
   LayoutGrid,
   LifeBuoy,
   Package,
@@ -23,10 +24,11 @@ import {
   UserCircle2,
   Workflow,
   Wrench,
+  X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 
 type ShellNavItem = {
@@ -43,6 +45,18 @@ type ShellNavGroup = {
   railLabel: string;
   icon: ComponentType<{ className?: string }>;
   items: ShellNavItem[];
+};
+
+type ShellShortcutItem = {
+  keys: string[];
+  label: string;
+  detail: string;
+  href?: string;
+};
+
+type ShellShortcutSection = {
+  label: string;
+  items: ShellShortcutItem[];
 };
 
 const CONTROL_PLANE_ITEMS: ShellNavItem[] = [
@@ -157,6 +171,175 @@ const SHELL_NAV_GROUPS: ShellNavGroup[] = [
     items: OPERATOR_ITEMS,
   },
 ];
+
+export const SHELL_SHORTCUT_SECTIONS: ShellShortcutSection[] = [
+  {
+    label: "Global",
+    items: [
+      {
+        keys: ["?"],
+        label: "Open keyboard help",
+        detail: "Show this cockpit shortcut map.",
+      },
+      {
+        keys: ["⌘K", "Ctrl K"],
+        label: "Open cockpit shortcuts",
+        detail: "Focus the operator command surface.",
+      },
+      {
+        keys: ["Esc"],
+        label: "Close overlay",
+        detail: "Dismiss the active keyboard help overlay.",
+      },
+    ],
+  },
+  {
+    label: "Cockpit actions",
+    items: [
+      {
+        keys: ["N", "R"],
+        label: "Start a new run",
+        detail: "Return to the frontdoor composer.",
+        href: "/",
+      },
+      {
+        keys: ["G", "R"],
+        label: "Open run control plane",
+        detail: "Go to canonical run lifecycle state.",
+        href: "/execution/runs",
+      },
+      {
+        keys: ["G", "P"],
+        label: "Open planner lane",
+        detail: "Inspect briefs, task graphs, and batches.",
+        href: "/execution/planner",
+      },
+      {
+        keys: ["G", "A"],
+        label: "Open approvals",
+        detail: "Review pending operator decisions.",
+        href: "/execution/approvals",
+      },
+      {
+        keys: ["G", "V"],
+        label: "Open validation",
+        detail: "Check proof, preview, and verification records.",
+        href: "/execution/validation",
+      },
+    ],
+  },
+];
+
+const SHELL_ROUTE_SHORTCUTS = SHELL_SHORTCUT_SECTIONS.flatMap((section) =>
+  section.items
+    .filter((item): item is ShellShortcutItem & { href: string } => Boolean(item.href))
+    .map((item) => ({
+      sequence: item.keys.join(" ").toLowerCase(),
+      href: item.href,
+    })),
+);
+
+function isEditableShortcutTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName.toLowerCase();
+  return (
+    target.isContentEditable ||
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select"
+  );
+}
+
+export function ShellShortcutHelpDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      closeButtonRef.current?.focus();
+    }
+  }, [open]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/55 px-4 py-16 backdrop-blur-sm"
+      data-shell-shortcut-overlay
+    >
+      <section
+        id="shell-shortcuts-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shell-shortcuts-title"
+        className="w-full max-w-[680px] rounded-[18px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-surface-elevated)] shadow-[0_20px_80px_rgba(0,0,0,0.36)]"
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-[color:var(--shell-control-border)] px-5 py-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+              <Keyboard className="h-3.5 w-3.5" />
+              Cockpit shortcuts
+            </div>
+            <h2 id="shell-shortcuts-title" className="mt-2 text-[18px] font-semibold text-foreground">
+              Keyboard shortcuts
+            </h2>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)] transition hover:bg-[color:var(--shell-control-hover)] hover:text-foreground"
+            aria-label="Close keyboard shortcuts"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="grid gap-5 px-5 py-5 md:grid-cols-2">
+          {SHELL_SHORTCUT_SECTIONS.map((section) => (
+            <div key={section.label}>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                {section.label}
+              </div>
+              <div className="mt-3 divide-y divide-white/7 rounded-[12px] border border-[color:var(--shell-control-border)] bg-white/[0.025]">
+                {section.items.map((item) => (
+                  <div key={item.label} className="grid grid-cols-[96px_minmax(0,1fr)] gap-3 px-3 py-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.keys.map((key) => (
+                        <kbd
+                          key={`${item.label}-${key}`}
+                          className="inline-flex h-6 min-w-6 items-center justify-center rounded-[7px] border border-[color:var(--shell-control-border)] bg-black/24 px-2 font-mono text-[11px] text-white/78"
+                        >
+                          {key}
+                        </kbd>
+                      ))}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium text-foreground">{item.label}</div>
+                      <div className="mt-1 text-[12px] leading-5 text-[var(--shell-sidebar-muted)]">
+                        {item.detail}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function pageMeta(pathname: string) {
   if (pathname === "/") {
@@ -652,8 +835,10 @@ function RootSidebarRecentSession({
 
 export function ShellFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [recentSessions, setRecentSessions] = useState<RootSidebarSessionRecord[]>([]);
   const [recentSessionsLoading, setRecentSessionsLoading] = useState(false);
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
   const meta = pageMeta(pathname);
   const isRootFrontdoor = pathname === "/";
   const isWorkItemsRoute = pathname === "/work-items";
@@ -754,8 +939,82 @@ export function ShellFrame({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, [isPlaneWorkspaceRoute]);
 
+  useEffect(() => {
+    let shortcutPrefix: string | null = null;
+    let shortcutTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearShortcutPrefix = () => {
+      shortcutPrefix = null;
+      if (shortcutTimer) {
+        clearTimeout(shortcutTimer);
+        shortcutTimer = null;
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+
+      if (event.key === "Escape" && shortcutHelpOpen) {
+        event.preventDefault();
+        setShortcutHelpOpen(false);
+        clearShortcutPrefix();
+        return;
+      }
+
+      if (isEditableShortcutTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === "?" || (event.key === "/" && event.shiftKey)) {
+        event.preventDefault();
+        setShortcutHelpOpen(true);
+        clearShortcutPrefix();
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && key === "k") {
+        event.preventDefault();
+        setShortcutHelpOpen(true);
+        clearShortcutPrefix();
+        return;
+      }
+
+      if (shortcutHelpOpen || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      if (shortcutPrefix) {
+        const shortcut = SHELL_ROUTE_SHORTCUTS.find(
+          (candidate) => candidate.sequence === `${shortcutPrefix} ${key}`,
+        );
+        clearShortcutPrefix();
+        if (shortcut) {
+          event.preventDefault();
+          router.push(shortcut.href);
+        }
+        return;
+      }
+
+      if (key === "g" || key === "n") {
+        event.preventDefault();
+        shortcutPrefix = key;
+        shortcutTimer = setTimeout(clearShortcutPrefix, 1200);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      clearShortcutPrefix();
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [router, shortcutHelpOpen]);
+
   return (
     <div className="shell-app-shell min-h-screen bg-background text-foreground">
+      <ShellShortcutHelpDialog
+        open={shortcutHelpOpen}
+        onClose={() => setShortcutHelpOpen(false)}
+      />
       <div className="flex min-h-screen">
         <aside className="hidden border-r border-[color:var(--shell-sidebar-border)] md:flex">
           <GroupRail groups={SHELL_NAV_GROUPS} pathname={pathname} isRootFrontdoor={isPlaneWorkspaceRoute} />
@@ -935,7 +1194,14 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                   )}
                 </div>
 
-                <button type="button" className="shell-search-control hidden md:flex">
+                <button
+                  type="button"
+                  className="shell-search-control hidden md:flex"
+                  onClick={() => setShortcutHelpOpen(true)}
+                  aria-haspopup="dialog"
+                  aria-controls="shell-shortcuts-dialog"
+                  aria-expanded={shortcutHelpOpen}
+                >
                   <Search className="h-3.5 w-3.5" />
                   <span className="flex-1 text-left">Search runs, tasks, agents...</span>
                   <span className="shell-search-shortcut">⌘K</span>

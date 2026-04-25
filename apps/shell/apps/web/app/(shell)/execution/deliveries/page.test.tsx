@@ -24,6 +24,7 @@ vi.mock("@/lib/route-scope", () => ({
   buildExecutionDeliveryScopeHref: (deliveryId: string) =>
     `/execution/delivery/${deliveryId}`,
   readShellRouteScopeFromQueryRecord: vi.fn(() => ({})),
+  withShellRouteScope: (href: string) => href,
 }));
 
 vi.mock("@/lib/server/control-plane/state/store", () => ({

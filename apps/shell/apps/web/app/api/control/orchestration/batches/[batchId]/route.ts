@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { buildExecutionBatchDetailResponse } from "../../../../../../lib/server/orchestration/batches";
-import { controlPlaneStorageUnavailableResponse } from "../../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  controlPlaneStorageUnavailableResponse,
+} from "../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -19,24 +22,22 @@ export async function GET(
       return storageResponse;
     }
 
-    return NextResponse.json(
-      {
-        detail:
-          error instanceof Error
-            ? error.message
-            : `Batch ${batchId} could not be enriched from the execution kernel.`,
-      },
-      { status: 502 }
-    );
+    return apiErrorResponse({
+      code: "batch_detail_enrichment_failed",
+      message:
+        error instanceof Error
+          ? error.message
+          : `Batch ${batchId} could not be enriched from the execution kernel.`,
+      status: 502,
+    });
   }
 
   if (!response) {
-    return NextResponse.json(
-      {
-        detail: `Batch ${batchId} is not present in the shell orchestration directory.`,
-      },
-      { status: 404 }
-    );
+    return apiErrorResponse({
+      code: "batch_not_found",
+      message: `Batch ${batchId} is not present in the shell orchestration directory.`,
+      status: 404,
+    });
   }
 
   return NextResponse.json(response);

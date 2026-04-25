@@ -1,5 +1,5 @@
 {
-  "latestVersion": 3,
+  "latestVersion": 4,
   "migrations": [
     {
       "version": 1,
@@ -18,6 +18,12 @@
       "name": "mutation_journal_idempotency",
       "file": "003_mutation_journal_idempotency.sql",
       "checksum": "be1f1a99787cc7cabee0ede64ad2e20bc5ac13103eff98e29d1f4f0c2e779192"
+    },
+    {
+      "version": 4,
+      "name": "directory_read_indexes",
+      "file": "004_directory_read_indexes.sql",
+      "checksum": "c0719322bc44258130db722e2047e543093dfbbe6e808a4af06969d1ff06274c"
     }
   ]
 }

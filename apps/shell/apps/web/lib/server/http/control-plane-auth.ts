@@ -113,7 +113,8 @@ function actorToken(headers: Headers) {
   );
 }
 
-export function requiresControlPlaneAuth(_env: EnvLike = process.env) {
+export function requiresControlPlaneAuth(env: EnvLike = process.env) {
+  void env;
   return true;
 }
 
@@ -128,7 +129,9 @@ function isServiceProducerPath(pathname: string, method: string) {
   return (
     (normalizedMethod === "POST" &&
       pathname === "/api/control/accounts/quotas") ||
-    (normalizedMethod === "POST" && isWorkspaceRuntimePath(pathname))
+    (normalizedMethod === "POST" && isWorkspaceRuntimePath(pathname)) ||
+    (normalizedMethod === "POST" &&
+      pathname === "/api/control/orchestration/retention")
   );
 }
 

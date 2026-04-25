@@ -160,19 +160,22 @@ describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
     const body = await response.json();
 
     expect(response.status).toBe(503);
-    expect(body).toEqual(
+    expect(body.error).toEqual(
       expect.objectContaining({
         code: "control_plane_storage_unavailable",
-        accepted: false,
-        readOnly: true,
-        degraded: true,
-        storageKind: "unknown",
-        integrationState: "degraded",
-        storagePolicy: expect.objectContaining({
-          deploymentEnv: "production",
-          localFileAllowed: false,
-          postgresRequired: true,
-          degradedMode: "read_only",
+        message: expect.stringContaining("requires Postgres-backed"),
+        details: expect.objectContaining({
+          accepted: false,
+          readOnly: true,
+          degraded: true,
+          storageKind: "unknown",
+          integrationState: "degraded",
+          storagePolicy: expect.objectContaining({
+            deploymentEnv: "production",
+            localFileAllowed: false,
+            postgresRequired: true,
+            degradedMode: "read_only",
+          }),
         }),
       })
     );
@@ -492,7 +495,12 @@ describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body.detail).toContain("must match body.hostContext.sessionId");
+    expect(body.error).toEqual(
+      expect.objectContaining({
+        code: "session_id_mismatch",
+        message: expect.stringContaining("must match body.hostContext.sessionId"),
+      })
+    );
   });
 
   test("rejects anonymous runtime mutations even with a valid body", async () => {
@@ -528,8 +536,10 @@ describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
 
     expect(response.status).toBe(401);
     expect(body).toEqual({
-      code: "missing_actor",
-      detail: "Workspace runtime ingest requires an authenticated actor.",
+      error: {
+        code: "missing_actor",
+        message: "Workspace runtime ingest requires an authenticated actor.",
+      },
     });
   });
 
@@ -569,7 +579,12 @@ describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body.detail).toContain("supported workspace or host bridge message");
+    expect(body.error).toEqual(
+      expect.objectContaining({
+        code: "invalid_workspace_runtime_body",
+        message: expect.stringContaining("supported workspace or host bridge message"),
+      })
+    );
     expect(existsSync(getControlPlaneStatePath())).toBe(false);
   });
 });

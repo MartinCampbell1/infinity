@@ -6,7 +6,10 @@ import {
   createOrchestrationInitiative,
 } from "../../../../../lib/server/orchestration/initiatives";
 import { isCreateInitiativeRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
-import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  withControlPlaneStorageGuard,
+} from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +23,12 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
 
   if (!isCreateInitiativeRequest(body)) {
-    return NextResponse.json(
-      {
-        detail:
-          "Initiative creation requires title, userRequest, requestedBy, and an optional priority/workspaceSessionId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_initiative_creation_body",
+      message:
+        "Initiative creation requires title, userRequest, requestedBy, and an optional priority/workspaceSessionId.",
+      status: 400,
+    });
   }
 
   return withControlPlaneStorageGuard(async () => {

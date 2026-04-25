@@ -178,10 +178,10 @@ describe("/api/control/execution/approvals/[approvalId]/respond", () => {
     const conflictBody = await conflictResponse.json();
 
     expect(conflictResponse.status).toBe(409);
-    expect(conflictBody).toEqual(
+    expect(conflictBody.error).toEqual(
       expect.objectContaining({
         code: "idempotency_key_conflict",
-        accepted: false,
+        details: expect.objectContaining({ accepted: false }),
       }),
     );
   });

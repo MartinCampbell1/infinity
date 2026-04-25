@@ -14,6 +14,7 @@
     "test:security": "npx vitest run proxy.test.ts lib/server/http/control-plane-auth.test.ts lib/server/http/privileged-api-cors.test.ts components/execution/workspace-handoff-surface.test.tsx 'app/api/control/execution/workspace/[sessionId]/runtime/route.test.ts' --testTimeout 120000",
     "test:load-backpressure": "sh -c 'npx vitest run app/api/control/orchestration/batches/route.test.ts -t \"load/backpressure\" --testTimeout 120000 && cd ../../../../services/execution-kernel && go test ./internal/service -run TestLoadBackpressureRejectsLeaseBurstAndPersistsQueueState -count=1'",
     "test:visual-regression": "npx vitest run scripts/visual-regression-suite.test.tsx --testTimeout 120000",
+    "test:delivery-manifests": "npx vitest run lib/server/orchestration/artifacts.test.ts -t \"delivery manifest golden fixtures\"",
     "test:live-parity": "node ./scripts/check-live-parity.mjs",
     "test:live-review-actions": "node ./scripts/check-live-review-actions.mjs",
     "test:live-review-batch-routes": "node ./scripts/check-live-review-batch-routes.mjs",
@@ -30,6 +31,8 @@
     "control-plane:migrations:apply": "node ./scripts/control-plane-migrations.mjs apply",
     "control-plane:migrations:status": "node ./scripts/control-plane-migrations.mjs status",
     "control-plane:migrations:smoke": "node ./scripts/control-plane-migration-smoke.mjs",
+    "control-plane:migrations:drift": "node ./scripts/control-plane-schema-drift.mjs",
+    "control-plane:migrations:drift:test": "node --test ./scripts/control-plane-schema-drift.test.mjs",
     "control-plane:preflight": "node ./scripts/control-plane-preflight.mjs"
   },
   "dependencies": {

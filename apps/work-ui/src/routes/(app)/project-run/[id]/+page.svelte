@@ -198,7 +198,7 @@
 <HermesEmbeddedWorkspaceFrame
 	title="Project run"
 	subtitle="Secondary planner and assembly drill-down while the shell workspace remains the canonical run surface."
-	badge={actionState === 'running' ? 'Working' : loadState === 'ready' ? 'Ready' : 'Loading'}
+	badge={actionState === 'running' ? 'Working' : loadState === 'ready' ? 'Run loaded' : 'Loading'}
 	metaItems={metaItems}
 >
 			{#if loadState === 'loading' || loadState === 'idle'}

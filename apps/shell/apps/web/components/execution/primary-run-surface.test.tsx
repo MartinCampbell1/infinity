@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
@@ -121,6 +122,7 @@ vi.mock("@/lib/server/orchestration/claude-design-presentation", () => ({
 import { PrimaryRunSurface } from "./primary-run-surface";
 
 const now = "2026-04-24T00:00:00.000Z";
+const globalsCss = readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8");
 
 describe("PrimaryRunSurface", () => {
   test("renders inspectable task graph, microtask attempts, evidence, and failures", () => {
@@ -313,6 +315,10 @@ describe("PrimaryRunSurface", () => {
     expect(markup).toContain("Current stage");
     expect(markup).toContain("Proof");
     expect(markup).not.toContain("Delivered");
+    expect(markup).toContain("data-run-stage-strip");
+    expect(markup).toContain('data-stage-state="active"');
+    expect(markup).toContain('aria-current="step"');
+    expect(markup).toContain('data-stage-connector-state="complete"');
     expect(markup).toContain('data-run-proof-strip="assembly-verification-delivery"');
     expect(markup).toContain("Assembly ready");
     expect(markup).toContain("Verification passed");
@@ -345,6 +351,15 @@ describe("PrimaryRunSurface", () => {
     expect(markup).toContain("Force retry is enabled through an open recovery incident");
     expect(markup).toContain('data-disabled-action="Pause for review"');
     expect(markup).toContain("Pause for review requires a durable run action route");
+  });
+
+  test("keeps stage transitions subtle and reduced-motion safe", () => {
+    expect(globalsCss).toContain(".run-stage-strip");
+    expect(globalsCss).toContain(".run-stage-dot");
+    expect(globalsCss).toContain(".run-stage-connector");
+    expect(globalsCss).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(globalsCss).toContain("transition-duration: 0ms !important");
+    expect(globalsCss).toContain("transform: none");
   });
 
   test("keeps active runs refreshing until the delivery projection is visible", () => {

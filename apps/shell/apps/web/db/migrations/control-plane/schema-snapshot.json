@@ -1,0 +1,373 @@
+{
+  "manifest": {
+    "latestVersion": 4,
+    "migrations": [
+      {
+        "checksum": "dfeeb1312f04dd8f3a1760e826f97d34d459f41f6ad783d04dc4357ae8c3eae0",
+        "file": "001_control_plane_state.sql",
+        "version": 1
+      },
+      {
+        "checksum": "57595c849705c921842c72655e5ae70d8c2780df713ef6427782a72a60e9bdc5",
+        "file": "002_tenant_rbac.sql",
+        "version": 2
+      },
+      {
+        "checksum": "be1f1a99787cc7cabee0ede64ad2e20bc5ac13103eff98e29d1f4f0c2e779192",
+        "file": "003_mutation_journal_idempotency.sql",
+        "version": 3
+      },
+      {
+        "checksum": "c0719322bc44258130db722e2047e543093dfbbe6e808a4af06969d1ff06274c",
+        "file": "004_directory_read_indexes.sql",
+        "version": 4
+      }
+    ]
+  },
+  "snapshotVersion": 1,
+  "tables": {
+    "account_quota_snapshots": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "account_id", "nullable": false },
+        { "dataType": "text", "name": "auth_mode", "nullable": false },
+        { "dataType": "text", "name": "source", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "observed_at", "nullable": false },
+        { "dataType": "jsonb", "name": "buckets", "nullable": false },
+        { "dataType": "jsonb", "name": "raw", "nullable": true },
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "created_by", "nullable": true },
+        { "dataType": "text", "name": "updated_by", "nullable": true }
+      ],
+      "explicitIndexes": [
+        "idx_account_quota_snapshots_account_observed",
+        "idx_account_quota_snapshots_tenant_account_observed"
+      ],
+      "policies": ["account_quota_snapshots_tenant_isolation"],
+      "primaryKey": ["tenant_id", "id"],
+      "rowLevelSecurity": true
+    },
+    "account_quota_updates": {
+      "columns": [
+        { "dataType": "bigint", "name": "sequence", "nullable": false },
+        { "dataType": "text", "name": "account_id", "nullable": false },
+        { "dataType": "text", "name": "source", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "observed_at", "nullable": false },
+        { "dataType": "text", "name": "summary", "nullable": false },
+        { "dataType": "jsonb", "name": "snapshot_json", "nullable": false },
+        { "dataType": "jsonb", "name": "actor_context", "nullable": true },
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "created_by", "nullable": true },
+        { "dataType": "text", "name": "updated_by", "nullable": true }
+      ],
+      "explicitIndexes": [
+        "idx_account_quota_updates_account_sequence",
+        "idx_account_quota_updates_tenant_account_sequence"
+      ],
+      "policies": ["account_quota_updates_tenant_isolation"],
+      "primaryKey": ["tenant_id", "sequence"],
+      "rowLevelSecurity": true
+    },
+    "approval_requests": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "session_id", "nullable": false },
+        { "dataType": "text", "name": "external_session_id", "nullable": true },
+        { "dataType": "text", "name": "project_id", "nullable": false },
+        { "dataType": "text", "name": "project_name", "nullable": false },
+        { "dataType": "text", "name": "group_id", "nullable": true },
+        { "dataType": "text", "name": "account_id", "nullable": true },
+        { "dataType": "text", "name": "workspace_id", "nullable": true },
+        { "dataType": "text", "name": "provider", "nullable": false },
+        { "dataType": "text", "name": "request_kind", "nullable": false },
+        { "dataType": "text", "name": "title", "nullable": false },
+        { "dataType": "text", "name": "summary", "nullable": false },
+        { "dataType": "text", "name": "reason", "nullable": true },
+        { "dataType": "text", "name": "status", "nullable": false },
+        { "dataType": "text", "name": "decision", "nullable": true },
+        { "dataType": "timestamp with time zone", "name": "requested_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "updated_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "resolved_at", "nullable": true },
+        { "dataType": "text", "name": "resolved_by", "nullable": true },
+        { "dataType": "timestamp with time zone", "name": "expires_at", "nullable": true },
+        { "dataType": "integer", "name": "revision", "nullable": false },
+        { "dataType": "jsonb", "name": "raw", "nullable": true },
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "created_by", "nullable": true },
+        { "dataType": "text", "name": "updated_by", "nullable": true }
+      ],
+      "explicitIndexes": ["idx_approval_requests_tenant_status_updated"],
+      "policies": ["approval_requests_tenant_isolation"],
+      "primaryKey": ["tenant_id", "id"],
+      "rowLevelSecurity": true
+    },
+    "control_plane_idempotency_records": {
+      "columns": [
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "idempotency_key", "nullable": false },
+        { "dataType": "text", "name": "request_hash", "nullable": false },
+        { "dataType": "text", "name": "mutation_event_id", "nullable": false },
+        { "dataType": "text", "name": "status", "nullable": false },
+        { "dataType": "integer", "name": "status_code", "nullable": false },
+        { "dataType": "jsonb", "name": "response_json", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "created_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "updated_at", "nullable": false }
+      ],
+      "explicitIndexes": ["idx_control_plane_idempotency_records_tenant_updated"],
+      "policies": ["control_plane_idempotency_records_tenant_isolation"],
+      "primaryKey": ["tenant_id", "idempotency_key"],
+      "rowLevelSecurity": true
+    },
+    "control_plane_mutation_events": {
+      "columns": [
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "mutation_kind", "nullable": false },
+        { "dataType": "text", "name": "resource_kind", "nullable": false },
+        { "dataType": "text", "name": "resource_id", "nullable": false },
+        { "dataType": "text", "name": "idempotency_key", "nullable": true },
+        { "dataType": "text", "name": "actor_id", "nullable": true },
+        { "dataType": "text", "name": "request_hash", "nullable": true },
+        { "dataType": "jsonb", "name": "payload", "nullable": false },
+        { "dataType": "jsonb", "name": "response_json", "nullable": true },
+        { "dataType": "integer", "name": "status_code", "nullable": true },
+        { "dataType": "timestamp with time zone", "name": "occurred_at", "nullable": false }
+      ],
+      "explicitIndexes": [
+        "idx_control_plane_mutation_events_tenant_idempotency",
+        "idx_control_plane_mutation_events_tenant_resource"
+      ],
+      "policies": ["control_plane_mutation_events_tenant_isolation"],
+      "primaryKey": ["tenant_id", "id"],
+      "rowLevelSecurity": true
+    },
+    "execution_session_events": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "session_id", "nullable": false },
+        { "dataType": "text", "name": "project_id", "nullable": false },
+        { "dataType": "text", "name": "group_id", "nullable": true },
+        { "dataType": "text", "name": "source", "nullable": false },
+        { "dataType": "text", "name": "provider", "nullable": false },
+        { "dataType": "text", "name": "kind", "nullable": false },
+        { "dataType": "text", "name": "status", "nullable": true },
+        { "dataType": "text", "name": "phase", "nullable": true },
+        { "dataType": "timestamp with time zone", "name": "event_ts", "nullable": false },
+        { "dataType": "text", "name": "summary", "nullable": false },
+        { "dataType": "jsonb", "name": "payload", "nullable": false },
+        { "dataType": "jsonb", "name": "raw", "nullable": true },
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "created_by", "nullable": true },
+        { "dataType": "text", "name": "updated_by", "nullable": true }
+      ],
+      "explicitIndexes": [
+        "idx_execution_session_events_session_ts",
+        "idx_execution_session_events_tenant_kind_ts",
+        "idx_execution_session_events_tenant_project_ts",
+        "idx_execution_session_events_tenant_session_ts"
+      ],
+      "policies": ["execution_session_events_tenant_isolation"],
+      "primaryKey": ["tenant_id", "id"],
+      "rowLevelSecurity": true
+    },
+    "execution_sessions": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "external_session_id", "nullable": true },
+        { "dataType": "text", "name": "project_id", "nullable": false },
+        { "dataType": "text", "name": "project_name", "nullable": false },
+        { "dataType": "text", "name": "group_id", "nullable": true },
+        { "dataType": "text", "name": "workspace_id", "nullable": true },
+        { "dataType": "text", "name": "account_id", "nullable": true },
+        { "dataType": "text", "name": "provider", "nullable": false },
+        { "dataType": "text", "name": "model", "nullable": true },
+        { "dataType": "text", "name": "title", "nullable": false },
+        { "dataType": "text", "name": "status", "nullable": false },
+        { "dataType": "text", "name": "phase", "nullable": true },
+        { "dataType": "jsonb", "name": "tags", "nullable": false },
+        { "dataType": "boolean", "name": "pinned", "nullable": false },
+        { "dataType": "boolean", "name": "archived", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "created_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "updated_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "last_message_at", "nullable": true },
+        { "dataType": "timestamp with time zone", "name": "last_tool_at", "nullable": true },
+        { "dataType": "timestamp with time zone", "name": "last_error_at", "nullable": true },
+        { "dataType": "integer", "name": "pending_approvals", "nullable": false },
+        { "dataType": "integer", "name": "tool_activity_count", "nullable": false },
+        { "dataType": "integer", "name": "retry_count", "nullable": false },
+        { "dataType": "text", "name": "recovery_state", "nullable": false },
+        { "dataType": "text", "name": "quota_pressure", "nullable": false },
+        { "dataType": "integer", "name": "unread_operator_signals", "nullable": false },
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "created_by", "nullable": true },
+        { "dataType": "text", "name": "updated_by", "nullable": true }
+      ],
+      "explicitIndexes": [
+        "idx_execution_sessions_tenant_archived_updated",
+        "idx_execution_sessions_tenant_project_updated",
+        "idx_execution_sessions_tenant_updated"
+      ],
+      "policies": ["execution_sessions_tenant_isolation"],
+      "primaryKey": ["tenant_id", "id"],
+      "rowLevelSecurity": true
+    },
+    "operator_action_audit_events": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "integer", "name": "sequence", "nullable": false },
+        { "dataType": "text", "name": "session_id", "nullable": false },
+        { "dataType": "text", "name": "project_id", "nullable": false },
+        { "dataType": "text", "name": "group_id", "nullable": true },
+        { "dataType": "text", "name": "target_kind", "nullable": false },
+        { "dataType": "text", "name": "target_id", "nullable": false },
+        { "dataType": "text", "name": "kind", "nullable": false },
+        { "dataType": "text", "name": "outcome", "nullable": false },
+        { "dataType": "text", "name": "actor_type", "nullable": false },
+        { "dataType": "text", "name": "actor_id", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "occurred_at", "nullable": false },
+        { "dataType": "text", "name": "summary", "nullable": false },
+        { "dataType": "jsonb", "name": "payload", "nullable": false },
+        { "dataType": "jsonb", "name": "raw", "nullable": true },
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "created_by", "nullable": true },
+        { "dataType": "text", "name": "updated_by", "nullable": true }
+      ],
+      "explicitIndexes": [
+        "idx_operator_action_audit_events_session_sequence",
+        "idx_operator_action_audit_events_tenant_occurred",
+        "idx_operator_action_audit_events_tenant_session_sequence"
+      ],
+      "policies": ["operator_action_audit_events_tenant_isolation"],
+      "primaryKey": ["tenant_id", "id"],
+      "rowLevelSecurity": true
+    },
+    "recovery_incidents": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "session_id", "nullable": false },
+        { "dataType": "text", "name": "external_session_id", "nullable": true },
+        { "dataType": "text", "name": "project_id", "nullable": false },
+        { "dataType": "text", "name": "project_name", "nullable": false },
+        { "dataType": "text", "name": "group_id", "nullable": true },
+        { "dataType": "text", "name": "account_id", "nullable": true },
+        { "dataType": "text", "name": "workspace_id", "nullable": true },
+        { "dataType": "text", "name": "status", "nullable": false },
+        { "dataType": "text", "name": "severity", "nullable": false },
+        { "dataType": "text", "name": "recovery_action_kind", "nullable": false },
+        { "dataType": "text", "name": "summary", "nullable": false },
+        { "dataType": "text", "name": "root_cause", "nullable": true },
+        { "dataType": "text", "name": "recommended_action", "nullable": true },
+        { "dataType": "integer", "name": "retry_count", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "opened_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "last_observed_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "updated_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "resolved_at", "nullable": true },
+        { "dataType": "integer", "name": "revision", "nullable": false },
+        { "dataType": "jsonb", "name": "raw", "nullable": true },
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "created_by", "nullable": true },
+        { "dataType": "text", "name": "updated_by", "nullable": true }
+      ],
+      "explicitIndexes": ["idx_recovery_incidents_tenant_status_updated"],
+      "policies": ["recovery_incidents_tenant_isolation"],
+      "primaryKey": ["tenant_id", "id"],
+      "rowLevelSecurity": true
+    },
+    "shell_control_plane_schema_migrations": {
+      "columns": [
+        { "dataType": "integer", "name": "version", "nullable": false },
+        { "dataType": "text", "name": "name", "nullable": false },
+        { "dataType": "text", "name": "checksum", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "applied_at", "nullable": false }
+      ],
+      "explicitIndexes": [],
+      "policies": [],
+      "primaryKey": ["version"],
+      "rowLevelSecurity": false
+    },
+    "shell_control_plane_state": {
+      "columns": [
+        { "dataType": "smallint", "name": "id", "nullable": false },
+        { "dataType": "jsonb", "name": "state_json", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "updated_at", "nullable": false }
+      ],
+      "explicitIndexes": [],
+      "policies": [],
+      "primaryKey": ["id"],
+      "rowLevelSecurity": false
+    },
+    "tenant_memberships": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "user_id", "nullable": false },
+        { "dataType": "text", "name": "role", "nullable": false },
+        { "dataType": "text", "name": "status", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "created_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "updated_at", "nullable": false }
+      ],
+      "explicitIndexes": ["idx_tenant_memberships_tenant_user"],
+      "policies": [],
+      "primaryKey": ["id"],
+      "rowLevelSecurity": false
+    },
+    "tenant_projects": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "project_id", "nullable": false },
+        { "dataType": "text", "name": "created_by", "nullable": false },
+        { "dataType": "text", "name": "updated_by", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "created_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "updated_at", "nullable": false }
+      ],
+      "explicitIndexes": ["idx_tenant_projects_tenant_project"],
+      "policies": [],
+      "primaryKey": ["id"],
+      "rowLevelSecurity": false
+    },
+    "tenant_users": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "email", "nullable": true },
+        { "dataType": "text", "name": "display_name", "nullable": false },
+        { "dataType": "text", "name": "status", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "created_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "updated_at", "nullable": false }
+      ],
+      "explicitIndexes": [],
+      "policies": [],
+      "primaryKey": ["id"],
+      "rowLevelSecurity": false
+    },
+    "tenant_workspaces": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "tenant_id", "nullable": false },
+        { "dataType": "text", "name": "workspace_id", "nullable": false },
+        { "dataType": "text", "name": "project_id", "nullable": true },
+        { "dataType": "text", "name": "created_by", "nullable": false },
+        { "dataType": "text", "name": "updated_by", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "created_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "updated_at", "nullable": false }
+      ],
+      "explicitIndexes": ["idx_tenant_workspaces_tenant_workspace"],
+      "policies": [],
+      "primaryKey": ["id"],
+      "rowLevelSecurity": false
+    },
+    "tenants": {
+      "columns": [
+        { "dataType": "text", "name": "id", "nullable": false },
+        { "dataType": "text", "name": "name", "nullable": false },
+        { "dataType": "text", "name": "status", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "created_at", "nullable": false },
+        { "dataType": "timestamp with time zone", "name": "updated_at", "nullable": false }
+      ],
+      "explicitIndexes": [],
+      "policies": [],
+      "primaryKey": ["id"],
+      "rowLevelSecurity": false
+    }
+  }
+}

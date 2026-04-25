@@ -1,4 +1,5 @@
 import { readSignedArtifactDownload } from "../../../../../../lib/server/orchestration/artifacts";
+import { buildApiErrorBody } from "../../../../../../lib/server/http/api-error-response";
 
 export async function GET(request: Request) {
   try {
@@ -14,10 +15,10 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     return Response.json(
-      {
-        error: "artifact_unavailable",
-        detail: error instanceof Error ? error.message : "Artifact could not be read.",
-      },
+      buildApiErrorBody({
+        code: "artifact_unavailable",
+        message: error instanceof Error ? error.message : "Artifact could not be read.",
+      }),
       { status: 403 },
     );
   }

@@ -146,7 +146,7 @@ async function assertTenantRbacSchema(pool) {
   }
 
   const primaryKeys = await pool.query(`
-    SELECT tc.table_name, array_agg(kcu.column_name ORDER BY kcu.ordinal_position) AS columns
+    SELECT tc.table_name, array_agg(kcu.column_name::text ORDER BY kcu.ordinal_position) AS columns
     FROM information_schema.table_constraints tc
     JOIN information_schema.key_column_usage kcu
       ON tc.constraint_name = kcu.constraint_name
@@ -225,7 +225,7 @@ async function assertMutationJournalSchema(pool) {
   }
 
   const primaryKeys = await pool.query(`
-    SELECT tc.table_name, array_agg(kcu.column_name ORDER BY kcu.ordinal_position) AS columns
+    SELECT tc.table_name, array_agg(kcu.column_name::text ORDER BY kcu.ordinal_position) AS columns
     FROM information_schema.table_constraints tc
     JOIN information_schema.key_column_usage kcu
       ON tc.constraint_name = kcu.constraint_name

@@ -157,6 +157,15 @@ describe("control-plane auth gate", () => {
         }),
       );
     }
+
+    const retention = authorizeControlPlaneRequest(
+      request("/api/control/orchestration/retention", {
+        method: "POST",
+        token: "service-secret",
+      }),
+      authEnv,
+    );
+    expect(retention.allowed).toBe(true);
   });
 
   test("allows viewer operators to read but denies privileged mutations", () => {

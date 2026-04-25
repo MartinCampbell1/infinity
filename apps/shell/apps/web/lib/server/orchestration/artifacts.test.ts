@@ -4,6 +4,12 @@ import { tmpdir } from "node:os";
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
+import type {
+  AssemblyRecord,
+  DeliveryRecord,
+  VerificationRunRecord,
+} from "../control-plane/contracts/orchestration";
+
 const blobMockState = vi.hoisted(() => ({
   blobs: new Map<
     string,
@@ -88,8 +94,10 @@ vi.mock("@vercel/blob", () => ({
 
 import {
   artifactEvidenceExists,
+  buildDeliveryManifest,
   resolveArtifactStore,
   storeJsonArtifact,
+  writeDeliveryManifest,
   writeSignedArtifactManifest,
 } from "./artifacts";
 import { GET as downloadArtifact } from "../../../app/api/control/orchestration/artifacts/download/route";
@@ -317,5 +325,151 @@ describe("ArtifactStore", () => {
     process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT =
       "/tmp/infinity-artifact-mirror";
     expect(() => resolveArtifactStore()).toThrow(/durable object-store mount/i);
+  });
+});
+
+function readGoldenDeliveryManifest(name: "local" | "production") {
+  return JSON.parse(
+    readFileSync(
+      new URL(`./fixtures/delivery-manifests/${name}.json`, import.meta.url),
+      "utf8",
+    ),
+  ) as Record<string, unknown>;
+}
+
+const goldenAssembly: AssemblyRecord = {
+  id: "assembly-golden",
+  initiativeId: "initiative-golden",
+  taskGraphId: "task-graph-golden",
+  inputWorkUnitIds: ["work-unit-ui", "work-unit-api"],
+  artifactUris: [
+    "file:///tmp/infinity-delivery/golden-local/runnable-result.zip",
+  ],
+  outputLocation: "/tmp/infinity-delivery/golden-local",
+  manifestPath: "file:///tmp/infinity-delivery/golden-local/assembly-manifest.json",
+  summary: "Golden assembly for delivery manifest compatibility tests.",
+  status: "assembled",
+  createdAt: "2026-04-25T00:00:00.000Z",
+  updatedAt: "2026-04-25T00:01:00.000Z",
+};
+
+const goldenVerification: VerificationRunRecord = {
+  id: "verification-golden",
+  initiativeId: "initiative-golden",
+  assemblyId: "assembly-golden",
+  checks: [
+    {
+      name: "targeted_tests_passed",
+      status: "passed",
+      details: "Focused manifest compatibility fixture passed.",
+    },
+  ],
+  overallStatus: "passed",
+  startedAt: "2026-04-25T00:02:00.000Z",
+  finishedAt: "2026-04-25T00:03:00.000Z",
+};
+
+const localGoldenDelivery: DeliveryRecord = {
+  id: "delivery-golden-local",
+  initiativeId: "initiative-golden",
+  verificationRunId: "verification-golden",
+  taskGraphId: "task-graph-golden",
+  resultSummary: "Runnable local handoff generated.",
+  localOutputPath: "/tmp/infinity-delivery/golden-local",
+  previewUrl: "http://127.0.0.1:4173",
+  launchManifestPath: "/tmp/infinity-delivery/golden-local/launch-manifest.json",
+  launchProofKind: "runnable_result",
+  launchTargetLabel: "Vite preview",
+  launchProofUrl: "http://127.0.0.1:4173",
+  launchProofAt: "2026-04-25T00:04:00.000Z",
+  readinessTier: "local_solo",
+  handoffNotes: "Local-only handoff; production proof missing.",
+  status: "ready",
+  deliveredAt: "2026-04-25T00:05:00.000Z",
+  command: "npm run preview",
+};
+
+const productionGoldenDelivery: DeliveryRecord = {
+  id: "delivery-golden-production",
+  initiativeId: "initiative-golden",
+  verificationRunId: "verification-golden",
+  taskGraphId: "task-graph-golden",
+  resultSummary: "Production delivery proof generated.",
+  localOutputPath: null,
+  previewUrl: null,
+  launchManifestPath:
+    "r2://infinity-artifacts/prod/deliveries/initiative-golden/delivery-golden-production/launch/launch-manifest.json",
+  launchProofKind: "runnable_result",
+  launchTargetLabel: "Hosted Vercel preview",
+  launchProofUrl: "https://delivery-golden-production.preview.infinity.example",
+  launchProofAt: "2026-04-25T00:04:00.000Z",
+  externalPullRequestUrl:
+    "https://github.com/founderos/infinity/pull/1234",
+  externalPullRequestId: "1234",
+  externalPreviewUrl:
+    "https://delivery-golden-production.preview.infinity.example",
+  externalPreviewProvider: "vercel",
+  externalPreviewDeploymentId: "dpl_golden_delivery",
+  externalProofManifestPath:
+    "r2://infinity-artifacts/prod/deliveries/initiative-golden/delivery-golden-production/external-delivery-proof.json",
+  ciProofUri:
+    "https://github.com/founderos/infinity/commit/mock-golden/checks",
+  ciProofProvider: "github_commit_status",
+  ciProofId: "ci-golden-delivery",
+  artifactStorageUri:
+    "r2://infinity-artifacts/prod/deliveries/initiative-golden/delivery-golden-production",
+  signedManifestUri:
+    "https://shell.infinity.example/api/control/orchestration/artifacts/download?key=deliveries%2Finitiative-golden%2Fdelivery-golden-production%2Fsigned-artifact-manifest.json&signature=golden",
+  externalDeliveryProof: {
+    provider: "vercel",
+    pullRequestId: "1234",
+    deploymentId: "dpl_golden_delivery",
+    ciProofId: "ci-golden-delivery",
+  },
+  readinessTier: "production",
+  handoffNotes: "Production proof includes PR, preview, CI, and signed manifest.",
+  status: "ready",
+  deliveredAt: "2026-04-25T00:05:00.000Z",
+  command: null,
+};
+
+describe("delivery manifest golden fixtures", () => {
+  test("local delivery manifest stays compatible with the golden fixture", () => {
+    const manifest = buildDeliveryManifest({
+      delivery: localGoldenDelivery,
+      assembly: goldenAssembly,
+      verification: goldenVerification,
+    });
+
+    expect(manifest).toEqual(readGoldenDeliveryManifest("local"));
+  });
+
+  test("production object-store delivery manifest stays compatible with the golden fixture", async () => {
+    process.env.FOUNDEROS_ARTIFACT_STORE_MODE = "r2";
+    process.env.FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX =
+      "r2://infinity-artifacts/prod";
+    process.env.FOUNDEROS_ARTIFACT_SIGNED_URL_BASE =
+      "https://shell.infinity.example/api/control/orchestration/artifacts/download";
+    process.env.FOUNDEROS_ARTIFACT_SIGNING_SECRET = "test-signing-secret";
+    process.env.FOUNDEROS_ARTIFACT_OBJECT_MIRROR_ROOT = path.join(
+      tempRoot,
+      "mirror",
+    );
+
+    const { manifest } = await writeDeliveryManifest({
+      delivery: productionGoldenDelivery,
+      assembly: {
+        ...goldenAssembly,
+        artifactUris: [
+          "r2://infinity-artifacts/prod/assemblies/initiative-golden/task-graph-golden/runnable-result.zip",
+        ],
+        outputLocation: null,
+        manifestPath:
+          "r2://infinity-artifacts/prod/assemblies/initiative-golden/task-graph-golden/signed-artifact-manifest.json",
+      },
+      verification: goldenVerification,
+    });
+
+    expect(manifest).toEqual(readGoldenDeliveryManifest("production"));
   });
 });

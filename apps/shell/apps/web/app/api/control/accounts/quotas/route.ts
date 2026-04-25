@@ -13,6 +13,7 @@ import type {
   AccountQuotaProducerIngestRequest,
 } from "../../../../../lib/server/control-plane/contracts/quota";
 import { controlPlaneMutationActorFromRequest } from "../../../../../lib/server/http/control-plane-auth";
+import { apiErrorResponse } from "../../../../../lib/server/http/api-error-response";
 import { controlPlaneStorageUnavailableResponse } from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
@@ -115,24 +116,21 @@ export async function POST(request: Request) {
   }
 
   if (!body) {
-    return NextResponse.json(
-      {
-        error:
-          "Invalid quota producer ingest body. Expected { producer, snapshot, summary?, sessionIds? }.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_quota_producer_body",
+      message:
+        "Invalid quota producer ingest body. Expected { producer, snapshot, summary?, sessionIds? }.",
+      status: 400,
+    });
   }
 
   const actor = controlPlaneMutationActorFromRequest(request);
   if (!actor) {
-    return NextResponse.json(
-      {
-        code: "missing_actor",
-        detail: "Quota producer ingest requires an authenticated actor.",
-      },
-      { status: 401 },
-    );
+    return apiErrorResponse({
+      code: "missing_actor",
+      message: "Quota producer ingest requires an authenticated actor.",
+      status: 401,
+    });
   }
 
   let result;

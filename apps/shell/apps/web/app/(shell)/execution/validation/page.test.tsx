@@ -24,6 +24,7 @@ vi.mock("@/lib/route-scope", () => ({
   buildExecutionContinuityScopeHref: (initiativeId: string) =>
     `/execution/continuity/${initiativeId}`,
   readShellRouteScopeFromQueryRecord: vi.fn(() => ({})),
+  withShellRouteScope: (href: string) => href,
 }));
 
 vi.mock("@/lib/server/control-plane/state/store", () => ({
@@ -107,6 +108,6 @@ describe("execution validation board", () => {
     expect(markup).toContain("preview proof · Staging proof");
     expect(markup).toContain("Staging proof · 6 proof gates missing");
     expect(markup).not.toContain("launch ready");
-    expect(markup).not.toContain("handoff packet ready");
+    expect(markup).not.toContain("production handoff packet");
   });
 });

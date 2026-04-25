@@ -6,7 +6,10 @@ import {
 } from "../../../../../lib/server/orchestration/verification";
 import { triggerAutonomousLoopSafely } from "../../../../../lib/server/orchestration/autonomy";
 import { isCreateVerificationRequest } from "../../../../../lib/server/control-plane/contracts/orchestration";
-import { withControlPlaneStorageGuard } from "../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  withControlPlaneStorageGuard,
+} from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -28,23 +31,21 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!isCreateVerificationRequest(body)) {
-    return NextResponse.json(
-      {
-        detail: "Verification creation requires initiativeId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_verification_creation_body",
+      message: "Verification creation requires initiativeId.",
+      status: 400,
+    });
   }
 
   return withControlPlaneStorageGuard(async () => {
     const response = await createVerification(body);
     if (!response) {
-      return NextResponse.json(
-        {
-          detail: "Verification could not be created because the initiative has no task graph.",
-        },
-        { status: 400 }
-      );
+      return apiErrorResponse({
+        code: "verification_not_ready",
+        message: "Verification could not be created because the initiative has no task graph.",
+        status: 400,
+      });
     }
 
     await triggerAutonomousLoopSafely(response.verification.initiativeId);

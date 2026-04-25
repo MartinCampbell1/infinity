@@ -22,7 +22,9 @@ import {
   ShellMetricCard,
   ShellPage,
   ShellRefreshButton,
+  ShellRetryButton,
   ShellSectionCard,
+  ShellSkeletonCardGrid,
   ShellStatusBanner,
 } from "@/components/shell/shell-screen-primitives";
 import {
@@ -412,6 +414,7 @@ export function ExecutionAgentWorkspace({
   });
   const agentsHref = withShellRouteScope("/execution/agents", scopedRouteScope);
   const latestEventAt = detail?.history.last_event_at ?? detail?.events[0]?.timestamp ?? null;
+  const isInitialLoading = loadState === "loading" && !detail;
 
   if (!detail && error) {
     return (
@@ -427,12 +430,20 @@ export function ExecutionAgentWorkspace({
             />
           }
         />
+        <div className="flex justify-end">
+          <ShellRetryButton
+            busy={isRefreshing || loadState === "loading"}
+            onClick={refresh}
+            compact
+          />
+        </div>
         <ShellStatusBanner tone="danger">{error}</ShellStatusBanner>
         <ShellEmptyState
           centered
           icon={<Bot className="h-5 w-5" />}
           title="Runtime agent detail unavailable"
           description="The requested runtime agent could not be loaded from the execution plane."
+          action={{ label: "Retry load", onClick: refresh }}
           className="py-16"
         />
       </ShellPage>
@@ -682,6 +693,33 @@ export function ExecutionAgentWorkspace({
               </ShellDetailCard>
             </ShellSectionCard>
           ) : null}
+        </>
+      ) : isInitialLoading ? (
+        <>
+          <ShellSkeletonCardGrid count={4} className="md:grid-cols-2 xl:grid-cols-4" />
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+            <ShellSectionCard
+              title="Current runtime"
+              description="Live or historical runtime identity, story alignment, and operator attention."
+              contentClassName="grid gap-3 md:grid-cols-2"
+            >
+              <ShellSkeletonCardGrid count={2} className="md:col-span-2 md:grid-cols-2" />
+            </ShellSectionCard>
+            <ShellSectionCard
+              title="Recommended next moves"
+              description="Execution-plane recommendations and suggested commands attached to this runtime agent."
+              contentClassName="grid gap-3 md:grid-cols-2"
+            >
+              <ShellSkeletonCardGrid count={2} className="md:col-span-2 md:grid-cols-2" />
+            </ShellSectionCard>
+          </div>
+          <ShellSectionCard
+            title="Event timeline"
+            description="Recent execution-plane events attached to this runtime agent."
+            contentClassName="grid gap-3"
+          >
+            <ShellSkeletonCardGrid count={3} />
+          </ShellSectionCard>
         </>
       ) : (
         <ShellEmptyState

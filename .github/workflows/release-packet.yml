@@ -1,0 +1,37 @@
+name: Release Packet
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "handoff-packets/validation/**"
+      - "scripts/release/**"
+      - "package.json"
+      - ".github/workflows/release-packet.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "handoff-packets/validation/**"
+      - "scripts/release/**"
+      - "package.json"
+      - ".github/workflows/release-packet.yml"
+
+jobs:
+  release-packet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm run release:packet -- --output-dir artifacts/release-packet
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: infinity-release-packet
+          path: artifacts/release-packet
+          if-no-files-found: error

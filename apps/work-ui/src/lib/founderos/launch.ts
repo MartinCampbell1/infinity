@@ -1,3 +1,5 @@
+import { buildWorkspaceLaunchTokenUrl } from '@founderos/api-clients/workspace-launch-routes';
+
 import type { FounderosLaunchContext } from '$lib/founderos';
 
 export type FounderosLaunchIntegrityState =
@@ -35,11 +37,7 @@ const normalizeOpenedFrom = (value: string | null | undefined) => {
 export const resolveFounderosLaunchVerificationUrl = (
 	context: FounderosLaunchContext
 ) => {
-	if (!context.hostOrigin || !context.sessionId) {
-		return null;
-	}
-
-	return `${context.hostOrigin}/api/control/execution/workspace/${encodeURIComponent(context.sessionId)}/launch-token`;
+	return buildWorkspaceLaunchTokenUrl(context.hostOrigin, context.sessionId);
 };
 
 export const verifyFounderosLaunchIntegrity = async (
@@ -119,4 +117,3 @@ export const verifyFounderosLaunchIntegrity = async (
 				: 'FounderOS launch verification failed.'
 	};
 };
-

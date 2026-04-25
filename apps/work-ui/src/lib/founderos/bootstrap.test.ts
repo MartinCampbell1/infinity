@@ -1,4 +1,8 @@
 import { describe, expect, test, vi } from 'vitest';
+import {
+	buildWorkspaceLaunchBootstrapUrl,
+	buildWorkspaceLaunchSessionUrl
+} from '@founderos/api-clients/workspace-launch-routes';
 
 import type { FounderosLaunchContext } from '$lib/founderos';
 import {
@@ -31,6 +35,12 @@ describe('founderos bootstrap', () => {
 	test('resolves the shell bootstrap endpoint from launch context', () => {
 		expect(resolveFounderosLaunchBootstrapUrl(launchContext())).toBe(
 			'http://127.0.0.1:3737/api/control/execution/workspace/session-2026-04-11-001/bootstrap'
+		);
+		expect(resolveFounderosLaunchBootstrapUrl(launchContext())).toBe(
+			buildWorkspaceLaunchBootstrapUrl(
+				'http://127.0.0.1:3737',
+				'session-2026-04-11-001'
+			)
 		);
 		expect(resolveFounderosLaunchBootstrapUrl(launchContext({ hostOrigin: null }))).toBe(null);
 	});
@@ -185,6 +195,9 @@ describe('founderos bootstrap', () => {
 			'http://127.0.0.1:3737/api/control/execution/workspace/session-2026-04-11-001/session'
 		);
 		expect(resolveFounderosLaunchSessionUrl(launchContext({ hostOrigin: null }))).toBe(null);
+		expect(resolveFounderosLaunchSessionUrl(launchContext())).toBe(
+			buildWorkspaceLaunchSessionUrl('http://127.0.0.1:3737', 'session-2026-04-11-001')
+		);
 	});
 
 	test('does not fall back to compatibility session-bearer path during embedded launch', () => {

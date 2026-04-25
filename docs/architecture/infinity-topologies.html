@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Infinity Control Plane Topologies</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #020617;
+        --panel: #0f172a;
+        --line: #334155;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --frontend: #22d3ee;
+        --backend: #34d399;
+        --database: #a78bfa;
+        --cloud: #fbbf24;
+        --security: #fb7185;
+        --bus: #fb923c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          linear-gradient(rgba(15, 23, 42, 0.65) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(15, 23, 42, 0.65) 1px, transparent 1px),
+          var(--bg);
+        background-size: 40px 40px;
+        color: var(--text);
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      header {
+        margin-bottom: 28px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 28px;
+        letter-spacing: 0;
+      }
+
+      header p,
+      .diagram-panel > p,
+      footer {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .status-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 10px;
+        border-radius: 999px;
+        background: var(--backend);
+        box-shadow: 0 0 16px rgba(52, 211, 153, 0.8);
+      }
+
+      .diagram-panel {
+        margin: 22px 0;
+        padding: 18px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.82);
+      }
+
+      .diagram-panel h2 {
+        margin-bottom: 6px;
+        font-size: 17px;
+      }
+
+      svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        margin-top: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 10px;
+        background: #020617;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 18px;
+      }
+
+      .card {
+        min-height: 128px;
+        padding: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 8px;
+        background: rgba(2, 6, 23, 0.6);
+      }
+
+      .card h3 {
+        margin-bottom: 10px;
+        font-size: 13px;
+      }
+
+      .card ul {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .node-title {
+        fill: #e2e8f0;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .node-subtitle,
+      .legend-text,
+      .edge-label {
+        fill: #94a3b8;
+        font-size: 9px;
+      }
+
+      .boundary-label {
+        fill: #f8fafc;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      @media (max-width: 820px) {
+        .cards {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1><span class="status-dot"></span>Infinity Control Plane Topologies</h1>
+        <p>
+          Static architecture diagrams for local development, staging delivery,
+          and the production target. These diagrams document topology and trust
+          boundaries; readiness still comes from validation and release gates.
+        </p>
+      </header>
+
+      <section class="diagram-panel" id="local-topology">
+        <h2>Local Developer Topology</h2>
+        <p>Loopback-only shell, work-ui, kernel, local state, and optional migration database.</p>
+        <svg viewBox="0 0 1040 560" role="img" aria-labelledby="local-title local-desc">
+          <title id="local-title">Local developer topology</title>
+          <desc id="local-desc">Operator browser connects to local shell and work-ui. Shell talks to local execution kernel and local file-backed state.</desc>
+          <defs>
+            <marker id="arrow-local" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#64748b" />
+            </marker>
+          </defs>
+          <rect x="18" y="18" width="1004" height="458" rx="12" fill="none" stroke="#fbbf24" stroke-dasharray="8 4" />
+          <text x="34" y="42" class="boundary-label">Local workstation - 127.0.0.1 only</text>
+
+          <path d="M200 145 H350" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-local)" />
+          <path d="M200 240 H350" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-local)" />
+          <path d="M510 145 H645" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-local)" />
+          <path d="M510 240 H645" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-local)" />
+          <path d="M780 145 H910" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-local)" />
+          <path d="M780 240 H910" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-local)" />
+          <path d="M510 335 H645" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrow-local)" />
+          <path d="M780 335 H910" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrow-local)" />
+
+          <rect x="58" y="105" width="142" height="76" rx="6" fill="#0f172a" />
+          <rect x="58" y="105" width="142" height="76" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5" />
+          <text x="76" y="132" class="node-title">Operator browser</text>
+          <text x="76" y="152" class="node-subtitle">localhost testing</text>
+
+          <rect x="350" y="105" width="160" height="76" rx="6" fill="#0f172a" />
+          <rect x="350" y="105" width="160" height="76" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5" />
+          <text x="370" y="132" class="node-title">FounderOS shell</text>
+          <text x="370" y="152" class="node-subtitle">Next.js :3737</text>
+
+          <rect x="350" y="200" width="160" height="76" rx="6" fill="#0f172a" />
+          <rect x="350" y="200" width="160" height="76" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5" />
+          <text x="370" y="227" class="node-title">Work UI</text>
+          <text x="370" y="247" class="node-subtitle">Svelte/Vite :3101</text>
+
+          <rect x="645" y="105" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="645" y="105" width="135" height="76" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5" />
+          <text x="663" y="132" class="node-title">Control APIs</text>
+          <text x="663" y="152" class="node-subtitle">app/api/control</text>
+
+          <rect x="645" y="200" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="645" y="200" width="135" height="76" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5" />
+          <text x="663" y="227" class="node-title">Execution kernel</text>
+          <text x="663" y="247" class="node-subtitle">Go :8798</text>
+
+          <rect x="645" y="295" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="645" y="295" width="135" height="76" rx="6" fill="rgba(251,146,60,0.3)" stroke="#fb923c" stroke-width="1.5" />
+          <text x="663" y="322" class="node-title">Validation tools</text>
+          <text x="663" y="342" class="node-subtitle">Python + Playwright</text>
+
+          <rect x="910" y="105" width="94" height="76" rx="6" fill="#0f172a" />
+          <rect x="910" y="105" width="94" height="76" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5" />
+          <text x="928" y="132" class="node-title">Local state</text>
+          <text x="928" y="152" class="node-subtitle">.local-state</text>
+
+          <rect x="910" y="200" width="94" height="76" rx="6" fill="#0f172a" />
+          <rect x="910" y="200" width="94" height="76" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5" />
+          <text x="928" y="227" class="node-title">Artifacts</text>
+          <text x="928" y="247" class="node-subtitle">handoff packets</text>
+
+          <rect x="910" y="295" width="94" height="76" rx="6" fill="#0f172a" />
+          <rect x="910" y="295" width="94" height="76" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5" />
+          <text x="928" y="322" class="node-title">Postgres</text>
+          <text x="928" y="342" class="node-subtitle">drift tests only</text>
+
+          <g transform="translate(58 505)">
+            <rect width="900" height="34" rx="6" fill="#0f172a" stroke="#334155" />
+            <circle cx="22" cy="17" r="5" fill="#22d3ee" /><text x="36" y="21" class="legend-text">frontend</text>
+            <circle cx="138" cy="17" r="5" fill="#34d399" /><text x="152" y="21" class="legend-text">backend</text>
+            <circle cx="254" cy="17" r="5" fill="#a78bfa" /><text x="268" y="21" class="legend-text">state</text>
+            <circle cx="370" cy="17" r="5" fill="#fb923c" /><text x="384" y="21" class="legend-text">validation flow</text>
+          </g>
+        </svg>
+      </section>
+
+      <section class="diagram-panel" id="staging-topology">
+        <h2>Staging Delivery Topology</h2>
+        <p>Hosted shell/work-ui, private control plane services, GitHub/Vercel delivery proof, and object storage.</p>
+        <svg viewBox="0 0 1040 560" role="img" aria-labelledby="staging-title staging-desc">
+          <title id="staging-title">Staging topology</title>
+          <desc id="staging-desc">Staging uses HTTPS shell and work-ui, private kernel, Postgres, object store, GitHub PR proof, Vercel preview, and CI status.</desc>
+          <defs>
+            <marker id="arrow-staging" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#64748b" />
+            </marker>
+          </defs>
+          <rect x="18" y="18" width="1004" height="458" rx="12" fill="none" stroke="#fbbf24" stroke-dasharray="8 4" />
+          <text x="34" y="42" class="boundary-label">Staging environment - hosted proof with explicit credentials</text>
+
+          <path d="M175 140 H330" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-staging)" />
+          <path d="M490 140 H625" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-staging)" />
+          <path d="M490 238 H625" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-staging)" />
+          <path d="M760 140 H908" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-staging)" />
+          <path d="M760 238 H908" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-staging)" />
+          <path d="M490 336 H625" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrow-staging)" />
+          <path d="M760 336 H908" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrow-staging)" />
+          <path d="M625 430 H330" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5 5" marker-end="url(#arrow-staging)" />
+
+          <rect x="52" y="102" width="123" height="76" rx="6" fill="#0f172a" />
+          <rect x="52" y="102" width="123" height="76" rx="6" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1.5" />
+          <text x="70" y="129" class="node-title">Operator</text>
+          <text x="70" y="149" class="node-subtitle">browser HTTPS</text>
+
+          <rect x="330" y="102" width="160" height="76" rx="6" fill="#0f172a" />
+          <rect x="330" y="102" width="160" height="76" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5" />
+          <text x="350" y="129" class="node-title">Hosted shell</text>
+          <text x="350" y="149" class="node-subtitle">readiness tier staging</text>
+
+          <rect x="330" y="200" width="160" height="76" rx="6" fill="#0f172a" />
+          <rect x="330" y="200" width="160" height="76" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5" />
+          <text x="350" y="227" class="node-title">Hosted work-ui</text>
+          <text x="350" y="247" class="node-subtitle">frame ancestors locked</text>
+
+          <rect x="625" y="102" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="625" y="102" width="135" height="76" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5" />
+          <text x="643" y="129" class="node-title">Control APIs</text>
+          <text x="643" y="149" class="node-subtitle">auth + CORS</text>
+
+          <rect x="625" y="200" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="625" y="200" width="135" height="76" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5" />
+          <text x="643" y="227" class="node-title">Private kernel</text>
+          <text x="643" y="247" class="node-subtitle">service origin only</text>
+
+          <rect x="625" y="298" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="625" y="298" width="135" height="76" rx="6" fill="rgba(251,146,60,0.3)" stroke="#fb923c" stroke-width="1.5" />
+          <text x="643" y="325" class="node-title">Delivery smoke</text>
+          <text x="643" y="345" class="node-subtitle">mutating explicit</text>
+
+          <rect x="908" y="102" width="96" height="76" rx="6" fill="#0f172a" />
+          <rect x="908" y="102" width="96" height="76" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5" />
+          <text x="925" y="129" class="node-title">Postgres</text>
+          <text x="925" y="149" class="node-subtitle">control truth</text>
+
+          <rect x="908" y="200" width="96" height="76" rx="6" fill="#0f172a" />
+          <rect x="908" y="200" width="96" height="76" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5" />
+          <text x="925" y="227" class="node-title">Object store</text>
+          <text x="925" y="247" class="node-subtitle">signed artifacts</text>
+
+          <rect x="908" y="298" width="96" height="76" rx="6" fill="#0f172a" />
+          <rect x="908" y="298" width="96" height="76" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5" />
+          <text x="925" y="325" class="node-title">GitHub</text>
+          <text x="925" y="345" class="node-subtitle">PR + CI proof</text>
+
+          <rect x="330" y="392" width="160" height="76" rx="6" fill="#0f172a" />
+          <rect x="330" y="392" width="160" height="76" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5" />
+          <text x="350" y="419" class="node-title">Vercel preview</text>
+          <text x="350" y="439" class="node-subtitle">hosted delivery URL</text>
+
+          <rect x="625" y="392" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="625" y="392" width="135" height="76" rx="6" fill="rgba(136,19,55,0.4)" stroke="#fb7185" stroke-width="1.5" />
+          <text x="643" y="419" class="node-title">Secrets</text>
+          <text x="643" y="439" class="node-subtitle">GitHub/Vercel/blob</text>
+        </svg>
+      </section>
+
+      <section class="diagram-panel" id="production-topology">
+        <h2>Production Target Topology</h2>
+        <p>Target state for production readiness. This is not a claim that the current branch is production-ready.</p>
+        <svg viewBox="0 0 1040 560" role="img" aria-labelledby="prod-title prod-desc">
+          <title id="prod-title">Production target topology</title>
+          <desc id="prod-desc">Production target separates auth, shell, work-ui, API gateway, durable database, execution workers, observability, quota adapters, and artifact storage.</desc>
+          <defs>
+            <marker id="arrow-prod" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#64748b" />
+            </marker>
+          </defs>
+          <rect x="18" y="18" width="1004" height="458" rx="12" fill="none" stroke="#fbbf24" stroke-dasharray="8 4" />
+          <text x="34" y="42" class="boundary-label">Production target - durable, authenticated, observable</text>
+
+          <path d="M170 128 H310" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5 5" marker-end="url(#arrow-prod)" />
+          <path d="M470 128 H600" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-prod)" />
+          <path d="M735 128 H890" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-prod)" />
+          <path d="M470 224 H600" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-prod)" />
+          <path d="M735 224 H890" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-prod)" />
+          <path d="M600 320 H470" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrow-prod)" />
+          <path d="M735 320 H890" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrow-prod)" />
+          <path d="M600 416 H470" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-prod)" />
+          <path d="M735 416 H890" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-prod)" />
+
+          <rect x="54" y="90" width="116" height="76" rx="6" fill="#0f172a" />
+          <rect x="54" y="90" width="116" height="76" rx="6" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1.5" />
+          <text x="72" y="117" class="node-title">Users</text>
+          <text x="72" y="137" class="node-subtitle">operators/admins</text>
+
+          <rect x="310" y="90" width="160" height="76" rx="6" fill="#0f172a" />
+          <rect x="310" y="90" width="160" height="76" rx="6" fill="rgba(136,19,55,0.4)" stroke="#fb7185" stroke-width="1.5" />
+          <text x="330" y="117" class="node-title">Auth / RBAC</text>
+          <text x="330" y="137" class="node-subtitle">tenant boundary</text>
+
+          <rect x="310" y="186" width="160" height="76" rx="6" fill="#0f172a" />
+          <rect x="310" y="186" width="160" height="76" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5" />
+          <text x="330" y="213" class="node-title">Shell + work-ui</text>
+          <text x="330" y="233" class="node-subtitle">separate apps</text>
+
+          <rect x="600" y="90" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="600" y="90" width="135" height="76" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5" />
+          <text x="618" y="117" class="node-title">API gateway</text>
+          <text x="618" y="137" class="node-subtitle">rate limits + audit</text>
+
+          <rect x="600" y="186" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="600" y="186" width="135" height="76" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5" />
+          <text x="618" y="213" class="node-title">Control plane</text>
+          <text x="618" y="233" class="node-subtitle">sessions/events</text>
+
+          <rect x="600" y="282" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="600" y="282" width="135" height="76" rx="6" fill="rgba(251,146,60,0.3)" stroke="#fb923c" stroke-width="1.5" />
+          <text x="618" y="309" class="node-title">Scheduler bus</text>
+          <text x="618" y="329" class="node-subtitle">leases + retries</text>
+
+          <rect x="600" y="378" width="135" height="76" rx="6" fill="#0f172a" />
+          <rect x="600" y="378" width="135" height="76" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5" />
+          <text x="618" y="405" class="node-title">Quota adapters</text>
+          <text x="618" y="425" class="node-subtitle">ChatGPT/API-key</text>
+
+          <rect x="890" y="90" width="112" height="76" rx="6" fill="#0f172a" />
+          <rect x="890" y="90" width="112" height="76" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5" />
+          <text x="908" y="117" class="node-title">Postgres</text>
+          <text x="908" y="137" class="node-subtitle">RLS + backups</text>
+
+          <rect x="890" y="186" width="112" height="76" rx="6" fill="#0f172a" />
+          <rect x="890" y="186" width="112" height="76" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5" />
+          <text x="908" y="213" class="node-title">Workers</text>
+          <text x="908" y="233" class="node-subtitle">sandboxed exec</text>
+
+          <rect x="890" y="282" width="112" height="76" rx="6" fill="#0f172a" />
+          <rect x="890" y="282" width="112" height="76" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5" />
+          <text x="908" y="309" class="node-title">Artifact store</text>
+          <text x="908" y="329" class="node-subtitle">signed immutable</text>
+
+          <rect x="890" y="378" width="112" height="76" rx="6" fill="#0f172a" />
+          <rect x="890" y="378" width="112" height="76" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5" />
+          <text x="908" y="405" class="node-title">Observability</text>
+          <text x="908" y="425" class="node-subtitle">logs/metrics/traces</text>
+        </svg>
+      </section>
+
+      <section class="cards" aria-label="Topology notes">
+        <div class="card">
+          <h3>Local</h3>
+          <ul>
+            <li>Loopback defaults for shell, work-ui, and kernel.</li>
+            <li>File-backed state is acceptable for local development.</li>
+            <li>Full validation may start owned services and browser automation.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Staging</h3>
+          <ul>
+            <li>Requires explicit hosted origins and credentials.</li>
+            <li>External delivery smoke proves PR, preview, CI, and artifacts.</li>
+            <li>Local file paths are rejected from hosted proof.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Production Target</h3>
+          <ul>
+            <li>Durable Postgres, service auth, audit, and worker isolation.</li>
+            <li>Signed immutable artifacts and observable runtime state.</li>
+            <li>No production wording without production-tier proof.</li>
+          </ul>
+        </div>
+      </section>
+
+      <footer>
+        Generated as a committed docs artifact for P2-DOC-02. Source of truth for
+        readiness policy remains `docs/production-readiness.md`.
+      </footer>
+    </main>
+  </body>
+</html>

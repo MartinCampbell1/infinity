@@ -8,6 +8,7 @@ import { triggerAutonomousLoopSafely } from "../../../../../../lib/server/orches
 import { isSupervisorActionRequest } from "../../../../../../lib/server/control-plane/contracts/orchestration";
 import { controlPlaneMutationActorFromRequest } from "../../../../../../lib/server/http/control-plane-auth";
 import {
+  apiErrorResponse,
   controlPlaneStorageUnavailableResponse,
   withControlPlaneStorageGuard,
 } from "../../../../../../lib/server/http/control-plane-storage-response";
@@ -41,26 +42,23 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!isSupervisorActionRequest(body)) {
-    return NextResponse.json(
-      {
-        detail:
-          "Supervisor action requires a supported actionKind and the required batch/attempt/work-unit fields.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_supervisor_action_body",
+      message:
+        "Supervisor action requires a supported actionKind and the required batch/attempt/work-unit fields.",
+      status: 400,
+    });
   }
 
   let response;
   try {
     const actor = controlPlaneMutationActorFromRequest(request);
     if (!actor) {
-      return NextResponse.json(
-        {
-          code: "missing_actor",
-          detail: "Supervisor actions require an authenticated actor.",
-        },
-        { status: 401 },
-      );
+      return apiErrorResponse({
+        code: "missing_actor",
+        message: "Supervisor actions require an authenticated actor.",
+        status: 401,
+      });
     }
 
     const idempotencyKey = controlPlaneIdempotencyKeyFromRequest(request);
@@ -111,14 +109,12 @@ export async function POST(request: Request) {
       return storageResponse;
     }
     if (isControlPlaneIdempotencyConflictError(error)) {
-      return NextResponse.json(
-        {
-          code: error.code,
-          detail: error.message,
-          accepted: false,
-        },
-        { status: error.status },
-      );
+      return apiErrorResponse({
+        code: error.code,
+        message: error.message,
+        status: error.status,
+        details: { accepted: false },
+      });
     }
 
     const detail =
@@ -127,22 +123,20 @@ export async function POST(request: Request) {
         : "Supervisor action failed before the shell could persist the result.";
     const status = detail.includes("Execution kernel request failed") ? 502 : 400;
 
-    return NextResponse.json(
-      {
-        detail,
-      },
-      { status }
-    );
+    return apiErrorResponse({
+      code: status === 502 ? "supervisor_kernel_request_failed" : "supervisor_action_failed",
+      message: detail,
+      status,
+    });
   }
 
   if (!response) {
-    return NextResponse.json(
-      {
-        detail:
-          "Supervisor action could not be applied because the referenced batch, task graph, or work unit was not found.",
-      },
-      { status: 404 }
-    );
+    return apiErrorResponse({
+      code: "supervisor_action_target_not_found",
+      message:
+        "Supervisor action could not be applied because the referenced batch, task graph, or work unit was not found.",
+      status: 404,
+    });
   }
 
   await triggerAutonomousLoopSafely(response.batch.initiativeId);

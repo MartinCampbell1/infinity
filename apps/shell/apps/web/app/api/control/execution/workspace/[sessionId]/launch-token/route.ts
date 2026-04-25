@@ -6,6 +6,7 @@ import {
   type WorkspaceLaunchTokenVerificationResponse,
 } from "../../../../../../../lib/server/control-plane/contracts/workspace-launch";
 import { verifyWorkspaceLaunchToken } from "../../../../../../../lib/server/control-plane/workspace/launch-token";
+import { apiErrorResponse } from "../../../../../../../lib/server/http/api-error-response";
 
 export const dynamic = "force-dynamic";
 
@@ -63,21 +64,21 @@ export async function POST(
   const body = parseBody(await request.json().catch(() => null));
 
   if (!body) {
-    return NextResponse.json(
-      {
-        error: "Invalid workspace launch token verification body.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_workspace_launch_token_body",
+      message: "Invalid workspace launch token verification body.",
+      status: 400,
+    });
   }
 
   if (body.sessionId && body.sessionId !== sessionId) {
-    return NextResponse.json(
-      {
-        error: "Workspace launch token verification body does not match the route sessionId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "session_id_mismatch",
+      message:
+        "Workspace launch token verification body does not match the route sessionId.",
+      status: 400,
+      details: { routeSessionId: sessionId, bodySessionId: body.sessionId },
+    });
   }
 
   const refs = normalizeWorkspaceLaunchRefs({
@@ -89,12 +90,11 @@ export async function POST(
   });
 
   if (!refs.projectId || !refs.sessionId) {
-    return NextResponse.json(
-      {
-        error: "Workspace launch token verification requires projectId and sessionId.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "missing_workspace_launch_refs",
+      message: "Workspace launch token verification requires projectId and sessionId.",
+      status: 400,
+    });
   }
 
   const verification = verifyWorkspaceLaunchToken({
@@ -115,4 +115,3 @@ export async function POST(
 
   return NextResponse.json(responseBody);
 }
-

@@ -1,26 +1,52 @@
 # Handoff: P1-OPS-02 Incident Runbooks
 
 Repo: `/Users/martin/infinity`
+Branch at refresh time: `codex/p0-be-14-staging-smoke`
+HEAD at refresh time: `977a499 chore: checkpoint audit hardening work`
 Audit plan: `/Users/martin/Downloads/infinity_full_audit_fix_plan_2026-04-24.md`
 Current date: 2026-04-25
-Current bounded step: `P1-OPS-02. Incident runbooks`
+Current bounded audit step: `P1-OPS-02. Incident runbooks` - closed for audit acceptance by independent critic `GO` in this handoff refresh.
 
-## Hard Rules
+## Source of Truth and Rules
 
-- Reference repos are read-only:
+Precedence for this step:
+1. `/Users/martin/Downloads/infinity_full_audit_fix_plan_2026-04-24.md`
+2. `/Users/martin/infinity/AGENTS.md`
+3. Current implementation evidence inside `/Users/martin/infinity`
+
+Hard rules:
+- Reference repos remain read-only:
   - `/Users/martin/FounderOS`
   - `/Users/martin/open-webui`
   - `/Users/martin/hermes-webui`
+  - external `cabinet` snapshots
 - Make changes only inside `/Users/martin/infinity`.
-- Keep using `karpathy-guidelines`, `karpathy-programming-workflow`, and `critic-loop-profi`.
-- Do not start the next audit step until the current step has green verification and an independent critic `GO`.
+- Keep using `critic-loop-profi`; do not advance to the next audit step without an independent critic `GO` or explicit `BLOCKER`.
+- Do not run watchers or keep dev servers/browser automation alive after checks.
 - Do not copy secrets from chat, screenshots, shell history, or local env into repo files.
 
-## Recent Completed Gates
+## Current Audit Step
+
+Audit plan excerpt:
+
+```text
+P1-OPS-02. Incident runbooks
+Area: Ops
+Problem: Kernel down, DB down, delivery stuck, auth failure need runbooks.
+Task: implement the change, update matching tests/docs, do not change unrelated design/runtime areas, preserve current validation gates.
+Acceptance criteria: Runbooks exist and are linked from alerts.
+Checks: focused unit/integration tests + relevant shell/work-ui checks + update validation packet where applicable.
+```
+
+Current interpretation:
+- This step is about documented runbooks plus a machine-readable alert/runbook catalog exposed from shell diagnostics.
+- It is not a live PagerDuty/Grafana/alert-manager provisioning task unless a later audit step explicitly expands the scope.
+
+## Closed Critic Gates Through P1-OPS-02
 
 ### P1-QA-03 Load/backpressure
 
-Status: closed with critic `GO`.
+Status: closed with independent critic `GO`.
 
 Implemented:
 - status-preserving kernel request errors in `packages/api-clients/src/multica.ts`;
@@ -29,7 +55,7 @@ Implemented:
 - execution-kernel concurrency/reload test in `services/execution-kernel/internal/service/service_test.go`;
 - `test:load-backpressure` and `.github/workflows/web-load-backpressure.yml`.
 
-Verification passed:
+Verification reported as passed in the previous gate:
 - `npm run typecheck --workspace @founderos/api-clients`
 - `npm run typecheck --workspace @founderos/web`
 - `npm run test:load-backpressure --workspace @founderos/web`
@@ -39,7 +65,7 @@ Verification passed:
 
 ### P1-OPS-01 Staging topology
 
-Status: closed with critic `GO`.
+Status: closed with independent critic `GO`.
 
 Implemented:
 - `buildStagingTopologyDiagnostics()` in `apps/shell/apps/web/lib/server/control-plane/workspace/rollout-config.ts`;
@@ -47,38 +73,45 @@ Implemented:
 - staging topology tests;
 - `docs/ops/staging-topology.md`.
 
-Verification passed:
+Verification reported as passed in the previous gate:
 - `npm run typecheck --workspace @founderos/web`
 - targeted suite: 5 files / 46 tests
 - broader focused web suite: 37 files / 210 tests
 - `git diff --check`
 
-Critic note:
-- Non-blocking doc polish: staging topology docs could use only exact accepted secret-manager slugs.
+Residual non-blocking note from prior critic:
+- Staging topology docs could be polished later to use only exact accepted secret-manager slugs.
 
-## Current Step: P1-OPS-02
+### P1-OPS-02 Incident runbooks
 
-Audit spec:
+Status: closed with independent critic `GO`.
 
-```text
-P1-OPS-02. Incident runbooks
-Problem: Kernel down, DB down, delivery stuck, auth failure need runbooks.
-Acceptance criteria: Runbooks exist and are linked from alerts.
-Checks: focused unit/integration tests + relevant shell/work-ui checks + update validation packet where applicable.
-```
+Critic gate source:
+- Local isolated CLI critic run with read-only sandbox:
+  - `codex exec --ignore-user-config --cd /Users/martin/infinity --sandbox read-only --ephemeral -m gpt-5.2`
+- Earlier in-app subagent attempts returned only acknowledgement text and were not counted as gates.
+- First CLI attempt failed before review because the local CLI defaulted to unsupported model `gpt-5.5`; it was not counted as a gate.
 
-## P1-OPS-02 Changes Already Applied
+Critic result summary:
+- `Status: GO`
+- Scope checked: P1-OPS-02 incident runbooks only.
+- Done: four runbooks exist, stable anchors exist, alert IDs map to runbook links in docs and machine-readable catalog, boot diagnostics exposes `incidentRunbooks.alerts[].runbookPath`, tests cover catalog/doc anchors/boot diagnostics exposure.
+- Partial: none.
+- Missing or broken: none within the acceptance criteria.
+- Shortcut note: no live PagerDuty/Grafana/alert-manager provisioning; critic agreed that is not required by P1-OPS-02 acceptance text.
+- Fix items: none.
+- Blocker: none.
 
-New files:
+## P1-OPS-02 Work Already Present
+
+Files:
 - `apps/shell/apps/web/lib/server/control-plane/ops/incident-runbooks.ts`
 - `apps/shell/apps/web/lib/server/control-plane/ops/incident-runbooks.test.ts`
-- `docs/ops/incident-runbooks.md`
-
-Modified files:
 - `apps/shell/apps/web/app/api/control/deployment/boot-diagnostics/route.ts`
 - `apps/shell/apps/web/app/api/control/deployment/boot-diagnostics/route.test.ts`
+- `docs/ops/incident-runbooks.md`
 
-Behavior added:
+Implemented behavior:
 - Static incident runbook catalog for the four required incidents:
   - `kernel-down`
   - `db-down`
@@ -98,45 +131,94 @@ Behavior added:
   - `missingRunbooks`
   - `missingAlertLinks`
   - `missingAlertCoverage`
-- Boot diagnostics now returns `incidentRunbooks`.
+- `/api/control/deployment/boot-diagnostics` returns `incidentRunbooks`.
 - Tests verify:
   - required incident coverage;
   - every alert links to a runbook;
-  - Markdown runbook file contains each linked anchor;
-  - boot diagnostics exposes the alert/runbook catalog and does not leak secret values in the staging readiness path.
+  - every required alert/runbook pair is exposed from boot diagnostics;
+  - the Markdown runbook document contains every linked anchor;
+  - the staging readiness path still avoids leaking secret values.
 
-## P1-OPS-02 Verification Already Run
+## Verification Already Passed
 
-Passed:
-
-```sh
-cd /Users/martin/infinity/apps/shell/apps/web
-npx vitest run lib/server/control-plane/ops/incident-runbooks.test.ts app/api/control/deployment/boot-diagnostics/route.test.ts --testTimeout 120000
-```
-
-Result: 2 files / 6 tests passed.
-
-Passed after fixing a type enum issue:
+Run from `/Users/martin/infinity`:
 
 ```sh
 npm run typecheck --workspace @founderos/web
 ```
 
-## P1-OPS-02 Not Yet Done
+Result: passed.
 
-Do not call this step closed yet.
-
-Still needed:
-1. Run a broader relevant focused suite.
-2. Run `git diff --check`.
-3. Run independent critic gate for `P1-OPS-02`.
-4. If critic returns `NO-GO`, fix only P1-OPS-02, re-run focused verification, then re-run critic.
-
-Suggested next verification:
+Run from `/Users/martin/infinity/apps/shell/apps/web`:
 
 ```sh
-npm run typecheck --workspace @founderos/web
+npx vitest run \
+  lib/server/control-plane/ops/incident-runbooks.test.ts \
+  app/api/control/deployment/boot-diagnostics/route.test.ts \
+  --testTimeout 120000
+```
 
+Result from the earlier targeted pass: 2 files / 6 tests passed.
+
+Run from `/Users/martin/infinity/apps/shell/apps/web`:
+
+```sh
+npx vitest run \
+  lib/server/control-plane/ops/incident-runbooks.test.ts \
+  app/api/control/deployment/boot-diagnostics/route.test.ts \
+  app/'(shell)'/execution/issues/page.test.tsx \
+  lib/server/orchestration/batches.test.ts \
+  app/api/control/production-storage-policy.test.ts \
+  app/api/control/orchestration/delivery/route.test.ts \
+  components/orchestration/delivery-summary.test.tsx \
+  app/api/control/execution/workspace/'[sessionId]'/runtime/route.test.ts \
+  --testTimeout 120000
+```
+
+Result from 2026-04-25 refresh: 8 files / 61 tests passed.
+
+Run from `/Users/martin/infinity`:
+
+```sh
+git diff --check
+```
+
+Result: passed.
+
+Tree state observed before this handoff refresh:
+
+```sh
+git status --short --untracked-files=all
+```
+
+Result: clean.
+
+After this handoff refresh, the expected dirty file is only:
+
+```text
+docs/handoffs/2026-04-25-p1-ops-02-incident-runbooks-handoff.md
+```
+
+## What Cannot Be Claimed Closed Yet
+
+Do not over-claim these:
+- No live PagerDuty/Grafana/alert-manager rules were provisioned in this step.
+- No full `npm run validate:full` or full browser E2E release gate was run for this step.
+- No production deployment, staging smoke, or external delivery verification was performed in this step.
+- No commit/push was performed by this handoff refresh.
+- The next audit step has not been started in this handoff refresh.
+
+## Next Verification Commands
+
+Run these before advancing if the tree changes after this handoff:
+
+```sh
+cd /Users/martin/infinity
+git status --short --untracked-files=all
+npm run typecheck --workspace @founderos/web
+```
+
+```sh
 cd /Users/martin/infinity/apps/shell/apps/web
 npx vitest run \
   lib/server/control-plane/ops/incident-runbooks.test.ts \
@@ -148,58 +230,77 @@ npx vitest run \
   components/orchestration/delivery-summary.test.tsx \
   app/api/control/execution/workspace/'[sessionId]'/runtime/route.test.ts \
   --testTimeout 120000
+```
 
+```sh
+cd /Users/martin/infinity
 git diff --check
 ```
 
-Suggested critic prompt:
+## Independent Critic Gate Prompt for Re-Run
+
+Use this prompt if the tree changes or a second independent P1-OPS-02 gate is required:
 
 ```text
-You are the independent critic gate for audit step P1-OPS-02 in /Users/martin/infinity. Use critic-loop-profi standards: inspect the dirty tree, do not edit files, return GO/NO-GO/BLOCKER with concrete blockers only.
+You are the independent critic gate for audit step P1-OPS-02 in /Users/martin/infinity. Use critic-loop-profi standards. Inspect the repo and evidence, do not edit files, and return exactly one gate result: GO, NO-GO, or BLOCKER.
 
-Scope/rules:
-- Reference repos read-only. Do not touch /Users/martin/FounderOS, /Users/martin/open-webui, /Users/martin/hermes-webui.
+Scope and rules:
 - Current step only: P1-OPS-02 incident runbooks.
-- Audit spec acceptance: kernel down, DB down, delivery stuck, and auth failure runbooks exist and are linked from alerts.
+- Source of truth: /Users/martin/Downloads/infinity_full_audit_fix_plan_2026-04-24.md, section P1-OPS-02.
+- Acceptance: kernel down, DB down, delivery stuck, and auth failure runbooks exist and are linked from alerts.
+- Reference repos are read-only: /Users/martin/FounderOS, /Users/martin/open-webui, /Users/martin/hermes-webui, and external cabinet snapshots.
 - Do not judge unrelated earlier dirty files unless they break this step.
+- Do not require live PagerDuty/Grafana/alert-manager provisioning unless you can tie that requirement directly to the P1-OPS-02 acceptance text.
 
-Implemented:
-- apps/shell/apps/web/lib/server/control-plane/ops/incident-runbooks.ts defines required incident runbooks, alert links, and buildIncidentRunbookDiagnostics().
-- apps/shell/apps/web/app/api/control/deployment/boot-diagnostics/route.ts returns incidentRunbooks.
-- apps/shell/apps/web/lib/server/control-plane/ops/incident-runbooks.test.ts verifies coverage, alert links, and Markdown anchors.
-- apps/shell/apps/web/app/api/control/deployment/boot-diagnostics/route.test.ts verifies boot diagnostics exposes alert/runbook links.
-- docs/ops/incident-runbooks.md contains the four runbooks.
+Implementation evidence to inspect:
+- apps/shell/apps/web/lib/server/control-plane/ops/incident-runbooks.ts
+- apps/shell/apps/web/lib/server/control-plane/ops/incident-runbooks.test.ts
+- apps/shell/apps/web/app/api/control/deployment/boot-diagnostics/route.ts
+- apps/shell/apps/web/app/api/control/deployment/boot-diagnostics/route.test.ts
+- docs/ops/incident-runbooks.md
+- docs/handoffs/2026-04-25-p1-ops-02-incident-runbooks-handoff.md
 
-Verification:
-- npm run typecheck --workspace @founderos/web passed.
-- targeted incident-runbook + boot-diagnostics suite passed: 2 files / 6 tests.
-- broader focused suite and git diff --check still need to be run unless already completed by the orchestrator.
+Verification already run:
+- npm run typecheck --workspace @founderos/web: passed.
+- targeted P1-OPS-02 vitest suite: 2 files / 6 tests passed.
+- broader focused web vitest suite: 8 files / 61 tests passed.
+- git diff --check: passed.
 
-Please inspect and return GO or NO-GO. If NO-GO, list exact blockers with file/line references. If GO, mention non-blocking residual risks.
+Return using the critic-loop-profi template:
+
+Status: GO | NO-GO | BLOCKER
+
+Scope checked:
+- ...
+
+Done:
+- ...
+
+Partial:
+- ...
+
+Missing or broken:
+- ...
+
+Shortcut or disguised manual step:
+- ...
+
+Evidence checked:
+- ...
+
+Fix items:
+1. ...
+
+Blocker:
+- ...
 ```
 
-Potential critic risk:
-- The current implementation creates a machine-checkable static alert catalog linked from boot diagnostics. It does not provision live PagerDuty/Grafana/Cloud alert rules. If the critic interprets "linked from alerts" as live alert-manager config, the likely fix is to add an ops alert rules artifact or endpoint that consumes this catalog, not to broaden unrelated runtime code.
+## Stop Point for Next Agent
 
-## Current Dirty Tree Notes
-
-The worktree is intentionally dirty. It includes prior closed P1/P0 changes plus the current P1-OPS-02 files. Do not revert unrelated changes.
-
-Important current untracked files from recent steps:
-- `.github/workflows/web-load-backpressure.yml`
-- `.github/workflows/web-security.yml`
-- `.github/workflows/web-visual-regression.yml`
-- `apps/shell/apps/web/lib/server/control-plane/ops/incident-runbooks.ts`
-- `apps/shell/apps/web/lib/server/control-plane/ops/incident-runbooks.test.ts`
-- `docs/ops/incident-runbooks.md`
-- `docs/ops/staging-topology.md`
-
-No commit has been made and nothing is staged.
-
-## Stop Point
-
-Stop point for the next agent:
-- Continue from `P1-OPS-02`.
-- First run the broader focused verification and `git diff --check`.
-- Then run independent critic.
-- Only after critic `GO`, move to the next audit step.
+The next agent should:
+1. Open `/Users/martin/infinity`.
+2. Read this handoff and the P1-OPS-02 section of `/Users/martin/Downloads/infinity_full_audit_fix_plan_2026-04-24.md`.
+3. Treat P1-OPS-02 as closed unless new local changes invalidate the evidence.
+4. If the tree changed, re-run the verification commands above and then re-run the critic prompt.
+5. If a re-run critic returns `NO-GO`, fix only P1-OPS-02, rerun focused verification, then rerun critic.
+6. If the evidence still holds, move to the next audit step without reopening P1-OPS-02.

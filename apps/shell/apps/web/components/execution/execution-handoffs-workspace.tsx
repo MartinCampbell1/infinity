@@ -14,11 +14,12 @@ import {
   ShellHero,
   ShellHeroSearchField,
   ShellListLink,
-  ShellLoadingState,
   ShellMetricCard,
   ShellPage,
   ShellRefreshButton,
+  ShellRetryButton,
   ShellSectionCard,
+  ShellSkeletonCardGrid,
   ShellStatusBanner,
 } from "@/components/shell/shell-screen-primitives";
 import type { ShellExecutionHandoffsSnapshot } from "@/lib/execution-handoffs-model";
@@ -212,6 +213,7 @@ export function ExecutionHandoffsWorkspace({
     () => snapshot.handoffs.filter((handoff) => expiresSoon(handoff.expires_at)).length,
     [snapshot.handoffs]
   );
+  const isInitialLoading = loadState === "loading" && snapshot.handoffs.length === 0;
 
   return (
     <ShellPage>
@@ -237,29 +239,43 @@ export function ExecutionHandoffsWorkspace({
         <ShellStatusBanner tone="danger">{snapshot.handoffsError}</ShellStatusBanner>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-[12px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4">
-          <ShellMetricCard
-            label="Active handoffs"
-            value={String(snapshot.handoffs.length)}
-            detail="Briefs available for project creation or create-and-launch."
+      {snapshot.handoffsError ? (
+        <div className="flex justify-end">
+          <ShellRetryButton
+            busy={isRefreshing || loadState === "loading"}
+            onClick={refresh}
+            compact
           />
         </div>
-        <div className="rounded-[12px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4">
-          <ShellMetricCard
-            label="Launch-ready"
-            value={String(countLaunchIntent(snapshot.handoffs, "launch"))}
-            detail="Handoffs asking execution to start immediately."
-          />
+      ) : null}
+
+      {isInitialLoading ? (
+        <ShellSkeletonCardGrid count={3} className="md:grid-cols-3" />
+      ) : (
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-[12px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4">
+            <ShellMetricCard
+              label="Active handoffs"
+              value={String(snapshot.handoffs.length)}
+              detail="Briefs available for project creation or create-and-launch."
+            />
+          </div>
+          <div className="rounded-[12px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4">
+            <ShellMetricCard
+              label="Launch-ready"
+              value={String(countLaunchIntent(snapshot.handoffs, "launch"))}
+              detail="Handoffs asking execution to start immediately."
+            />
+          </div>
+          <div className="rounded-[12px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4">
+            <ShellMetricCard
+              label="Expiring soon"
+              value={String(expiringSoonCount)}
+              detail="Briefs with less than ten minutes left in the local handoff store."
+            />
+          </div>
         </div>
-        <div className="rounded-[12px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4">
-          <ShellMetricCard
-            label="Expiring soon"
-            value={String(expiringSoonCount)}
-            detail="Briefs with less than ten minutes left in the local handoff store."
-          />
-        </div>
-      </div>
+      )}
 
       <ShellSectionCard
         title="Execution queue"
@@ -272,8 +288,8 @@ export function ExecutionHandoffsWorkspace({
           placeholder="Search handoffs by title, source, project name, or tag..."
         />
 
-        {loadState === "loading" && snapshot.handoffs.length === 0 ? (
-          <ShellLoadingState description="Loading handoff queue..." />
+        {isInitialLoading ? (
+          <ShellSkeletonCardGrid count={3} />
         ) : null}
 
         {filteredHandoffs.length > 0 ? (

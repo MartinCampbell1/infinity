@@ -120,6 +120,11 @@ describe("/api/control/execution/workspace/[sessionId]/launch-token", () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body.error).toContain("Invalid workspace launch token verification body");
+    expect(body.error).toEqual(
+      expect.objectContaining({
+        code: "invalid_workspace_launch_token_body",
+        message: "Invalid workspace launch token verification body.",
+      })
+    );
   });
 });

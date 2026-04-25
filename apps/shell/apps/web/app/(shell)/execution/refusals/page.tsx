@@ -1,6 +1,7 @@
 import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-board";
 import {
   buildExecutionContinuityScopeHref,
+  buildExecutionRecoveriesScopeHref,
   readShellRouteScopeFromQueryRecord,
 } from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
@@ -44,6 +45,10 @@ export default async function ExecutionRefusalsPage({
       items={items}
       emptyTitle="No refusals yet"
       emptyDescription="Refusals appear automatically when a worker attempt fails and recovery needs to take over."
+      emptyAction={{
+        href: buildExecutionRecoveriesScopeHref(routeScope),
+        label: "Open recoveries",
+      }}
     />
   );
 }

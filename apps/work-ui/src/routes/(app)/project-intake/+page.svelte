@@ -104,7 +104,7 @@
 <HermesEmbeddedWorkspaceFrame
 	title="Project intake"
 	subtitle="Secondary intake override for cases where the shell needs a direct operator-created initiative and brief."
-	badge={saving ? 'Saving' : 'Ready'}
+	badge={saving ? 'Saving' : 'Intake form loaded'}
 	metaItems={metaItems}
 	maxWidthClass="max-w-4xl"
 >

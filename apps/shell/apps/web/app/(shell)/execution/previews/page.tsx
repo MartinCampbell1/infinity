@@ -1,5 +1,8 @@
 import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-board";
-import { readShellRouteScopeFromQueryRecord } from "@/lib/route-scope";
+import {
+  readShellRouteScopeFromQueryRecord,
+  withShellRouteScope,
+} from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
 
 type ExecutionPreviewsSearchParams = Promise<
@@ -12,7 +15,7 @@ export default async function ExecutionPreviewsPage({
   searchParams?: ExecutionPreviewsSearchParams;
 }) {
   const params = searchParams ? await searchParams : undefined;
-  readShellRouteScopeFromQueryRecord(params);
+  const routeScope = readShellRouteScopeFromQueryRecord(params);
   const state = await readControlPlaneState();
   const items = [...state.orchestration.previewTargets]
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
@@ -35,6 +38,10 @@ export default async function ExecutionPreviewsPage({
       items={items}
       emptyTitle="No previews yet"
       emptyDescription="Preview targets appear automatically after delivery is ready."
+      emptyAction={{
+        href: withShellRouteScope("/execution/deliveries", routeScope),
+        label: "Open deliveries",
+      }}
     />
   );
 }

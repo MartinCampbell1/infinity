@@ -268,11 +268,11 @@ export function resolveDeliveryReadinessCopy(
       tier,
       tierLabel,
       ...badge,
-      statusDetail: "production handoff ready",
-      resultHeadline: "Production handoff-ready result",
-      sidebarTitle: "Production handoff ready",
+      statusDetail: "production proof complete",
+      resultHeadline: "Production proof complete",
+      sidebarTitle: "Production proof complete",
       sidebarDescription:
-        "Pull request, hosted preview, CI proof, external proof manifest, and the handoff lane are all production-tier evidence.",
+        "Pull request, hosted preview, CI proof, external proof manifest, and handoff packet are all attached as production-tier evidence.",
       actionLabel: "Open hosted preview",
       launchReady,
       primaryHandoffReady,
@@ -304,8 +304,8 @@ export function resolveDeliveryReadinessCopy(
     statusDetail: "local runnable proof",
     resultHeadline: "Local runnable proof",
     sidebarTitle: "Local runnable proof",
-    sidebarDescription:
-      "Preview is live and the local handoff packet can route the result. This is not production proof.",
+  sidebarDescription:
+      "Local preview is available and the handoff packet can route the result. This is not production proof.",
     actionLabel: "Open local preview",
     launchReady,
     primaryHandoffReady,

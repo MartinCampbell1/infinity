@@ -283,11 +283,14 @@ function resolveDeliveryPreviewCardState({
     };
   }
 
+  const hostedPreviewProof = delivery.externalPreviewUrl === previewHref;
   return {
     kind: "ready",
-    label: "Preview ready",
-    title: "Preview ready",
-    description: "A healthy preview is attached to this delivery.",
+    label: hostedPreviewProof ? "Hosted preview proof" : "Local preview proof",
+    title: hostedPreviewProof ? "Hosted preview proof" : "Local preview proof",
+    description: hostedPreviewProof
+      ? "A healthy hosted preview is attached as delivery evidence."
+      : "A healthy local preview is attached. This is not production proof without hosted evidence.",
     previewHref,
     screenshotHref,
     recoveryHref: null,
@@ -543,7 +546,9 @@ export function DeliverySummary({
   const displayPriorityArtifactRows = displayArtifactRows.filter((row) =>
     ["Preview URL", "Pull request", "Manifest path", "Signed manifest", "Launch command", "Proof kind"].includes(row.label),
   );
-  const displayPreviewLabel = readyPreviewHref ?? previewCard.label;
+  const displayPreviewLabel = readyPreviewHref
+    ? `${previewCard.label} · ${compactEvidenceValue(readyPreviewHref)}`
+    : previewCard.label;
   const previewStatusDotClass =
     previewCard.kind === "ready"
       ? "bg-emerald-400 shadow-[0_0_6px_rgba(73,209,141,0.45)]"

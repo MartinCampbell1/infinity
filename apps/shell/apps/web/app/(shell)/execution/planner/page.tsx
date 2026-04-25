@@ -2,6 +2,7 @@ import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-
 import {
   buildExecutionTaskGraphScopeHref,
   readShellRouteScopeFromQueryRecord,
+  withShellRouteScope,
 } from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
 
@@ -35,6 +36,10 @@ export default async function ExecutionPlannerPage({
       items={items}
       emptyTitle="No task graphs yet"
       emptyDescription="Planner artifacts appear automatically after the first spec reaches ready status."
+      emptyAction={{
+        href: withShellRouteScope("/execution/spec", routeScope),
+        label: "Open specs",
+      }}
     />
   );
 }

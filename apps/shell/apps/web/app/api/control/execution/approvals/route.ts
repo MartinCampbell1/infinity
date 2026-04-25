@@ -10,7 +10,10 @@ import type {
   ApprovalCreateResponse,
 } from "../../../../../lib/server/control-plane/contracts/approvals";
 import { controlPlaneMutationActorFromRequest } from "../../../../../lib/server/http/control-plane-auth";
-import { controlPlaneStorageUnavailableResponse } from "../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  controlPlaneStorageUnavailableResponse,
+} from "../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -104,13 +107,12 @@ export async function POST(request: Request) {
 
   const input = parseApprovalCreateRequest(body);
   if (!input) {
-    return NextResponse.json(
-      {
-        detail:
-          "Request body must include sessionId, projectId, projectName, requestKind, title, and summary.",
-      },
-      { status: 400 }
-    );
+    return apiErrorResponse({
+      code: "invalid_approval_create_body",
+      message:
+        "Request body must include sessionId, projectId, projectName, requestKind, title, and summary.",
+      status: 400,
+    });
   }
 
   let approvalRequest;
@@ -129,12 +131,11 @@ export async function POST(request: Request) {
     throw error;
   }
   if (!approvalRequest) {
-    return NextResponse.json(
-      {
-        detail: `Approval request ${input.id} already exists.`,
-      },
-      { status: 409 }
-    );
+    return apiErrorResponse({
+      code: "approval_request_exists",
+      message: `Approval request ${input.id} already exists.`,
+      status: 409,
+    });
   }
 
   let directory;

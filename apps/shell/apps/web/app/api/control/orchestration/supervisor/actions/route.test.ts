@@ -842,7 +842,7 @@ describe("/api/control/orchestration/supervisor/actions", () => {
 			const actionBody = await actionResponse.json();
 
 			expect(actionResponse.status).toBe(400);
-			expect(actionBody.detail).toMatch(/does not belong to batch/i);
+			expect(actionBody.error?.message).toMatch(/does not belong to batch/i);
 		} finally {
 			await new Promise<void>((resolve, reject) =>
 				kernelServer.close((error) => (error ? reject(error) : resolve()))

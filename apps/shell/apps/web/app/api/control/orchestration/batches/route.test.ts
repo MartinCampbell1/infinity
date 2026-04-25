@@ -463,7 +463,7 @@ describe("/api/control/orchestration/batches", () => {
       expect(rejectedLaunches).toBe(plans.length - kernelAcceptedCapacity);
       expect(
         rejected.every((result) =>
-          String(result.body.detail).includes("queue backpressure engaged")
+          String(result.body.error?.message).includes("queue backpressure engaged")
         )
       ).toBe(true);
 
@@ -529,7 +529,7 @@ describe("/api/control/orchestration/batches", () => {
       const body = await response.json();
 
       expect(response.status).toBe(400);
-      expect(body.detail).toMatch(/does not contain requested work units/i);
+      expect(body.error?.message).toMatch(/does not contain requested work units/i);
       expect(kernelHit).toBe(false);
     } finally {
       await new Promise<void>((resolve, reject) =>
@@ -601,7 +601,7 @@ describe("/api/control/orchestration/batches", () => {
       const detailBody = await detailResponse.json();
 
       expect(detailResponse.status).toBe(502);
-      expect(detailBody.detail).toMatch(/kernel detail unavailable/i);
+      expect(detailBody.error?.message).toMatch(/kernel detail unavailable/i);
     } finally {
       await new Promise<void>((resolve, reject) =>
         kernelServer.close((error) => (error ? reject(error) : resolve()))

@@ -12,7 +12,14 @@ async function parseSnapshotError(response: Response) {
   }
 
   try {
-    const payload = JSON.parse(raw) as { detail?: string; message?: string };
+    const payload = JSON.parse(raw) as {
+      detail?: string;
+      error?: string | { message?: string };
+      message?: string;
+    };
+    if (payload.error && typeof payload.error === "object" && payload.error.message) {
+      return payload.error.message;
+    }
     if (payload.detail) {
       return payload.detail;
     }

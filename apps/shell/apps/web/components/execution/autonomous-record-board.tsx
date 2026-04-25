@@ -54,6 +54,11 @@ export type AutonomousBoardItem = {
   taskItems?: AutonomousBoardTask[];
 };
 
+export type AutonomousBoardEmptyAction = {
+  href: string;
+  label: string;
+};
+
 function groupMeta(group: AutonomousBoardItem["group"]) {
   if (group === "completed") {
     return { label: "Completed", tone: "completed" as const };
@@ -196,6 +201,7 @@ export function AutonomousRecordBoard({
   items,
   emptyTitle,
   emptyDescription,
+  emptyAction,
   headerAction,
 }: {
   eyebrow: string;
@@ -204,9 +210,15 @@ export function AutonomousRecordBoard({
   items: AutonomousBoardItem[];
   emptyTitle: string;
   emptyDescription: string;
+  emptyAction?: AutonomousBoardEmptyAction | null;
   headerAction?: ReactNode;
 }) {
   if (items.length === 0) {
+    const resolvedEmptyAction = emptyAction ?? {
+      href: "/execution",
+      label: "Open execution hub",
+    };
+
     return (
       <main className="mx-auto flex max-w-[1280px] flex-col gap-5">
         <header className="space-y-3">
@@ -224,6 +236,19 @@ export function AutonomousRecordBoard({
         <section className="rounded-[20px] border border-white/8 bg-white/[0.02] px-5 py-6">
           <div className="text-[16px] font-medium text-white">{emptyTitle}</div>
           <p className="mt-2 max-w-2xl text-[13px] leading-6 text-white/54">{emptyDescription}</p>
+          {resolvedEmptyAction ? (
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <Link href={resolvedEmptyAction.href}>
+                <PlaneButton
+                  variant="ghost"
+                  size="md"
+                  icon={<PencilLine className="h-4 w-4" />}
+                >
+                  {resolvedEmptyAction.label}
+                </PlaneButton>
+              </Link>
+            </div>
+          ) : null}
         </section>
       </main>
     );

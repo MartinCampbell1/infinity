@@ -189,6 +189,7 @@ describe("DeliverySummary", () => {
     expect(markup).toContain("local_solo");
     expect(markup).not.toContain("Handoff-ready result");
     expect(markup).not.toContain("Handoff ready");
+    expect(markup).toContain("Local preview proof");
     expect(markup).toContain("Generated invoice app is ready.");
     expect(markup).toContain(">Pending<");
     expect(markup).not.toContain(">Delivered<");
@@ -444,7 +445,8 @@ describe("DeliverySummary", () => {
       />,
     ));
 
-    expect(markup).toContain("Production handoff ready");
+    expect(markup).toContain("Production proof complete");
+    expect(markup).toContain("Hosted preview proof");
     expect(markup).toContain("Open pull request");
     expect(markup).toContain("https://github.com/founderos/infinity/pull/124");
     expect(markup).toContain("https://delivery-production-proof-001.preview.infinity.example");

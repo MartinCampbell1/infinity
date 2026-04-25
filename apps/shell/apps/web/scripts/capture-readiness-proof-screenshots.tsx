@@ -71,7 +71,7 @@ const scenarios: Scenario[] = [
       deliveredAt: null,
     },
     expectedText: ["Missing proof", "Proof checklist", "Hosted preview proof missing"],
-    forbiddenText: ["Primary handoff", "Handoff packet", "Production handoff ready"],
+    forbiddenText: ["Primary handoff", "Handoff packet", "Production proof complete"],
   },
   {
     id: "local",
@@ -91,7 +91,7 @@ const scenarios: Scenario[] = [
       deliveredAt: observedAt,
     },
     expectedText: ["Local proof", "Local runnable proof", "Pending"],
-    forbiddenText: ["Primary handoff", "Handoff packet", "Production handoff ready"],
+    forbiddenText: ["Primary handoff", "Handoff packet", "Production proof complete"],
   },
   {
     id: "production",
@@ -115,7 +115,7 @@ const scenarios: Scenario[] = [
       status: "ready",
       deliveredAt: observedAt,
     },
-    expectedText: ["Production proof", "Production handoff ready", "Open pull request", "Handoff packet"],
+    expectedText: ["Production proof", "Production proof complete", "Open pull request", "Handoff packet"],
     forbiddenText: ["Missing proof", "Hosted preview proof missing"],
   },
 ];

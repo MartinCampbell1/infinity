@@ -1,5 +1,6 @@
 {
   "name": "infinity",
+  "version": "0.0.0",
   "private": true,
   "packageManager": "npm@10.9.4",
   "workspaces": [
@@ -8,7 +9,8 @@
     "packages/*"
   ],
   "scripts": {
-    "setup": "npm install",
+    "setup": "npm ci",
+    "setup:refresh-lockfile": "npm install --package-lock-only",
     "localhost:start": "node ./scripts/start-localhost.mjs",
     "dev": "turbo dev",
     "build": "turbo build",
@@ -19,10 +21,13 @@
     "shell:build": "npm run build --workspace @founderos/web",
     "shell:typecheck": "npm run typecheck --workspace @founderos/web",
     "shell:test": "npm run test --workspace @founderos/web",
+    "shell:test:delivery-manifests": "npm run test:delivery-manifests --workspace @founderos/web",
     "shell:control-plane:migrations:dry-run": "npm run control-plane:migrations:dry-run --workspace @founderos/web",
     "shell:control-plane:migrations:apply": "npm run control-plane:migrations:apply --workspace @founderos/web",
     "shell:control-plane:migrations:status": "npm run control-plane:migrations:status --workspace @founderos/web",
     "shell:control-plane:migrations:smoke": "npm run control-plane:migrations:smoke --workspace @founderos/web",
+    "shell:control-plane:migrations:drift": "npm run control-plane:migrations:drift --workspace @founderos/web",
+    "shell:control-plane:migrations:drift:test": "npm run control-plane:migrations:drift:test --workspace @founderos/web",
     "shell:control-plane:preflight": "npm run control-plane:preflight --workspace @founderos/web",
     "validate:full": "python3 scripts/validation/run_infinity_validation.py --require-runnable-result",
     "browser:e2e:solo": "python3 scripts/validation/run_browser_e2e_solo.py",
@@ -32,7 +37,20 @@
     "work-ui:check": "npm run check --workspace open-webui",
     "work-ui:preview": "npm run preview --workspace open-webui",
     "work-ui:test": "npm run test:frontend:ci --workspace open-webui",
-    "security:embedded-auth": "node ./scripts/security/check-work-ui-embedded-auth.mjs"
+    "release:packet": "node ./scripts/release/generate-release-packet.mjs",
+    "docs:architecture:test": "node --test ./scripts/docs/architecture-diagrams.test.mjs",
+    "docs:dev-setup:test": "node --test ./scripts/docs/dev-setup-doc.test.mjs",
+    "docs:security-model:test": "node --test ./scripts/docs/security-model-doc.test.mjs",
+    "security:embedded-auth": "node ./scripts/security/check-work-ui-embedded-auth.mjs",
+    "security:sbom": "node ./scripts/security/generate-sbom.mjs",
+    "security:audit:critical": "node ./scripts/security/critical-vulnerability-gate.mjs",
+    "security:supply-chain": "npm run security:sbom && npm run security:audit:critical",
+    "qa:shared-design-tokens": "node ./scripts/qa/shared-design-tokens-gate.mjs",
+    "qa:critical-coverage": "node ./scripts/qa/critical-coverage-gate.mjs",
+    "qa:critical-coverage:test": "node --test ./scripts/qa/critical-coverage-gate.test.mjs"
+  },
+  "overrides": {
+    "protobufjs": "7.5.5"
   },
   "devDependencies": {
     "prettier": "^3.8.1",

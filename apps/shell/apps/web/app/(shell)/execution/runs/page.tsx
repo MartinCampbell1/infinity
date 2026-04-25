@@ -1,5 +1,8 @@
 import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-board";
-import { readShellRouteScopeFromQueryRecord } from "@/lib/route-scope";
+import {
+  buildExecutionScopeHref,
+  readShellRouteScopeFromQueryRecord,
+} from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
 import { buildClaudeDesignRunsBoardItems } from "@/lib/server/orchestration/claude-design-presentation";
 
@@ -23,6 +26,10 @@ export default async function ExecutionRunsPage({
       items={items}
       emptyTitle="No runs yet"
       emptyDescription="Start from the shell composer to create the first autonomous run."
+      emptyAction={{
+        href: buildExecutionScopeHref(routeScope),
+        label: "Open execution hub",
+      }}
     />
   );
 }

@@ -26,8 +26,8 @@
   },
   "exports": {
     "./globals.css": "./src/styles/globals.css",
+    "./tokens.css": "./src/styles/tokens.css",
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx"
   }
 }
-

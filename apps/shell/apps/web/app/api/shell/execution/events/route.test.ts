@@ -9,6 +9,14 @@ import { createIsolatedControlPlaneStateDir } from "../../../../../lib/server/co
 
 let restoreStateDir: (() => void) | null = null;
 
+const SERVICE_ACTOR_HEADERS = {
+  "x-founderos-actor-type": "service",
+  "x-founderos-actor-id": "events-route-test-producer",
+  "x-founderos-tenant-id": "default",
+  "x-founderos-request-id": "request-events-route-test",
+  "x-founderos-auth-boundary": "token",
+};
+
 beforeEach(() => {
   const { restore } = createIsolatedControlPlaneStateDir();
   restoreStateDir = restore;
@@ -34,6 +42,15 @@ describe("/api/shell/execution/events", () => {
     expect(body.totalEvents).toBeGreaterThanOrEqual(body.filteredEvents);
     expect(body.filteredEvents).toBeGreaterThan(0);
     expect(body.events).toHaveLength(5);
+    expect(body.pageInfo).toEqual(
+      expect.objectContaining({
+        limit: 5,
+        cursor: null,
+        totalItems: body.filteredEvents,
+      })
+    );
+    expect(response.headers.get("cache-control")).toContain("private");
+    expect(response.headers.get("etag")).toMatch(/^"[a-f0-9]{24}"$/);
     expect(body.events[0]).toEqual(
       expect.objectContaining({
         event: expect.any(String),
@@ -42,6 +59,26 @@ describe("/api/shell/execution/events", () => {
         source: expect.any(String),
       })
     );
+  });
+
+  test("uses an opaque cursor for the next events page", async () => {
+    const firstResponse = await getExecutionEvents(
+      new Request("http://localhost/api/shell/execution/events?limit=2")
+    );
+    const firstBody = await firstResponse.json();
+    const cursor = firstBody.pageInfo.nextCursor;
+
+    const secondResponse = await getExecutionEvents(
+      new Request(`http://localhost/api/shell/execution/events?limit=2&cursor=${cursor}`)
+    );
+    const secondBody = await secondResponse.json();
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(200);
+    expect(cursor).toEqual(expect.any(String));
+    expect(secondBody.filters.cursor).toBe(cursor);
+    expect(secondBody.events[0]?.event).toBeTruthy();
+    expect(secondBody.events).not.toEqual(firstBody.events);
   });
 
   test("honors project and session filters", async () => {
@@ -61,6 +98,41 @@ describe("/api/shell/execution/events", () => {
         (event: { project_id: string; orchestrator_session_id: string }) =>
           event.project_id === "project-borealis" &&
           event.orchestrator_session_id === "session-2026-04-11-002"
+      )
+    ).toBe(true);
+  });
+
+  test("applies exact filters and search before paginating events", async () => {
+    const response = await getExecutionEvents(
+      new Request(
+        "http://localhost/api/shell/execution/events?initiative_id=project-borealis&group_id=group-core-02&provider=codex&source=manual&kind=error.raised&status=failed&q=validation&limit=2"
+      )
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.filters.initiativeId).toBe("project-borealis");
+    expect(body.filters.groupId).toBe("group-core-02");
+    expect(body.filters.provider).toBe("codex");
+    expect(body.filters.source).toBe("manual");
+    expect(body.filters.kind).toBe("error.raised");
+    expect(body.filters.status).toBe("failed");
+    expect(body.filters.query).toBe("validation");
+    expect(body.filteredEvents).toBeGreaterThan(0);
+    expect(
+      body.events.every(
+        (event: {
+          event: string;
+          project_id: string;
+          status: string;
+          message: string;
+          source: string;
+        }) =>
+          event.event === "error.raised" &&
+          event.project_id === "project-borealis" &&
+          event.status === "failed" &&
+          event.source === "manual" &&
+          event.message.toLowerCase().includes("validation")
       )
     ).toBe(true);
   });
@@ -154,7 +226,7 @@ describe("/api/shell/execution/events", () => {
     const ingestResponse = await postAccountQuotas(
       new Request("http://localhost/api/control/accounts/quotas", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...SERVICE_ACTOR_HEADERS },
         body: JSON.stringify({
           producer: "openai_app_server",
           snapshot: {
@@ -210,7 +282,7 @@ describe("/api/shell/execution/events", () => {
         "http://localhost/api/control/execution/workspace/session-2026-04-11-001/runtime",
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...SERVICE_ACTOR_HEADERS },
           body: JSON.stringify({
             hostContext: {
               projectId: "project-atlas",

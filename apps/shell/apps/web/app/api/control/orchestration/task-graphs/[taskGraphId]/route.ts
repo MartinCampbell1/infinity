@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { buildTaskGraphDetailResponse } from "../../../../../../lib/server/orchestration/task-graphs";
-import { withControlPlaneStorageGuard } from "../../../../../../lib/server/http/control-plane-storage-response";
+import {
+  apiErrorResponse,
+  withControlPlaneStorageGuard,
+} from "../../../../../../lib/server/http/control-plane-storage-response";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +17,11 @@ export async function GET(
     const response = await buildTaskGraphDetailResponse(taskGraphId);
 
     if (!response) {
-      return NextResponse.json(
-        {
-          detail: `Task graph ${taskGraphId} is not present in the shell orchestration directory.`,
-        },
-        { status: 404 }
-      );
+      return apiErrorResponse({
+        code: "task_graph_not_found",
+        message: `Task graph ${taskGraphId} is not present in the shell orchestration directory.`,
+        status: 404,
+      });
     }
 
     return NextResponse.json(response);

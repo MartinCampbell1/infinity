@@ -736,6 +736,84 @@ export function ShellLoadingState({
   );
 }
 
+export function ShellSkeletonBlock({
+  className,
+}: {
+  className?: string;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      data-shell-skeleton-block="true"
+      className={cn(
+        "h-3 animate-pulse rounded-full bg-[color:var(--shell-control-border)]/70",
+        className
+      )}
+    />
+  );
+}
+
+export function ShellSkeletonCard({
+  className,
+  lineCount = 3,
+}: {
+  className?: string;
+  lineCount?: number;
+}) {
+  const lines = Math.max(1, lineCount);
+
+  return (
+    <div
+      aria-hidden="true"
+      data-shell-skeleton-card="true"
+      className={cn(
+        "rounded-[12px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] p-4",
+        className
+      )}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="w-full min-w-0 space-y-2.5">
+          <ShellSkeletonBlock className="h-3.5 w-2/5" />
+          {Array.from({ length: lines }).map((_, index) => (
+            <ShellSkeletonBlock
+              key={index}
+              className={cn(
+                index === lines - 1 ? "w-3/5" : "w-full",
+                index === 0 ? "h-2.5" : undefined
+              )}
+            />
+          ))}
+        </div>
+        <ShellSkeletonBlock className="h-6 w-20 shrink-0" />
+      </div>
+    </div>
+  );
+}
+
+export function ShellSkeletonCardGrid({
+  count = 3,
+  className,
+  cardClassName,
+  lineCount,
+}: {
+  count?: number;
+  className?: string;
+  cardClassName?: string;
+  lineCount?: number;
+}) {
+  return (
+    <div data-shell-skeleton-grid="true" className={cn("grid gap-3", className)}>
+      {Array.from({ length: Math.max(1, count) }).map((_, index) => (
+        <ShellSkeletonCard
+          key={index}
+          className={cardClassName}
+          lineCount={lineCount}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function ShellListLink({
   href,
   children,
@@ -1116,6 +1194,21 @@ export function ShellRefreshButton({
         }
       />
     </ShellPillButton>
+  );
+}
+
+export function ShellRetryButton({
+  label = "Retry load",
+  ...props
+}: Omit<React.ComponentProps<typeof ShellRefreshButton>, "label"> & {
+  label?: React.ReactNode;
+}) {
+  return (
+    <ShellRefreshButton
+      {...props}
+      data-shell-retry-button="true"
+      label={label}
+    />
   );
 }
 

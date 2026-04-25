@@ -2,6 +2,7 @@ import { AutonomousRecordBoard } from "@/components/execution/autonomous-record-
 import {
   buildExecutionTaskGraphScopeHref,
   readShellRouteScopeFromQueryRecord,
+  withShellRouteScope,
 } from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
 
@@ -47,6 +48,10 @@ export default async function ExecutionTasksPage({
       items={items}
       emptyTitle="No tasks yet"
       emptyDescription="Tasks appear automatically after the planner materializes a graph."
+      emptyAction={{
+        href: withShellRouteScope("/execution/planner", routeScope),
+        label: "Open planner",
+      }}
     />
   );
 }
