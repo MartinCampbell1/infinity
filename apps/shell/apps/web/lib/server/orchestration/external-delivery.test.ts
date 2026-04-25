@@ -83,7 +83,9 @@ function configureGithubVercelWithTeamSlug() {
   process.env.FOUNDEROS_VERCEL_TEAM_SLUG = "ls-projects-adb8778b";
 }
 
-function createGithubVercelFetchMock(options: { existingPullRequest?: boolean } = {}) {
+function createGithubVercelFetchMock(
+  options: { existingPullRequest?: boolean; missingDeliveryBranch?: boolean } = {},
+) {
   let blobIndex = 0;
   return vi.fn(async (url: string | URL, init?: RequestInit) => {
     const href = String(url);
@@ -123,6 +125,16 @@ function createGithubVercelFetchMock(options: { existingPullRequest?: boolean } 
         },
         201,
       );
+    }
+    if (
+      href.includes("/git/refs/heads/delivery/delivery-live-001") &&
+      method === "PATCH" &&
+      options.missingDeliveryBranch
+    ) {
+      return jsonResponse({ message: "Reference does not exist" }, 422);
+    }
+    if (href.endsWith("/git/refs") && method === "POST") {
+      return jsonResponse({ ref: "refs/heads/delivery/delivery-live-001" }, 201);
     }
     if (href.includes("/git/refs/heads/delivery/delivery-live-001")) {
       return jsonResponse({ ref: "refs/heads/delivery/delivery-live-001" });
@@ -329,6 +341,21 @@ describe("external delivery publisher", () => {
         return String(url).endsWith("/pulls") && init?.method === "POST";
       }),
     ).toBe(false);
+  });
+
+  test("creates the delivery branch when GitHub reports the ref is missing", async () => {
+    configureObjectArtifacts();
+    configureGithubVercel();
+    const fetchMock = createGithubVercelFetchMock({ missingDeliveryBranch: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await publishExternalDeliveryProof(externalDeliveryInput());
+
+    expect(
+      fetchMock.mock.calls.some(([url, init]) => {
+        return String(url).endsWith("/git/refs") && init?.method === "POST";
+      }),
+    ).toBe(true);
   });
 
   test("fails Vercel project preflight before mutating GitHub", async () => {

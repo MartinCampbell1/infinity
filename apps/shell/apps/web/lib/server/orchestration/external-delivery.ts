@@ -175,10 +175,32 @@ async function githubRequestOrNull<T>(
       },
     },
   );
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : null;
   if (response.status === 404) {
     return null;
   }
-  return responseJson<T>(response, `GitHub ${path}`);
+  if (
+    response.status === 422 &&
+    payload &&
+    typeof payload === "object" &&
+    "message" in payload &&
+    String((payload as { message?: unknown }).message).includes(
+      "Reference does not exist",
+    )
+  ) {
+    return null;
+  }
+  if (!response.ok) {
+    const detail =
+      payload && typeof payload === "object" && "message" in payload
+        ? String((payload as { message?: unknown }).message)
+        : text;
+    throw new Error(
+      `GitHub ${path} failed with ${response.status}: ${redactProviderErrorDetail(detail)}`,
+    );
+  }
+  return payload as T;
 }
 
 async function vercelRequest<T>(
