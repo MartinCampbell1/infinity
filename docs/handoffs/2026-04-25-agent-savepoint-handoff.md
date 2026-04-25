@@ -9,6 +9,21 @@ Current repo: `/Users/martin/infinity`
 Branch: `codex/p0-be-14-staging-smoke`
 Previous HEAD before savepoint commit: `977a499 chore: checkpoint audit hardening work`
 
+## Superseded Continuation Note
+
+This handoff captured the stop point before `P3-FE-04` was implemented. It is
+historical context, not the current next-step instruction.
+
+Current continuation state:
+
+- `P3-FE-04. Theme consistency between shell and work-ui` is now closed.
+- Current detailed handoff:
+  `docs/handoffs/2026-04-25-p3-fe-04-theme-consistency-handoff.md`.
+- Batch-level closure handoff:
+  `docs/handoffs/2026-04-25-p3-remediation-batch-handoff.md`.
+- Latest continuation state:
+  `docs/handoffs/2026-04-25-post-p3-continuation-handoff.md`.
+
 ## Project Rules To Preserve
 
 - Reference repos are read-only:

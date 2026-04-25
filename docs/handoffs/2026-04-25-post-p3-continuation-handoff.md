@@ -3,18 +3,19 @@
 ## Current Branch State
 
 - Branch: `codex/p0-be-14-staging-smoke`
-- Last completed work commit before this known-limitations docs refresh:
-  `19fb485 docs: link staging topology from readiness`
-- Remote delta before this known-limitations docs refresh: branch was ahead of
-  `origin/codex/p0-be-14-staging-smoke` by 14 commits.
-- Remote delta after this known-limitations docs refresh commit: if
+- Last completed work commit before this savepoint supersession refresh:
+  `efb3e9c docs: align known limitations source docs`
+- Remote delta before this savepoint supersession refresh: branch was ahead of
+  `origin/codex/p0-be-14-staging-smoke` by 15 commits.
+- Remote delta after this savepoint supersession refresh commit: if
   `origin/codex/p0-be-14-staging-smoke` has not moved, branch is expected to be
-  ahead by 15 commits.
-- Worktree status before this handoff refresh started: clean.
+  ahead by 16 commits.
+- Worktree status at time of this handoff refresh: clean before these doc edits.
 
-## Completed Commits Since Remote Before This Known-Limitations Docs Refresh Commit
+## Completed Commits Since Remote Before This Savepoint Supersession Refresh Commit
 
 ```text
+efb3e9c docs: align known limitations source docs
 19fb485 docs: link staging topology from readiness
 2dd0f82 docs: define readiness terms in glossary
 3dedf46 docs: cross-link readiness checks in quickstart
@@ -31,7 +32,7 @@ a4bc139 chore: close p3 remediation batch
 9d73a3b chore: save audit remediation checkpoint
 ```
 
-After this known-limitations docs refresh is committed, that new commit should
+After this savepoint supersession refresh is committed, that new commit should
 be the newest commit on the branch.
 
 ## What Changed After The Savepoint
@@ -117,6 +118,12 @@ npm run docs:known-limitations:test
 
 cd apps/shell/apps/web && npx vitest run app/'(shell)'/execution/help/known-limitations/page.test.tsx
 # passed after asserting source-doc links in shell help route: 1/1
+
+npm run qa:shared-design-tokens
+# passed during P3-FE-04 drift revalidation: Shared design token gate passed.
+
+cd apps/work-ui && npm run test:frontend:ci -- --run 'src/routes/(app)/founderos-theme-consistency-structure.test.ts'
+# passed during P3-FE-04 drift revalidation: 1 file / 4 tests.
 
 git diff --check
 # passed with no output
@@ -247,6 +254,17 @@ durable result summaries are:
   staging-topology source docs, and both the Markdown doc test and shell help
   route test assert those references.
 
+### P3-FE-04 savepoint supersession
+
+- Result: independent critic review returned `GO` after the P3-FE-04 drift
+  revalidation checks passed.
+- Scope: `docs/handoffs/2026-04-25-agent-savepoint-handoff.md`, plus this
+  handoff refresh.
+- Finding: the old savepoint handoff still said `P3-FE-04` had not started,
+  while current repo state and focused P3-FE-04 checks show that step is closed.
+  The old handoff now has a superseded continuation note pointing to the
+  current P3-FE-04 and post-P3 handoffs.
+
 ## Not Run
 
 - No push was performed.
@@ -255,8 +273,8 @@ durable result summaries are:
 
 ## Current Stop Point
 
-After committing this known-limitations docs refresh, the branch should be ahead
-of origin by 15 commits with a clean worktree if
+After committing this savepoint supersession refresh, the branch should be ahead
+of origin by 16 commits with a clean worktree if
 `origin/codex/p0-be-14-staging-smoke` has not moved.
 
 The next meaningful operator decision is whether to push
