@@ -615,7 +615,6 @@ async function publishVercelPreview(params: {
     body: JSON.stringify({
       name: `infinity-${params.input.deliveryId}`,
       project: params.config.vercelProjectId,
-      target: "preview",
       gitSource: {
         type: "github",
         repoId: params.config.vercelGitRepoId,

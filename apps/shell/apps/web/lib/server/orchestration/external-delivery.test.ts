@@ -285,6 +285,19 @@ describe("external delivery publisher", () => {
     expect(String(treeRequestBody)).toContain(
       "apps/shell/apps/web/public/deliveries/delivery-live-001/index.html",
     );
+    const vercelDeployBody = JSON.parse(
+      String(
+        fetchMock.mock.calls.find(([url]) =>
+          String(url).endsWith("/v13/deployments"),
+        )?.[1]?.body,
+      ),
+    ) as Record<string, unknown>;
+    expect(vercelDeployBody).not.toHaveProperty("target", "preview");
+    expect(vercelDeployBody).toEqual(
+      expect.objectContaining({
+        project: "prj_founderos_infinity",
+      }),
+    );
     const requestedUrls = fetchMock.mock.calls.map(([url]) => String(url));
     expect(
       requestedUrls.indexOf("https://api.vercel.com/v9/projects/prj_founderos_infinity"),
