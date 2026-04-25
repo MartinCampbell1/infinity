@@ -31,12 +31,19 @@ test("operator quickstart explains first run, results, and recovery", () => {
     "Validation",
     "Delivery",
     "runnable result",
+    "docs/production-readiness.md",
+    "docs/ops/staging-topology.md",
     "retry the same account",
     "retry with a fallback account",
     "fresh evidence after the recovery action",
   ]) {
     assert.match(content, new RegExp(requiredText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
   }
+
+  assert.match(
+    content,
+    /If the run claims staging or production readiness,[\s\S]*?docs\/production-readiness\.md[\s\S]*?docs\/ops\/staging-topology\.md[\s\S]*?accepting the wording\./,
+  );
 });
 
 test("operator quickstart stays operator-facing and honest about proof", () => {

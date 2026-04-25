@@ -58,6 +58,9 @@ Use these rules when deciding whether a result is usable:
   release/readiness state is downgraded honestly.
 - If the run claims external delivery, look for proof from the external target,
   not just a local manifest.
+- If the run claims staging or production readiness, check
+  `docs/production-readiness.md` and `docs/ops/staging-topology.md` before
+  accepting the wording.
 
 ## Recovery
 

@@ -3,17 +3,18 @@
 ## Current Branch State
 
 - Branch: `codex/p0-be-14-staging-smoke`
-- Last completed work commit before this staging-topology docs refresh:
-  `e410666 docs: clarify staging readiness tier`
-- Remote delta before this staging-topology docs refresh: branch was ahead of
-  `origin/codex/p0-be-14-staging-smoke` by 10 commits.
-- Remote delta after this staging-topology docs refresh commit: branch is
-  expected to be ahead of `origin/codex/p0-be-14-staging-smoke` by 11 commits.
+- Last completed work commit before this operator-quickstart docs refresh:
+  `4a686f9 docs: guard staging topology contract`
+- Remote delta before this operator-quickstart docs refresh: branch was ahead
+  of `origin/codex/p0-be-14-staging-smoke` by 11 commits.
+- Remote delta after this operator-quickstart docs refresh commit: branch is
+  expected to be ahead of `origin/codex/p0-be-14-staging-smoke` by 12 commits.
 - Worktree status before this handoff refresh started: clean.
 
-## Completed Commits Since Remote Before This Staging-Topology Docs Refresh Commit
+## Completed Commits Since Remote Before This Operator-Quickstart Docs Refresh Commit
 
 ```text
+4a686f9 docs: guard staging topology contract
 e410666 docs: clarify staging readiness tier
 9b70c6f docs: refresh post-p3 continuation handoff
 e1e6b5a docs: list focused documentation checks
@@ -26,7 +27,7 @@ a4bc139 chore: close p3 remediation batch
 9d73a3b chore: save audit remediation checkpoint
 ```
 
-After this staging-topology docs refresh is committed, that new commit should
+After this operator-quickstart docs refresh is committed, that new commit should
 be the newest commit on the branch.
 
 ## What Changed After The Savepoint
@@ -66,6 +67,9 @@ Additional small commits aligned docs with the actual branch state:
 - `docs/ops/staging-topology.md` now names the concrete non-local artifact
   storage envs, and `docs:staging-topology:test` guards the staging topology
   contract.
+- `docs/operator-quickstart.md` now tells operators to check production
+  readiness and staging topology docs before accepting staging/production
+  wording.
 
 ## Verification Observed In This Continuation
 
@@ -87,6 +91,9 @@ npm run docs:staging-topology:test
 
 npm run docs:dev-setup:test
 # passed again after adding docs:staging-topology:test to focused checks: 3/3
+
+npm run docs:operator-quickstart:test
+# passed after adding readiness/topology cross-reference: 3/3
 
 cd apps/shell/apps/web && npx vitest run app/'(shell)'/execution/help/known-limitations/page.test.tsx
 # passed: 1/1
@@ -177,6 +184,16 @@ durable result summaries are:
   is staged, the package script and dev-setup command are wired, and the handoff
   branch math remains correct.
 
+### Operator quickstart readiness cross-reference
+
+- Result: read-only critic `GO`; optional same-bullet assertion hardening
+  applied after critic feedback.
+- Scope: `docs/operator-quickstart.md`,
+  `scripts/docs/operator-quickstart-doc.test.mjs`, and this handoff refresh.
+- Finding: the operator quickstart now points staging/production wording checks
+  at the production-readiness and staging-topology docs, and the doc test
+  asserts both references in the same readiness bullet.
+
 ## Not Run
 
 - No push was performed.
@@ -185,8 +202,8 @@ durable result summaries are:
 
 ## Current Stop Point
 
-After committing this staging-topology docs refresh, the branch should be ahead
-of origin by 11 commits with a clean worktree.
+After committing this operator-quickstart docs refresh, the branch should be
+ahead of origin by 12 commits with a clean worktree.
 
 The next meaningful operator decision is whether to push
 `codex/p0-be-14-staging-smoke` or start a new bounded workstream beyond the
