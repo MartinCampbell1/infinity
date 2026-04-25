@@ -27,8 +27,9 @@ green local run does not get mistaken for a hosted production release.
   origin.
 - Staging artifact storage must be object storage with signed URL support; local
   artifact paths are rejected.
-- Staging delivery remains blocked until the external delivery preflight and
-  smoke pass with real GitHub, Vercel, CI, and signed-artifact evidence.
+- The P0-BE-14 staging delivery baseline has passed once with real GitHub,
+  Vercel, CI, and signed-artifact evidence; each future staging delivery still
+  needs fresh external proof for its own release.
 - Vercel Deployment Protection, team ownership, and object-store credentials can
   block smoke even when mocked provider tests pass.
 

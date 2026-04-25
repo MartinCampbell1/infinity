@@ -20,7 +20,10 @@ describe("execution known limitations page", () => {
     }
 
     expect(limitationsMarkdown).toContain("When evidence is mixed, use the lowest proven tier.");
+    expect(limitationsMarkdown).toContain("P0-BE-14 staging delivery baseline has passed once");
     expect(markup).toContain("lowest proven tier");
+    expect(markup).toContain("baseline external delivery smoke passed once");
+    expect(markup).toContain("future staging delivery still needs fresh external proof");
     expect(markup).toContain("docs/known-limitations.md");
   });
 });

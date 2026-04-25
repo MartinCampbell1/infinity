@@ -17,7 +17,7 @@ const limitationGroups = [
       "Staging needs explicit rollout env, not localhost with staging wording.",
       "Shell and work-ui must be separate non-local HTTPS origins.",
       "The execution kernel must remain private.",
-      "External delivery smoke must pass with real provider and signed-artifact evidence.",
+      "The baseline external delivery smoke passed once; every future staging delivery still needs fresh external proof.",
     ],
   },
   {
