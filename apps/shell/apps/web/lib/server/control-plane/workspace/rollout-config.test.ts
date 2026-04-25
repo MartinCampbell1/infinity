@@ -21,6 +21,7 @@ import {
   GITHUB_TOKEN_ENV_KEY,
   LEGACY_CONTROL_PLANE_SECRET_ENV_KEY,
   PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY,
+  SECRETS_MANAGER_ENV_KEY,
   STRICT_ROLLOUT_ENV_KEY,
   VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
   VERCEL_GIT_REPO_ID_ENV_KEY,
@@ -32,6 +33,7 @@ import {
   WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY,
   assertDeploymentEnvReady,
   buildDeploymentEnvDiagnostics,
+  buildStagingTopologyDiagnostics,
   isStrictRolloutEnv,
   requiresFullDeploymentEnv,
   resolveFounderOsDeploymentEnv,
@@ -42,6 +44,44 @@ import {
   resolveWorkspaceSessionTokenSecret,
   resolveWorkspaceSessionTokenSecretEnvKey,
 } from "./rollout-config";
+
+function stagingTopologyEnv(overrides: Record<string, string | undefined> = {}) {
+  return {
+    [DEPLOYMENT_ENV_KEY]: "staging",
+    [CONTROL_PLANE_DATABASE_URL_ENV_KEY]:
+      "postgres://user:password@db.staging.internal:5432/founderos",
+    [CANONICAL_SHELL_PUBLIC_ORIGIN_ENV_KEY]:
+      "https://shell.staging.infinity.example",
+    [CANONICAL_WORK_UI_BASE_URL_ENV_KEY]:
+      "https://work.staging.infinity.example",
+    [EXECUTION_KERNEL_BASE_URL_ENV_KEY]:
+      "http://execution-kernel.staging.svc.cluster.local:8798",
+    [EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY]: "kernel-secret",
+    [PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY]:
+      "https://shell.staging.infinity.example,https://work.staging.infinity.example",
+    [WORKSPACE_LAUNCH_SECRET_ENV_KEY]: "launch-secret",
+    [WORKSPACE_SESSION_GRANT_SECRET_ENV_KEY]: "grant-secret",
+    [WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY]: "session-secret",
+    [CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY]: "operator-secret",
+    [CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY]: "service-secret",
+    [ARTIFACT_STORE_MODE_ENV_KEY]: "object",
+    [ARTIFACT_OBJECT_BACKEND_ENV_KEY]: "vercel_blob",
+    [ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY]: "vercel-blob://infinity-staging",
+    [ARTIFACT_SIGNED_URL_BASE_ENV_KEY]:
+      "https://artifacts.staging.infinity.example/download",
+    [ARTIFACT_SIGNING_SECRET_ENV_KEY]: "artifact-secret",
+    [VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY]: "blob-secret",
+    [EXTERNAL_DELIVERY_MODE_ENV_KEY]: "github_vercel",
+    [GITHUB_TOKEN_ENV_KEY]: "github-secret",
+    [GITHUB_REPOSITORY_ENV_KEY]: "founderos/infinity",
+    [GITHUB_BASE_BRANCH_ENV_KEY]: "main",
+    [VERCEL_TOKEN_ENV_KEY]: "vercel-secret",
+    [VERCEL_PROJECT_ID_ENV_KEY]: "prj_founderos_infinity_staging",
+    [VERCEL_GIT_REPO_ID_ENV_KEY]: "123456789",
+    [SECRETS_MANAGER_ENV_KEY]: "vercel",
+    ...overrides,
+  };
+}
 
 describe("workspace rollout config", () => {
   test("keeps localhost defaults outside strict rollout mode", () => {
@@ -415,6 +455,64 @@ describe("workspace rollout config", () => {
       VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
     );
     expect(JSON.stringify(diagnostics)).not.toContain("blob-secret-value");
+  });
+
+  test("accepts only a prod-like staging topology with separate public surfaces and private kernel", () => {
+    const diagnostics = buildStagingTopologyDiagnostics(stagingTopologyEnv());
+
+    expect(diagnostics.ready).toBe(true);
+    expect(diagnostics.components.publicShell).toEqual({
+      ready: true,
+      origin: "https://shell.staging.infinity.example",
+    });
+    expect(diagnostics.components.separateWorkUi).toEqual({
+      ready: true,
+      origin: "https://work.staging.infinity.example",
+      separateFromShell: true,
+    });
+    expect(diagnostics.components.privateKernel).toEqual({
+      ready: true,
+      host: "execution-kernel.staging.svc.cluster.local",
+      privateEndpoint: true,
+    });
+    expect(diagnostics.components.postgres).toEqual({
+      ready: true,
+      configured: true,
+    });
+    expect(diagnostics.components.objectStorage.ready).toBe(true);
+    expect(diagnostics.components.secretsManager).toEqual({
+      ready: true,
+      provider: "vercel",
+    });
+    expect(JSON.stringify(diagnostics)).not.toContain("kernel-secret");
+    expect(JSON.stringify(diagnostics)).not.toContain("blob-secret");
+    expect(JSON.stringify(diagnostics)).not.toContain("password");
+  });
+
+  test("rejects staging topology without a separate work-ui, private kernel, and secrets manager", () => {
+    const diagnostics = buildStagingTopologyDiagnostics(
+      stagingTopologyEnv({
+        [CANONICAL_WORK_UI_BASE_URL_ENV_KEY]:
+          "https://shell.staging.infinity.example/workspace",
+        [EXECUTION_KERNEL_BASE_URL_ENV_KEY]:
+          "https://kernel.staging.infinity.example",
+        [SECRETS_MANAGER_ENV_KEY]: undefined,
+      }),
+    );
+
+    expect(diagnostics.ready).toBe(false);
+    expect(diagnostics.components.separateWorkUi.ready).toBe(false);
+    expect(diagnostics.components.separateWorkUi.separateFromShell).toBe(false);
+    expect(diagnostics.components.privateKernel.ready).toBe(false);
+    expect(diagnostics.components.privateKernel.privateEndpoint).toBe(false);
+    expect(diagnostics.components.secretsManager.ready).toBe(false);
+    expect(diagnostics.invalidEnvKeys).toEqual(
+      expect.arrayContaining([
+        CANONICAL_WORK_UI_BASE_URL_ENV_KEY,
+        EXECUTION_KERNEL_BASE_URL_ENV_KEY,
+      ]),
+    );
+    expect(diagnostics.missingEnvKeys).toContain(SECRETS_MANAGER_ENV_KEY);
   });
 
   test("rejects mocked external delivery mode in production-like deployments", () => {

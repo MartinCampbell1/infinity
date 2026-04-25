@@ -1,0 +1,29 @@
+name: Web Load Backpressure
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  load-backpressure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/execution-kernel/go.mod
+          cache-dependency-path: services/execution-kernel/go.sum
+
+      - run: npm ci
+
+      - run: npm run test:load-backpressure --workspace @founderos/web

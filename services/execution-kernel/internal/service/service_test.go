@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -372,6 +374,151 @@ func TestSchedulerLeasesTwoIndependentAttemptsWhenConcurrencyAllows(t *testing.T
 	}
 	if leased != 2 || queued != 1 {
 		t.Fatalf("expected 2 leased and 1 queued attempt, got leased=%d queued=%d attempts=%#v", leased, queued, launch.Attempts)
+	}
+}
+
+func TestLoadBackpressureRejectsLeaseBurstAndPersistsQueueState(t *testing.T) {
+	t.Parallel()
+
+	statePath := filepath.Join(t.TempDir(), "execution-kernel-state.json")
+	svc, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked() error = %v", err)
+	}
+
+	workUnits := make([]events.WorkUnit, 32)
+	for index := range workUnits {
+		workUnits[index] = events.WorkUnit{
+			ID:                 fmt.Sprintf("work-unit-load-%02d", index),
+			Title:              fmt.Sprintf("Load unit %02d", index),
+			Description:        "Backpressure load fixture",
+			ExecutorType:       "codex",
+			ScopePaths:         []string{"/Users/martin/infinity/services/execution-kernel"},
+			Dependencies:       []string{},
+			AcceptanceCriteria: []string{"queued work survives burst pressure"},
+		}
+	}
+
+	launch, err := svc.LaunchBatch(context.Background(), events.LaunchBatchRequest{
+		BatchID:          "batch-load-backpressure-001",
+		InitiativeID:     "initiative-load-backpressure-001",
+		TaskGraphID:      "task-graph-load-backpressure-001",
+		ConcurrencyLimit: 4,
+		WorkUnits:        workUnits,
+	})
+	if err != nil {
+		t.Fatalf("LaunchBatch() error = %v", err)
+	}
+
+	countStatus := func(attempts []events.AttemptRecord, status string) int {
+		count := 0
+		for _, attempt := range attempts {
+			if attempt.Status == status {
+				count += 1
+			}
+		}
+		return count
+	}
+
+	if leased := countStatus(launch.Attempts, attemptStatusLeased); leased != 4 {
+		t.Fatalf("expected 4 initial leases, got %d", leased)
+	}
+	if queued := countStatus(launch.Attempts, attemptStatusQueued); queued != 28 {
+		t.Fatalf("expected 28 queued attempts, got %d", queued)
+	}
+
+	leaseErrors := make(chan error, 16)
+	var leaseWait sync.WaitGroup
+	for index := 0; index < 16; index += 1 {
+		leaseWait.Add(1)
+		go func(workerIndex int) {
+			defer leaseWait.Done()
+			_, err := svc.AcquireNextAttempt(context.Background(), "batch-load-backpressure-001", events.AttemptLeaseRequest{
+				Holder:          fmt.Sprintf("worker-over-capacity-%02d", workerIndex),
+				LeaseTTLSeconds: 60,
+			})
+			if err == nil {
+				leaseErrors <- errors.New("expected over-capacity lease request to be rejected")
+				return
+			}
+			if !strings.Contains(err.Error(), "no available concurrency slots") {
+				leaseErrors <- err
+			}
+		}(index)
+	}
+	leaseWait.Wait()
+	close(leaseErrors)
+	for err := range leaseErrors {
+		if err != nil {
+			t.Fatalf("unexpected lease burst result: %v", err)
+		}
+	}
+
+	var leasedAttemptIDs []string
+	for _, attempt := range launch.Attempts {
+		if attempt.Status == attemptStatusLeased {
+			leasedAttemptIDs = append(leasedAttemptIDs, attempt.ID)
+		}
+	}
+
+	completeErrors := make(chan error, len(leasedAttemptIDs))
+	var completeWait sync.WaitGroup
+	for _, attemptID := range leasedAttemptIDs {
+		completeWait.Add(1)
+		go func(id string) {
+			defer completeWait.Done()
+			_, err := svc.CompleteAttempt(context.Background(), id)
+			completeErrors <- err
+		}(attemptID)
+	}
+	completeWait.Wait()
+	close(completeErrors)
+	for err := range completeErrors {
+		if err != nil {
+			t.Fatalf("CompleteAttempt() during burst error = %v", err)
+		}
+	}
+
+	detail, err := svc.BatchDetail(context.Background(), "batch-load-backpressure-001")
+	if err != nil {
+		t.Fatalf("BatchDetail() error = %v", err)
+	}
+	if completed := countStatus(detail.Attempts, attemptStatusCompleted); completed != 4 {
+		t.Fatalf("expected 4 completed attempts after releasing pressure, got %d", completed)
+	}
+	if leased := countStatus(detail.Attempts, attemptStatusLeased); leased != 4 {
+		t.Fatalf("expected scheduler to refill 4 leases, got %d", leased)
+	}
+	if queued := countStatus(detail.Attempts, attemptStatusQueued); queued != 24 {
+		t.Fatalf("expected 24 queued attempts after refill, got %d", queued)
+	}
+
+	if err := svc.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	reloaded, err := NewFileBacked(statePath)
+	if err != nil {
+		t.Fatalf("NewFileBacked(reload) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := reloaded.Close(); err != nil {
+			t.Fatalf("Close(reloaded) error = %v", err)
+		}
+	})
+
+	reloadedDetail, err := reloaded.BatchDetail(context.Background(), "batch-load-backpressure-001")
+	if err != nil {
+		t.Fatalf("BatchDetail(reloaded) error = %v", err)
+	}
+	if completed := countStatus(reloadedDetail.Attempts, attemptStatusCompleted); completed != 4 {
+		t.Fatalf("expected 4 persisted completed attempts, got %d", completed)
+	}
+	if leased := countStatus(reloadedDetail.Attempts, attemptStatusLeased); leased != 4 {
+		t.Fatalf("expected 4 persisted leased attempts, got %d", leased)
+	}
+	if queued := countStatus(reloadedDetail.Attempts, attemptStatusQueued); queued != 24 {
+		t.Fatalf("expected 24 persisted queued attempts, got %d", queued)
 	}
 }
 

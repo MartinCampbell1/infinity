@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { buildDeploymentEnvDiagnostics } from "../../../../../lib/server/control-plane/workspace/rollout-config";
+import {
+  buildDeploymentEnvDiagnostics,
+  buildStagingTopologyDiagnostics,
+} from "../../../../../lib/server/control-plane/workspace/rollout-config";
+import { buildIncidentRunbookDiagnostics } from "../../../../../lib/server/control-plane/ops/incident-runbooks";
 import { resolveControlPlaneStoragePolicy } from "../../../../../lib/server/control-plane/state/store";
 import {
   CONTROL_PLANE_SCHEMA_MIGRATIONS_TABLE,
@@ -54,6 +58,8 @@ export async function GET() {
   return NextResponse.json({
     ...diagnostics,
     ready,
+    stagingTopology: buildStagingTopologyDiagnostics(),
+    incidentRunbooks: buildIncidentRunbookDiagnostics(),
     storagePolicy,
     controlPlaneSchema: {
       expectedVersion: CONTROL_PLANE_SCHEMA_VERSION,

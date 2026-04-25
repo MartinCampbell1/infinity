@@ -98,8 +98,9 @@ describe("execution issues route", () => {
 
     expect(markup).toContain("Issues");
     expect(markup).toContain("Execution kernel unavailable");
-    expect(markup).toContain("cd /Users/martin/infinity/services/execution-kernel");
+    expect(markup).toContain("cd [local workspace path]");
     expect(markup).toContain("./scripts/run-local.sh");
+    expect(markup).not.toContain("/Users/martin/infinity");
     expect(markup).toContain("/execution/runs/initiative-1");
     expect(markup).not.toContain("run-event-older");
   });

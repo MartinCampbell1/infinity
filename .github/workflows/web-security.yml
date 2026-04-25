@@ -1,0 +1,26 @@
+name: Web Security Suite
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - run: npm run test:security --workspace @founderos/web
+
+      - run: npm run test:frontend:ci --workspace open-webui -- src/lib/founderos/bridge.test.ts src/lib/founderos/contract.test.ts

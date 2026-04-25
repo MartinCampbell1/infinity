@@ -85,6 +85,21 @@ vi.mock("@/components/execution/plane-run-primitives", () => ({
     variant?: string;
     size?: string;
   }) => <button type="button">{children}</button>,
+  PlaneDisabledAction: ({
+    label,
+    reason,
+    children,
+  }: {
+    label: string;
+    reason: string;
+    children: React.ReactNode;
+  }) => (
+    <span data-disabled-action={label} data-disabled-action-reason={reason}>
+      <button type="button" disabled>
+        {children}
+      </button>
+    </span>
+  ),
   PlaneProgressBar: () => <div data-progress-bar="true" />,
   PlaneStatusPill: ({
     children,
@@ -293,18 +308,21 @@ describe("PrimaryRunSurface", () => {
     expect(markup).toContain("/execution/batches/batch-1");
     expect(markup).toContain("Open delivery");
     expect(markup).toContain("/execution/delivery/delivery-1");
-    expect(markup).toContain('data-status="delivered"');
+    expect(markup).toContain('data-status="executing"');
+    expect(markup).not.toContain('data-status="delivered"');
     expect(markup).toContain("Current stage");
-    expect(markup).toContain("Delivered");
+    expect(markup).toContain("Proof");
+    expect(markup).not.toContain("Delivered");
     expect(markup).toContain('data-run-proof-strip="assembly-verification-delivery"');
     expect(markup).toContain("Assembly ready");
     expect(markup).toContain("Verification passed");
-    expect(markup).toContain("Delivery ready · Local Solo");
+    expect(markup).toContain("Local proof");
+    expect(markup).toContain('data-readiness-badge-tier="local_solo"');
     expect(markup).toContain("/execution/task-graphs/task-graph-1");
     expect(markup).toContain("/execution/delivery/delivery-1");
     expect(markup).toContain("assembly-manifest.json");
 
-    expect(markup).toContain('data-run-live-refresh="idle"');
+    expect(markup).toContain('data-run-live-refresh="active"');
     expect(markup).toContain('data-task-board-layout="lane-columns"');
     expect(markup).toContain("Task t01");
     expect(markup).not.toContain("Work unit work-unit-1");
@@ -319,6 +337,14 @@ describe("PrimaryRunSurface", () => {
     expect(markup).not.toContain("Work unit work-unit-2");
     expect(markup).toContain("Executor droid");
     expect(markup).toContain("Failure Preview smoke proof failed on missing output total.");
+    expect(markup).toContain('data-disabled-action="Task action menu"');
+    expect(markup).toContain("Task action menu requires a durable work-unit action route");
+    expect(markup).toContain('data-disabled-action="Abort run"');
+    expect(markup).toContain("Abort run requires a durable run action route");
+    expect(markup).toContain('data-disabled-action="Force retry"');
+    expect(markup).toContain("Force retry is enabled through an open recovery incident");
+    expect(markup).toContain('data-disabled-action="Pause for review"');
+    expect(markup).toContain("Pause for review requires a durable run action route");
   });
 
   test("keeps active runs refreshing until the delivery projection is visible", () => {

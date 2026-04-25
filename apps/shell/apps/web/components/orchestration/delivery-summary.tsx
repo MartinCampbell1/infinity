@@ -6,21 +6,29 @@ import {
   buildExecutionHandoffScopeHref,
   buildExecutionTaskGraphScopeHref,
   type ShellRouteScope,
-} from "@/lib/route-scope";
-import { getClaudeDisplayRunId } from "@/lib/server/orchestration/claude-design-presentation";
+} from "../../lib/route-scope";
+import { getClaudeDisplayRunId } from "../../lib/server/orchestration/claude-design-presentation";
 import {
   PlaneButton,
+  PlaneDisabledAction,
   PlaneStatusPill,
-} from "@/components/execution/plane-run-primitives";
+} from "../execution/plane-run-primitives";
 import type {
   AssemblyRecord,
   DeliveryRecord,
   VerificationRunRecord,
   WorkUnitRecord,
-} from "@/lib/server/control-plane/contracts/orchestration";
-import { isDeliveryHandoffReady, resolveDeliveryReadinessCopy } from "../../lib/delivery-readiness";
+} from "../../lib/server/control-plane/contracts/orchestration";
+import type { AutonomousPreviewTargetRecord } from "../../lib/server/control-plane/state/types";
+import {
+  isDeliveryPrimaryHandoffReady,
+  resolveDeliveryProofChecklist,
+  resolveDeliveryReadinessCopy,
+} from "../../lib/delivery-readiness";
 import { isStrictRolloutEnv } from "../../lib/server/control-plane/workspace/rollout-config";
+import { redactLocalUiText } from "../../lib/ui-redaction";
 import { DeliveryProofCopyButton } from "./delivery-proof-copy-button";
+import { ReadinessBadge, ReadinessChecklist } from "./readiness-badge";
 
 function titleCase(value: string | null | undefined) {
   if (!value) {
@@ -118,6 +126,31 @@ function DeliveryProofValue({
   );
 }
 
+function DisabledProofActionButton({
+  label,
+  reason,
+  size = "sm",
+  className,
+}: {
+  label: string;
+  reason: string;
+  size?: "sm" | "md";
+  className?: string;
+}) {
+  return (
+    <span title={reason} data-disabled-proof-action={label}>
+      <PlaneButton
+        variant="ghost"
+        size={size}
+        disabled
+        className={className}
+      >
+        {label}
+      </PlaneButton>
+    </span>
+  );
+}
+
 type DeliverySourceWorkUnit = Pick<
   WorkUnitRecord,
   | "id"
@@ -128,6 +161,140 @@ type DeliverySourceWorkUnit = Pick<
   | "acceptanceCriteria"
   | "status"
 >;
+
+type DeliveryPreviewCardKind = "loading" | "ready" | "expired" | "error" | "rebuild";
+
+type DeliveryPreviewCardState = {
+  kind: DeliveryPreviewCardKind;
+  label: string;
+  title: string;
+  description: string;
+  previewHref: string | null;
+  screenshotHref: string | null;
+  recoveryHref: string | null;
+  recoveryLabel: string | null;
+  secondaryRecoveryHref: string | null;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readStringField(record: Record<string, unknown> | null, keys: string[]) {
+  if (!record) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function resolvePreviewScreenshotHref(delivery: DeliveryRecord) {
+  const proof = asRecord(delivery.externalDeliveryProof);
+  const previewProof = asRecord(proof?.preview);
+  return (
+    readStringField(previewProof, [
+      "screenshotUrl",
+      "screenshotUri",
+      "screenshot_url",
+      "screenshot",
+    ]) ??
+    readStringField(proof, [
+      "previewScreenshotUrl",
+      "previewScreenshotUri",
+      "screenshotUrl",
+      "screenshotUri",
+    ])
+  );
+}
+
+function resolveDeliveryPreviewCardState({
+  delivery,
+  previewTarget,
+  previewHref,
+  continuityHref,
+  taskGraphHref,
+}: {
+  delivery: DeliveryRecord;
+  previewTarget: AutonomousPreviewTargetRecord | null;
+  previewHref: string | null;
+  continuityHref: string;
+  taskGraphHref: string | null;
+}): DeliveryPreviewCardState {
+  const screenshotHref = resolvePreviewScreenshotHref(delivery);
+  const recoveryHref = continuityHref;
+  const secondaryRecoveryHref = taskGraphHref;
+
+  if (previewTarget?.healthStatus === "failed") {
+    return {
+      kind: previewHref ? "expired" : "error",
+      label: previewHref ? "Preview expired" : "Preview failed",
+      title: previewHref ? "Preview expired" : "Preview failed",
+      description: previewHref
+        ? "The last preview target failed its health check. Rebuild from continuity before treating this preview as usable."
+        : "The preview target failed before a usable URL was recorded. Rebuild from continuity to produce a new target.",
+      previewHref: null,
+      screenshotHref: null,
+      recoveryHref,
+      recoveryLabel: "Rebuild preview",
+      secondaryRecoveryHref,
+    };
+  }
+
+  if (previewTarget?.healthStatus === "pending") {
+    return {
+      kind: "loading",
+      label: "Preview loading",
+      title: "Preview is still building",
+      description: "The shell has a preview target, but it has not reported a healthy URL yet.",
+      previewHref: null,
+      screenshotHref: null,
+      recoveryHref: null,
+      recoveryLabel: null,
+      secondaryRecoveryHref: null,
+    };
+  }
+
+  if (!previewHref) {
+    const needsRebuild =
+      delivery.launchProofKind === "attempt_scaffold" ||
+      delivery.launchProofKind === "synthetic_wrapper" ||
+      delivery.status === "rejected";
+    return {
+      kind: needsRebuild ? "rebuild" : "loading",
+      label: needsRebuild ? "Preview rebuild needed" : "Preview pending",
+      title: needsRebuild ? "Preview needs rebuild" : "Preview pending",
+      description: needsRebuild
+        ? "This delivery does not have a usable preview target. Continue from the run trace or task graph to regenerate it."
+        : "Preview artifacts have not been attached to this delivery yet.",
+      previewHref: null,
+      screenshotHref: null,
+      recoveryHref: needsRebuild ? recoveryHref : null,
+      recoveryLabel: needsRebuild ? "Rebuild preview" : null,
+      secondaryRecoveryHref: needsRebuild ? secondaryRecoveryHref : null,
+    };
+  }
+
+  return {
+    kind: "ready",
+    label: "Preview ready",
+    title: "Preview ready",
+    description: "A healthy preview is attached to this delivery.",
+    previewHref,
+    screenshotHref,
+    recoveryHref: null,
+    recoveryLabel: null,
+    secondaryRecoveryHref: null,
+  };
+}
 
 export function DeliverySummary({
   delivery,
@@ -140,6 +307,7 @@ export function DeliverySummary({
   handoffId,
   sourceWorkUnits,
   routeScope,
+  previewTarget = null,
 }: {
   delivery: DeliveryRecord;
   initiativeTitle: string;
@@ -151,17 +319,23 @@ export function DeliverySummary({
   handoffId?: string | null;
   sourceWorkUnits?: DeliverySourceWorkUnit[];
   routeScope?: Partial<ShellRouteScope> | null;
+  previewTarget?: AutonomousPreviewTargetRecord | null;
 }) {
-  const previewHref = delivery.externalPreviewUrl ?? delivery.previewUrl ?? null;
+  const hostedPreviewHref = delivery.externalPreviewUrl ?? null;
+  const localPreviewHref = delivery.previewUrl ?? null;
+  const previewHref = hostedPreviewHref ?? localPreviewHref;
   const continuityHref = buildExecutionContinuityScopeHref(delivery.initiativeId, routeScope);
   const strictRolloutEnv = isStrictRolloutEnv();
   const readinessCopy = resolveDeliveryReadinessCopy(delivery, {
     strictRolloutEnv,
   });
+  const proofChecklist = resolveDeliveryProofChecklist(delivery);
   const runnableProofReady = readinessCopy.launchReady;
-  const handoffReady = isDeliveryHandoffReady(delivery, { strictRolloutEnv });
+  const handoffReady = isDeliveryPrimaryHandoffReady(delivery, { strictRolloutEnv });
   const pendingRunnableProof = runnableProofReady && !handoffReady;
   const displayPreviewHref = previewHref;
+  const missingHostedPreviewReason = "Hosted preview proof missing";
+  const missingPullRequestReason = "Pull request proof missing";
   const scaffoldOnly = delivery.launchProofKind === "attempt_scaffold" && !handoffReady;
   const wrapperOnly = delivery.launchProofKind === "synthetic_wrapper" && !handoffReady;
   const taskGraphHref = taskGraphId
@@ -169,6 +343,14 @@ export function DeliverySummary({
         initiativeId: delivery.initiativeId,
       })
     : null;
+  const previewCard = resolveDeliveryPreviewCardState({
+    delivery,
+    previewTarget,
+    previewHref: displayPreviewHref,
+    continuityHref,
+    taskGraphHref,
+  });
+  const readyPreviewHref = previewCard.kind === "ready" ? previewCard.previewHref : null;
   const handoffHref = handoffId ? buildExecutionHandoffScopeHref(handoffId, routeScope) : null;
   const metricTone = handoffReady
     ? "border-emerald-400/20 bg-emerald-400/[0.05]"
@@ -192,12 +374,12 @@ export function DeliverySummary({
   const sidebarActionTitle = handoffReady
     ? "Primary handoff"
     : pendingRunnableProof
-      ? "Staging proof review"
+      ? `${readinessCopy.badgeLabel} review`
       : scaffoldOnly
         ? "Scaffold review"
         : "Wrapper review";
   const sidebarActionDescription = handoffReady
-    ? "Open the shell handoff packet and localhost preview. The delivery is backed by runnable-result proof."
+    ? "Open the shell handoff packet and attached preview. The delivery is backed by runnable-result proof."
     : pendingRunnableProof
       ? "Runnable-result proof exists, but this delivery is not handoff-ready until the required readiness gates are attached."
       : scaffoldOnly
@@ -354,11 +536,27 @@ export function DeliverySummary({
       value: delivery.signedManifestUri ?? "not attached",
     },
   ];
-  const priorityArtifactRows = artifactRows.filter((row) =>
+  const displayArtifactRows = artifactRows.map((row) => ({
+    ...row,
+    value: strictRolloutEnv ? redactLocalUiText(row.value) : row.value,
+  }));
+  const displayPriorityArtifactRows = displayArtifactRows.filter((row) =>
     ["Preview URL", "Pull request", "Manifest path", "Signed manifest", "Launch command", "Proof kind"].includes(row.label),
   );
-  const displayPreviewLabel = displayPreviewHref ?? "preview pending";
+  const displayPreviewLabel = readyPreviewHref ?? previewCard.label;
+  const previewStatusDotClass =
+    previewCard.kind === "ready"
+      ? "bg-emerald-400 shadow-[0_0_6px_rgba(73,209,141,0.45)]"
+      : previewCard.kind === "expired" || previewCard.kind === "error"
+        ? "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.42)]"
+        : previewCard.kind === "rebuild"
+          ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.42)]"
+          : "bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.42)]";
   const visibleSourceWorkUnits = sourceWorkUnits ?? [];
+  const resumeWithPromptReason =
+    "Resume with prompt is not wired on the delivery summary; open the run continuity route to rerun with context.";
+  const archiveReason =
+    "Archive requires a durable delivery action route before it can be enabled.";
 
   return (
     <main className="mx-auto grid max-w-[1520px] gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -374,8 +572,11 @@ export function DeliverySummary({
         </div>
 
         <header className="space-y-4">
-          <div className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${handoffReady ? "text-emerald-200/86" : "text-amber-200/86"}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${handoffReady ? "text-emerald-200/86" : "text-amber-200/86"}`}>
               {handoffReady ? "Delivered" : "Delivery"} · {delivery.id}
+            </div>
+            <ReadinessBadge readiness={readinessCopy} />
           </div>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -392,12 +593,18 @@ export function DeliverySummary({
                   Logs
                 </PlaneButton>
               </a>
-              {previewHref ? (
-                <Link href={displayPreviewHref ?? previewHref}>
+              {readyPreviewHref ? (
+                <Link href={readyPreviewHref}>
                   <PlaneButton variant="ghost" size="sm">
                     {readinessCopy.actionLabel}
                   </PlaneButton>
                 </Link>
+              ) : null}
+              {strictRolloutEnv && !hostedPreviewHref ? (
+                <DisabledProofActionButton
+                  label="Open hosted preview"
+                  reason={missingHostedPreviewReason}
+                />
               ) : null}
               {delivery.externalPullRequestUrl ? (
                 <Link href={delivery.externalPullRequestUrl}>
@@ -405,6 +612,11 @@ export function DeliverySummary({
                     Open pull request
                   </PlaneButton>
                 </Link>
+              ) : strictRolloutEnv ? (
+                <DisabledProofActionButton
+                  label="Open pull request"
+                  reason={missingPullRequestReason}
+                />
               ) : null}
               {handoffReady && handoffHref ? (
                 <Link href={handoffHref}>
@@ -461,7 +673,7 @@ export function DeliverySummary({
               <span className="h-2 w-2 rounded-full bg-white/20" />
             </div>
             <div className="flex flex-1 items-center gap-2 rounded-full border border-white/8 bg-white/[0.025] px-3 py-2 font-mono text-[11px] text-white/78">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(73,209,141,0.45)]" />
+              <span className={`h-1.5 w-1.5 rounded-full ${previewStatusDotClass}`} />
               <span className="truncate">{displayPreviewLabel}</span>
             </div>
               <span className="font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
@@ -471,16 +683,57 @@ export function DeliverySummary({
 
           <div className="grid min-h-[420px] bg-[#0d0f12] px-6 py-8">
             <div className="space-y-5">
-              <div className="overflow-hidden rounded-[14px] border border-white/8 bg-[#0c0f12]">
-                {displayPreviewHref ? (
-                  <iframe
-                    src={displayPreviewHref}
-                    title="Delivery preview"
-                    className="h-[420px] w-full bg-white"
-                  />
+              <div
+                className="overflow-hidden rounded-[14px] border border-white/8 bg-[#0c0f12]"
+                data-preview-card-state={previewCard.kind}
+              >
+                {readyPreviewHref ? (
+                  previewCard.screenshotHref ? (
+                    <img
+                      src={previewCard.screenshotHref}
+                      alt="Delivery preview screenshot"
+                      className="h-[420px] w-full bg-white object-cover"
+                      data-preview-screenshot="image"
+                    />
+                  ) : (
+                    <iframe
+                      src={readyPreviewHref}
+                      title="Delivery preview"
+                      className="h-[420px] w-full bg-white"
+                      data-preview-screenshot="live-frame"
+                    />
+                  )
                 ) : (
-                  <div className="grid h-[420px] place-items-center text-[13px] text-white/48">
-                    Preview pending
+                  <div className="grid h-[420px] place-items-center px-6 text-center">
+                    <div className="max-w-md" data-preview-fallback-state={previewCard.kind}>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--shell-sidebar-muted)]">
+                        {previewCard.label}
+                      </div>
+                      <div className="mt-3 text-[20px] font-semibold tracking-[-0.03em] text-white">
+                        {previewCard.title}
+                      </div>
+                      <p className="mt-2 text-[13px] leading-6 text-white/56">
+                        {previewCard.description}
+                      </p>
+                      {previewCard.recoveryHref || previewCard.secondaryRecoveryHref ? (
+                        <div className="mt-5 flex flex-wrap justify-center gap-2">
+                          {previewCard.recoveryHref && previewCard.recoveryLabel ? (
+                            <Link href={previewCard.recoveryHref}>
+                              <PlaneButton variant="primary" size="sm">
+                                {previewCard.recoveryLabel}
+                              </PlaneButton>
+                            </Link>
+                          ) : null}
+                          {previewCard.secondaryRecoveryHref ? (
+                            <Link href={previewCard.secondaryRecoveryHref}>
+                              <PlaneButton variant="subtle" size="sm">
+                                Open task graph
+                              </PlaneButton>
+                            </Link>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 )}
               </div>
@@ -510,8 +763,11 @@ export function DeliverySummary({
 
                 <div className="space-y-4">
                   <div id="delivery-validation" className="rounded-[14px] border border-white/8 bg-white/[0.025] px-5 py-5">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
-                      Validation
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+                        Validation
+                      </div>
+                      <ReadinessBadge readiness={readinessCopy} />
                     </div>
                     <div className="mt-3 space-y-2">
                       {validationRows.map((row) => (
@@ -533,6 +789,9 @@ export function DeliverySummary({
                           </span>
                         </div>
                       ))}
+                    </div>
+                    <div className="mt-4">
+                      <ReadinessChecklist items={proofChecklist} />
                     </div>
                   </div>
 
@@ -556,7 +815,7 @@ export function DeliverySummary({
                       className="mt-4 grid gap-3 2xl:grid-cols-2"
                       data-delivery-proof-grid="grouped"
                     >
-                      {artifactRows.map((row) => (
+                      {displayArtifactRows.map((row) => (
                         <DeliveryProofValue key={row.label} label={row.label} value={row.value} />
                       ))}
                     </div>
@@ -568,7 +827,7 @@ export function DeliverySummary({
                         All proof values
                       </summary>
                       <div className="mt-3 space-y-3">
-                        {artifactRows.map((row) => (
+                        {displayArtifactRows.map((row) => (
                           <div key={row.label}>
                             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
                               {row.label}
@@ -681,12 +940,20 @@ export function DeliverySummary({
                   </PlaneButton>
                 </Link>
               ) : null}
-              {displayPreviewHref ? (
-                <Link href={displayPreviewHref}>
+              {readyPreviewHref ? (
+                <Link href={readyPreviewHref}>
                   <PlaneButton variant="ghost" size="md" className="w-full justify-center">
                     {readinessCopy.actionLabel}
                   </PlaneButton>
                 </Link>
+              ) : null}
+              {strictRolloutEnv && !hostedPreviewHref ? (
+                <DisabledProofActionButton
+                  label="Open hosted preview"
+                  reason={missingHostedPreviewReason}
+                  size="md"
+                  className="w-full justify-center"
+                />
               ) : null}
               {delivery.externalPullRequestUrl ? (
                 <Link href={delivery.externalPullRequestUrl}>
@@ -694,6 +961,13 @@ export function DeliverySummary({
                     Open pull request
                   </PlaneButton>
                 </Link>
+              ) : strictRolloutEnv ? (
+                <DisabledProofActionButton
+                  label="Open pull request"
+                  reason={missingPullRequestReason}
+                  size="md"
+                  className="w-full justify-center"
+                />
               ) : null}
             </div>
           </div>
@@ -703,20 +977,37 @@ export function DeliverySummary({
               Proof shortcuts
             </div>
             <div className="mt-4 grid gap-3">
-              {priorityArtifactRows.map((row) => (
+              {displayPriorityArtifactRows.map((row) => (
                 <DeliveryProofValue key={row.label} label={row.label} value={row.value} />
               ))}
             </div>
             <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-white/54">
-              {displayPreviewHref ? (
-                <Link href={displayPreviewHref} className="transition hover:text-white">
+              {readyPreviewHref ? (
+                <Link href={readyPreviewHref} className="transition hover:text-white">
                   Open preview
                 </Link>
+              ) : null}
+              {strictRolloutEnv && !hostedPreviewHref ? (
+                <span
+                  className="cursor-not-allowed text-white/30"
+                  title={missingHostedPreviewReason}
+                  data-disabled-proof-action="Open preview"
+                >
+                  Open preview
+                </span>
               ) : null}
               {delivery.externalPullRequestUrl ? (
                 <Link href={delivery.externalPullRequestUrl} className="transition hover:text-white">
                   Open pull request
                 </Link>
+              ) : strictRolloutEnv ? (
+                <span
+                  className="cursor-not-allowed text-white/30"
+                  title={missingPullRequestReason}
+                  data-disabled-proof-action="Open pull request"
+                >
+                  Open pull request
+                </span>
               ) : null}
               <Link href={continuityHref} className="transition hover:text-white">
                 Open run
@@ -747,12 +1038,18 @@ export function DeliverySummary({
                   Re-run
                 </PlaneButton>
               </Link>
-              <PlaneButton variant="subtle" size="sm">
+              <PlaneDisabledAction
+                label="Resume w/ prompt"
+                reason={resumeWithPromptReason}
+              >
                 Resume w/ prompt
-              </PlaneButton>
-              <PlaneButton variant="subtle" size="sm">
+              </PlaneDisabledAction>
+              <PlaneDisabledAction
+                label="Archive"
+                reason={archiveReason}
+              >
                 Archive
-              </PlaneButton>
+              </PlaneDisabledAction>
             </div>
           </div>
 

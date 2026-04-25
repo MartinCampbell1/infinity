@@ -104,7 +104,8 @@ describe("execution validation board", () => {
     );
 
     expect(markup).toContain("verification-stale-proof");
-    expect(markup).toContain("preview ready · Local solo");
+    expect(markup).toContain("preview proof · Staging proof");
+    expect(markup).toContain("Staging proof · 6 proof gates missing");
     expect(markup).not.toContain("launch ready");
     expect(markup).not.toContain("handoff packet ready");
   });

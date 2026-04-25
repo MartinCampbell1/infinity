@@ -5,8 +5,11 @@ import {
   buildExecutionDeliveryScopeHref,
   readShellRouteScopeFromQueryRecord,
 } from "@/lib/route-scope";
+import { resolveDeliveryReadinessCopy } from "../../../../lib/delivery-readiness";
+import { isStrictRolloutEnv } from "../../../../lib/server/control-plane/workspace/rollout-config";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
 import { listDeliveries } from "@/lib/server/orchestration/delivery";
+import { redactLocalUiText } from "../../../../lib/ui-redaction";
 
 type ExecutionDeliveriesSearchParams = Promise<
   Record<string, string | string[] | undefined>
@@ -24,25 +27,32 @@ export default async function ExecutionDeliveriesPage({
   const initiativesById = new Map(
     state.orchestration.initiatives.map((initiative) => [initiative.id, initiative])
   );
+  const strictRolloutEnv = isStrictRolloutEnv();
   const items = deliveries
     .map((delivery) => {
       const initiative = initiativesById.get(delivery.initiativeId);
       const prompt = initiative?.userRequest ?? delivery.resultSummary;
+      const readiness = resolveDeliveryReadinessCopy(delivery, {
+        strictRolloutEnv,
+      });
 
       return {
         id: delivery.id,
-        headline: initiative?.title ?? delivery.resultSummary,
+        headline: redactLocalUiText(initiative?.title ?? delivery.resultSummary),
         detail:
-          `${prompt} · ` +
-          (delivery.launchProofUrl ??
+          redactLocalUiText(`${prompt} · `) +
+          redactLocalUiText(delivery.launchProofUrl ??
             delivery.previewUrl ??
             delivery.localOutputPath ??
             "Delivery output unavailable"),
         meta: [
-          `status ${delivery.status}`,
-          delivery.launchProofKind ? `proof ${delivery.launchProofKind}` : null,
-          delivery.launchManifestPath ? "localhost manifest" : null,
-          delivery.localOutputPath,
+          readiness.badgeLabel,
+          readiness.statusDetail,
+          readiness.missingProofItems.length
+            ? `${readiness.missingProofItems.length} proof gates missing`
+            : null,
+          delivery.launchManifestPath ? "launch manifest" : null,
+          delivery.localOutputPath ? redactLocalUiText(delivery.localOutputPath) : null,
         ],
         href: buildExecutionDeliveryScopeHref(delivery.id, routeScope, {
           initiativeId: delivery.initiativeId,
@@ -54,7 +64,7 @@ export default async function ExecutionDeliveriesPage({
     <AutonomousRecordBoard
       eyebrow="Execution"
       title="Delivery"
-      description="Final delivery records with artifact bundles, localhost launch proof, and operator-facing handoff paths."
+      description="Final delivery records with artifact bundles, launch proof, and operator-facing handoff paths."
       items={items}
       emptyTitle="No deliveries yet"
       emptyDescription="Delivery records appear automatically after verification passes."

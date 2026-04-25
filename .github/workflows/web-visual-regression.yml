@@ -1,0 +1,42 @@
+name: Web Visual Regression
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  visual-regression:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: npm ci
+
+      - run: python3 -m pip install "playwright==1.58.0"
+
+      - run: python3 -m playwright install chromium
+
+      - run: npm run test:visual-regression --workspace @founderos/web
+        env:
+          FOUNDEROS_UPDATE_VISUAL_BASELINES: "0"
+          FOUNDEROS_ALLOW_CI_VISUAL_BASELINE_UPDATE: "0"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-visual-regression-output
+          path: .local-state/p1-qa-01-visual-regression
+          if-no-files-found: ignore

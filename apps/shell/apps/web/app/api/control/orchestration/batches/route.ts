@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isExecutionKernelRequestError } from "@founderos/api-clients";
 
 import {
   buildExecutionBatchesDirectoryResponse,
@@ -52,6 +53,14 @@ export async function POST(request: Request) {
       return storageResponse;
     }
 
+    const status = isExecutionKernelRequestError(error)
+      ? error.status === 429
+        ? 429
+        : error.status >= 500
+          ? 502
+          : 400
+      : 400;
+
     return NextResponse.json(
       {
         detail:
@@ -59,7 +68,7 @@ export async function POST(request: Request) {
             ? error.message
             : "Batch launch request was rejected before reaching the execution kernel.",
       },
-      { status: 400 }
+      { status }
     );
   }
 

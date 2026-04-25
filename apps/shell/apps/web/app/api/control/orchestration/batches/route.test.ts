@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { resetControlPlaneStateForTests } from "../../../../../lib/server/control-plane/state/store";
+import {
+  readControlPlaneState,
+  resetControlPlaneStateForTests,
+} from "../../../../../lib/server/control-plane/state/store";
 import { POST as postInitiatives } from "../initiatives/route";
 import { POST as postBriefs } from "../briefs/route";
 import { POST as postTaskGraphs } from "../task-graphs/route";
@@ -132,6 +135,10 @@ function readJsonBody(request: IncomingMessage) {
     });
     request.on("error", reject);
   });
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }
 
 describe("/api/control/orchestration/batches", () => {
@@ -315,6 +322,172 @@ describe("/api/control/orchestration/batches", () => {
             latestAttemptId: "attempt-foundation-001",
           }),
         ])
+      );
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        kernelServer.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
+
+  test("load/backpressure burst keeps queued attempts and leaves no orphan shell state", async () => {
+    const plans = [];
+    for (let index = 0; index < 8; index += 1) {
+      const plan = await createPlannedTaskGraph();
+      const taskGraphResponse = await getTaskGraphDetail(
+        new Request(`http://localhost/api/control/orchestration/task-graphs/${plan.taskGraphId}`),
+        { params: Promise.resolve({ taskGraphId: plan.taskGraphId }) }
+      );
+      const taskGraphBody = await taskGraphResponse.json();
+      plans.push({
+        ...plan,
+        workUnitIds: (taskGraphBody.workUnits as Array<{ id: string }>).map((unit) => unit.id),
+      });
+    }
+
+    const kernelAcceptedCapacity = 3;
+    let acceptedLaunches = 0;
+    let rejectedLaunches = 0;
+    let observedLaunchRequests = 0;
+    let inFlightKernelRequests = 0;
+    let maxInFlightKernelRequests = 0;
+    const acceptedBatchIds: string[] = [];
+
+    const kernelServer = createServer(async (request: IncomingMessage, response: ServerResponse) => {
+      if (request.method !== "POST" || request.url !== "/api/v1/batches") {
+        response.writeHead(404, { "content-type": "application/json" });
+        response.end(JSON.stringify({ detail: "not found" }));
+        return;
+      }
+
+      observedLaunchRequests += 1;
+      inFlightKernelRequests += 1;
+      maxInFlightKernelRequests = Math.max(maxInFlightKernelRequests, inFlightKernelRequests);
+
+      try {
+        const body = await readJsonBody(request);
+        await delay(20);
+
+        const workUnits = Array.isArray(body.workUnits)
+          ? (body.workUnits as Array<{ id: string; executorType: string }>)
+          : [];
+        const concurrencyLimit = Number(body.concurrencyLimit ?? 1);
+
+        if (acceptedLaunches >= kernelAcceptedCapacity) {
+          rejectedLaunches += 1;
+          response.writeHead(429, { "content-type": "application/json" });
+          response.end(
+            JSON.stringify({
+              detail: "execution kernel over capacity; queue backpressure engaged",
+            })
+          );
+          return;
+        }
+
+        acceptedLaunches += 1;
+        acceptedBatchIds.push(String(body.batchId));
+        response.writeHead(201, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            batch: {
+              id: body.batchId,
+              initiativeId: body.initiativeId,
+              taskGraphId: body.taskGraphId,
+              workUnitIds: workUnits.map((unit) => unit.id),
+              concurrencyLimit,
+              status: "running",
+              startedAt: "2026-04-24T12:00:00.000Z",
+              finishedAt: null,
+            },
+            attempts: workUnits.map((unit, index) => ({
+              id: `attempt-${String(body.batchId)}-${unit.id}`,
+              workUnitId: unit.id,
+              batchId: body.batchId,
+              executorType: unit.executorType,
+              status: index < concurrencyLimit ? "leased" : "queued",
+              startedAt: "2026-04-24T12:00:00.000Z",
+              finishedAt: null,
+              summary: null,
+              artifactUris: [],
+              errorCode: null,
+              errorSummary: null,
+              leaseHolder:
+                index < concurrencyLimit ? "execution-kernel-scheduler" : null,
+              leaseExpiresAt:
+                index < concurrencyLimit ? "2026-04-24T12:00:30.000Z" : null,
+              lastHeartbeatAt:
+                index < concurrencyLimit ? "2026-04-24T12:00:00.000Z" : null,
+            })),
+          })
+        );
+      } finally {
+        inFlightKernelRequests -= 1;
+      }
+    });
+
+    await new Promise<void>((resolve) => kernelServer.listen(0, "127.0.0.1", resolve));
+    const address = kernelServer.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Kernel load test server did not bind to an ephemeral port.");
+    }
+    process.env.FOUNDEROS_EXECUTION_KERNEL_BASE_URL = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const responses = await Promise.all(
+        plans.map(async ({ taskGraphId, workUnitIds }) => {
+          const response = await postBatches(
+            new Request("http://localhost/api/control/orchestration/batches", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                taskGraphId,
+                workUnitIds,
+                concurrencyLimit: 2,
+              }),
+            })
+          );
+          return {
+            status: response.status,
+            body: await response.json(),
+          };
+        })
+      );
+
+      const accepted = responses.filter((result) => result.status === 201);
+      const rejected = responses.filter((result) => result.status === 429);
+
+      expect(observedLaunchRequests).toBe(plans.length);
+      expect(maxInFlightKernelRequests).toBeGreaterThan(1);
+      expect(accepted).toHaveLength(kernelAcceptedCapacity);
+      expect(rejected).toHaveLength(plans.length - kernelAcceptedCapacity);
+      expect(rejectedLaunches).toBe(plans.length - kernelAcceptedCapacity);
+      expect(
+        rejected.every((result) =>
+          String(result.body.detail).includes("queue backpressure engaged")
+        )
+      ).toBe(true);
+
+      for (const result of accepted) {
+        const attempts = result.body.attempts as Array<{ status: string }>;
+        expect(result.body.batch.concurrencyLimit).toBe(2);
+        expect(attempts.filter((attempt) => attempt.status === "leased")).toHaveLength(2);
+        expect(attempts.filter((attempt) => attempt.status === "queued").length).toBeGreaterThan(0);
+      }
+
+      const state = await readControlPlaneState();
+      const persistedBatchIds = state.orchestration.batches.map((batch) => batch.id).sort();
+      expect(persistedBatchIds).toEqual([...acceptedBatchIds].sort());
+      expect(state.orchestration.batches).toHaveLength(kernelAcceptedCapacity);
+      expect(
+        state.orchestration.supervisorActions.filter((action) =>
+          acceptedBatchIds.includes(action.batchId ?? "")
+        )
+      ).toHaveLength(kernelAcceptedCapacity * 2);
+
+      await resetControlPlaneStateForTests();
+      const reloadedState = await readControlPlaneState();
+      expect(reloadedState.orchestration.batches.map((batch) => batch.id).sort()).toEqual(
+        [...acceptedBatchIds].sort()
       );
     } finally {
       await new Promise<void>((resolve, reject) =>

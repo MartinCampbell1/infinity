@@ -8,6 +8,7 @@ import {
   type ShellRouteScope,
 } from "@/lib/route-scope";
 import { resolveDeliveryReadinessCopy } from "../../lib/delivery-readiness";
+import { redactLocalUiText } from "../../lib/ui-redaction";
 import { isStrictRolloutEnv } from "../../lib/server/control-plane/workspace/rollout-config";
 import type {
   DeliveryRecord,
@@ -86,28 +87,28 @@ function formatResultState(
   delivery: DeliveryRecord | null,
   handoff: AutonomousHandoffPacketRecord | null
 ) {
-  if (
-    delivery?.launchProofKind === "runnable_result" &&
-    delivery.launchProofAt &&
-    handoff?.status === "ready"
-  ) {
-    return resolveDeliveryReadinessCopy(delivery, {
+  if (delivery) {
+    const readiness = resolveDeliveryReadinessCopy(delivery, {
       strictRolloutEnv: isStrictRolloutEnv(),
-    }).resultHeadline;
+    });
+
+    if (
+      delivery.launchProofKind === "runnable_result" &&
+      delivery.launchProofAt
+    ) {
+      return readiness.resultHeadline;
+    }
+    if (
+      delivery.launchProofKind === "attempt_scaffold" ||
+      delivery.launchProofKind === "synthetic_wrapper"
+    ) {
+      return readiness.resultHeadline;
+    }
+    if (delivery.localOutputPath || handoff) {
+      return readiness.badgeLabel;
+    }
   }
-  if (
-    delivery?.launchProofKind === "runnable_result" &&
-    delivery.launchProofAt
-  ) {
-    return "Runnable";
-  }
-  if (delivery?.launchProofKind === "attempt_scaffold") {
-    return "Scaffold only";
-  }
-  if (delivery?.launchProofKind === "synthetic_wrapper") {
-    return "Wrapper only";
-  }
-  if (delivery?.localOutputPath || handoff) {
+  if (handoff) {
     return "Artifact only";
   }
   return "No result yet";
@@ -276,10 +277,10 @@ export function PlaneWorkItemsSurface({
               {(currentDelivery?.launchTargetLabel
                 ? `${currentDelivery.launchTargetLabel} · `
                 : "") +
-                (currentDelivery?.launchProofUrl ??
+                redactLocalUiText(currentDelivery?.launchProofUrl ??
                 currentDelivery?.previewUrl ??
                 currentDelivery?.localOutputPath ??
-                "No localhost proof or artifact bundle yet.")}
+                "No launch proof or artifact bundle yet.")}
             </div>
           </div>
           <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-4">

@@ -34,6 +34,7 @@ import type {
   WorkspaceToHostMessage,
 } from "@/lib/server/control-plane/contracts/workspace-launch";
 import { buildWorkUiLaunchUrl } from "@/lib/server/control-plane/contracts/workspace-launch";
+import { parseWorkspaceMessage } from "@/lib/workspace-postmessage";
 
 type HostConnectionState = "booting" | "awaiting_ready" | "ready" | "errored";
 
@@ -218,15 +219,6 @@ function normalizeOrigin(value: string) {
   }
 }
 
-function messageType(value: unknown): string | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const maybeType = (value as { type?: unknown }).type;
-  return typeof maybeType === "string" ? maybeType : null;
-}
-
 function pushSignal(
   previous: HostSignal[],
   next: HostSignal
@@ -236,15 +228,6 @@ function pushSignal(
     return merged;
   }
   return merged.slice(0, MAX_HOST_SIGNALS);
-}
-
-function parseWorkspaceMessage(value: unknown): WorkspaceToHostMessage | null {
-  const type = messageType(value);
-  if (!type || !type.startsWith("workspace.")) {
-    return null;
-  }
-
-  return value as WorkspaceToHostMessage;
 }
 
 function supportsRuntimeIngest(message: WorkspaceToHostMessage) {

@@ -10,10 +10,16 @@ import {
   withShellRouteScope,
   type ShellRouteScope,
 } from "@/lib/route-scope";
-import { isDeliveryHandoffReady, resolveDeliveryReadinessCopy } from "../../lib/delivery-readiness";
+import {
+  isDeliveryPrimaryHandoffReady,
+  resolveDeliveryReadinessCopy,
+  type DeliveryReadinessCopy,
+} from "../../lib/delivery-readiness";
 import { isStrictRolloutEnv } from "../../lib/server/control-plane/workspace/rollout-config";
+import { ReadinessBadge } from "../orchestration/readiness-badge";
 import {
   PlaneButton,
+  PlaneDisabledAction,
   PlaneProgressBar,
   PlaneStatusPill,
 } from "@/components/execution/plane-run-primitives";
@@ -74,7 +80,7 @@ function stageOrder(currentStage: string | null | undefined, delivered: boolean)
 
   return keys.map((key, index) => ({
     key,
-    label: key === "delivered" ? "Delivered" : titleCase(key),
+    label: key === "delivered" ? (delivered ? "Delivered" : "Proof") : titleCase(key),
     state: index < activeIndex ? "done" : index === activeIndex ? "active" : "todo",
   }));
 }
@@ -304,13 +310,16 @@ export function PrimaryRunSurface({
       ? "verifying"
       : currentRun?.currentStage ?? initiative.status;
   const strictRolloutEnv = isStrictRolloutEnv();
+  const deliveryReadinessCopy = currentDelivery
+    ? resolveDeliveryReadinessCopy(currentDelivery, { strictRolloutEnv })
+    : null;
   const deliveryHandoffReady = currentDelivery
-    ? isDeliveryHandoffReady(currentDelivery, { strictRolloutEnv })
+    ? isDeliveryPrimaryHandoffReady(currentDelivery, { strictRolloutEnv })
     : false;
   const delivered =
     currentDelivery
       ? deliveryHandoffReady
-      : currentRun?.currentStage === "handed_off" || initiative.status === "ready";
+      : false;
   const headlineStage = delivered ? "delivered" : displayStage;
   const stages = stageOrder(headlineStage, delivered);
   const activeAgentCount = agentSessions.filter((session) =>
@@ -352,7 +361,13 @@ export function PrimaryRunSurface({
     })),
   ].filter((value): value is { label: string; body: string; createdAt: string } => Boolean(value));
   const runIdLabel = shortRunId(currentRun?.id ?? initiative.id);
-  const proofStripRows = [
+  const proofStripRows: Array<{
+    label: string;
+    value: string;
+    href: string | null;
+    tone: "success" | "pending";
+    readiness?: DeliveryReadinessCopy | null;
+  }> = [
     {
       label: currentAssembly?.status === "assembled" ? "Assembly ready" : "Assembly pending",
       value: currentAssembly?.manifestPath
@@ -369,20 +384,29 @@ export function PrimaryRunSurface({
     },
     {
       label:
-        currentDelivery && deliveryHandoffReady
-          ? `Delivery ready · ${
-              resolveDeliveryReadinessCopy(currentDelivery, {
-                strictRolloutEnv,
-              }).tierLabel
-            }`
-          : "Delivery pending",
-      value: currentDelivery?.launchProofKind ?? currentDelivery?.id ?? "not attached",
+        currentDelivery && deliveryReadinessCopy
+          ? deliveryReadinessCopy.badgeLabel
+          : "Missing proof",
+      value: deliveryReadinessCopy
+        ? deliveryReadinessCopy.missingProofItems.length
+          ? `${deliveryReadinessCopy.missingProofItems.length} proof gates missing`
+          : deliveryReadinessCopy.statusDetail
+        : "not attached",
       href: deliveryHref,
       tone: deliveryHandoffReady ? "success" : "pending",
+      readiness: deliveryReadinessCopy,
     },
   ];
 
   const liveRefreshEnabled = !delivered && initiative.status !== "cancelled";
+  const taskMenuReason =
+    "Task action menu requires a durable work-unit action route before it can be enabled.";
+  const abortRunReason =
+    "Abort run requires a durable run action route before it can be enabled.";
+  const forceRetryReason =
+    "Force retry is enabled through an open recovery incident with an action route.";
+  const pauseForReviewReason =
+    "Pause for review requires a durable run action route before it can be enabled.";
 
   return (
     <main className="mx-auto grid max-w-[1520px] gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -545,7 +569,11 @@ export function PrimaryRunSurface({
                       row.tone === "success" ? "text-emerald-100/82" : "text-amber-100/78"
                     }`}
                   >
-                    {row.label}
+                    {row.readiness ? (
+                      <ReadinessBadge readiness={row.readiness} />
+                    ) : (
+                      row.label
+                    )}
                   </div>
                   <div className="mt-2 truncate font-mono text-[11px] leading-5 text-white/76">
                     {row.value}
@@ -791,9 +819,12 @@ export function PrimaryRunSurface({
                     {selectedWorkUnit.title}
                   </div>
                 </div>
-                <PlaneButton variant="subtle" size="sm">
+                <PlaneDisabledAction
+                  label="Task action menu"
+                  reason={taskMenuReason}
+                >
                   •••
-                </PlaneButton>
+                </PlaneDisabledAction>
               </div>
 
               <div className="mt-2 font-mono text-[10.5px] text-[var(--shell-sidebar-muted)]">
@@ -924,15 +955,24 @@ export function PrimaryRunSurface({
                   Operator controls stay secondary while the system is still progressing autonomously.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <PlaneButton variant="subtle" size="sm">
+                  <PlaneDisabledAction
+                    label="Abort run"
+                    reason={abortRunReason}
+                  >
                     Abort run
-                  </PlaneButton>
-                  <PlaneButton variant="subtle" size="sm">
+                  </PlaneDisabledAction>
+                  <PlaneDisabledAction
+                    label="Force retry"
+                    reason={forceRetryReason}
+                  >
                     Force retry
-                  </PlaneButton>
-                  <PlaneButton variant="subtle" size="sm">
+                  </PlaneDisabledAction>
+                  <PlaneDisabledAction
+                    label="Pause for review"
+                    reason={pauseForReviewReason}
+                  >
                     Pause for review
-                  </PlaneButton>
+                  </PlaneDisabledAction>
                 </div>
               </div>
 

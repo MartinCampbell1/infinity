@@ -26,12 +26,15 @@ vi.mock("@/lib/route-scope", () => ({
 vi.mock("@/components/orchestration/delivery-summary", () => ({
   DeliverySummary: ({
     delivery,
+    previewTarget,
   }: {
     delivery: { status: string; readinessTier?: string | null };
+    previewTarget?: { healthStatus?: string | null } | null;
   }) => (
     <section>
       Delivery summary mock status {delivery.status} tier{" "}
-      {delivery.readinessTier ?? "unknown"}
+      {delivery.readinessTier ?? "unknown"} preview{" "}
+      {previewTarget?.healthStatus ?? "unknown"}
     </section>
   ),
 }));
@@ -77,6 +80,19 @@ vi.mock("@/lib/server/control-plane/state/store", () => ({
       runs: [],
       assemblies: [],
       handoffPackets: [],
+      previewTargets: [
+        {
+          id: "preview-stale-ready",
+          runId: "run-stale-ready",
+          deliveryId: "delivery-stale-ready",
+          mode: "local",
+          url: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-stale-ready",
+          healthStatus: "failed",
+          sourcePath: "/tmp/infinity-delivery/stale/preview.html",
+          createdAt: "2026-04-23T20:00:00.000Z",
+          updatedAt: "2026-04-23T20:05:00.000Z",
+        },
+      ],
       workUnits: [],
     },
   })),
@@ -126,7 +142,7 @@ describe("execution delivery detail route", () => {
       }),
     );
 
-    expect(markup).toContain("Delivery summary mock status pending tier staging");
+    expect(markup).toContain("Delivery summary mock status pending tier staging preview failed");
     expect(markup).not.toContain("status ready");
   });
 });

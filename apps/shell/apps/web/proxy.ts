@@ -25,6 +25,17 @@ function isSignedArtifactDownloadPath(pathname: string) {
   return pathname === "/api/control/orchestration/artifacts/download";
 }
 
+function isMutationMethod(method: string) {
+  return method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
+}
+
+function isCrossSiteBrowserMutation(request: NextRequest) {
+  return (
+    isMutationMethod(request.method.toUpperCase()) &&
+    request.headers.get("sec-fetch-site")?.toLowerCase() === "cross-site"
+  );
+}
+
 function applyPrivilegedApiGate(request: NextRequest) {
   if (!isPrivilegedApiPath(request.nextUrl.pathname)) {
     return NextResponse.next();
@@ -45,6 +56,13 @@ function applyPrivilegedApiGate(request: NextRequest) {
   }
 
   if (origin && !corsHeaders) {
+    return NextResponse.json(
+      { detail: getPrivilegedApiCorsRejectionDetail() },
+      { status: 403 },
+    );
+  }
+
+  if (!origin && isCrossSiteBrowserMutation(request)) {
     return NextResponse.json(
       { detail: getPrivilegedApiCorsRejectionDetail() },
       { status: 403 },

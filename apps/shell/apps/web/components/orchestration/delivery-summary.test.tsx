@@ -23,6 +23,19 @@ vi.mock("@/components/execution/plane-run-primitives", () => ({
     children: React.ReactNode;
     className?: string;
   }) => <button className={className}>{children}</button>,
+  PlaneDisabledAction: ({
+    label,
+    reason,
+    children,
+  }: {
+    label: string;
+    reason: string;
+    children: React.ReactNode;
+  }) => (
+    <span data-disabled-action={label} data-disabled-action-reason={reason}>
+      <button disabled>{children}</button>
+    </span>
+  ),
   PlaneStatusPill: ({ children }: { children: React.ReactNode }) => (
     <span>{children}</span>
   ),
@@ -47,6 +60,62 @@ function withStrictRolloutEnv<T>(value: string | undefined, callback: () => T) {
       process.env.FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV = previous;
     }
   }
+}
+
+type DeliverySummaryProps = React.ComponentProps<typeof DeliverySummary>;
+
+function renderPreviewScenario({
+  delivery,
+  previewTarget = null,
+}: {
+  delivery: Partial<DeliverySummaryProps["delivery"]>;
+  previewTarget?: DeliverySummaryProps["previewTarget"];
+}) {
+  return withStrictRolloutEnv(undefined, () =>
+    renderToStaticMarkup(
+      <DeliverySummary
+        delivery={{
+          id: "delivery-preview-state",
+          initiativeId: "initiative-preview-state",
+          verificationRunId: "verification-preview-state",
+          taskGraphId: "task-graph-preview-state",
+          resultSummary: "Preview state fixture.",
+          launchProofKind: "runnable_result",
+          status: "pending",
+          deliveredAt: "2026-04-23T22:01:00.000Z",
+          ...delivery,
+        }}
+        initiativeTitle="Preview state delivery"
+        initiativePrompt="Build a preview state fixture."
+        verification={{
+          id: "verification-preview-state",
+          initiativeId: "initiative-preview-state",
+          assemblyId: "assembly-preview-state",
+          overallStatus: "passed",
+          checks: [{ name: "targeted_tests_passed", status: "passed" }],
+          startedAt: "2026-04-23T22:00:00.000Z",
+          finishedAt: "2026-04-23T22:00:00.000Z",
+        }}
+        assembly={{
+          id: "assembly-preview-state",
+          initiativeId: "initiative-preview-state",
+          taskGraphId: "task-graph-preview-state",
+          inputWorkUnitIds: ["work-unit-preview-state"],
+          artifactUris: [],
+          outputLocation: "r2://infinity-artifacts/staging/preview-state",
+          summary: "Preview state assembly.",
+          status: "assembled",
+          createdAt: "2026-04-23T22:00:00.000Z",
+          updatedAt: "2026-04-23T22:00:00.000Z",
+        }}
+        taskGraphId="task-graph-preview-state"
+        runId="run-preview-state"
+        handoffId={null}
+        sourceWorkUnits={[]}
+        previewTarget={previewTarget}
+      />,
+    ),
+  );
 }
 
 describe("DeliverySummary", () => {
@@ -113,11 +182,19 @@ describe("DeliverySummary", () => {
 
     expect(markup).toContain("Result summary");
     expect(markup).toContain("Local runnable proof");
+    expect(markup).toContain("Local proof");
+    expect(markup).toContain('data-readiness-badge-tier="local_solo"');
+    expect(markup).toContain('data-readiness-checklist="delivery-proof"');
     expect(markup).toContain("Readiness tier");
     expect(markup).toContain("local_solo");
     expect(markup).not.toContain("Handoff-ready result");
     expect(markup).not.toContain("Handoff ready");
     expect(markup).toContain("Generated invoice app is ready.");
+    expect(markup).toContain(">Pending<");
+    expect(markup).not.toContain(">Delivered<");
+    expect(markup).not.toContain("Primary handoff");
+    expect(markup).not.toContain("Handoff packet");
+    expect(markup).not.toContain("/execution/handoffs/handoff-proof-001");
     expect(markup).toContain('data-delivery-proof-grid="grouped"');
     expect(markup).toContain("2xl:grid-cols-2");
     expect(markup).toContain('data-proof-drawer="all-values"');
@@ -207,10 +284,24 @@ describe("DeliverySummary", () => {
     expect(markup).toContain("Runnable proof review");
     expect(markup).toContain("Staging proof review");
     expect(markup).toContain("Staging runnable proof");
+    expect(markup).toContain("Staging proof");
+    expect(markup).toContain('data-readiness-badge-tier="staging"');
+    expect(markup).toContain('data-readiness-check="hosted_preview"');
+    expect(markup).toContain('data-readiness-check-satisfied="false"');
     expect(markup).toContain("runnable proof pending");
     expect(markup).toContain(">Pending<");
     expect(markup).toContain("Open task graph");
-    expect(markup).toContain("Open preview");
+    expect(markup).toContain("Review local preview");
+    expect(markup).toContain("Hosted preview proof missing");
+    expect(markup).toContain('data-disabled-proof-action="Open hosted preview"');
+    expect(markup).toContain("Pull request proof missing");
+    expect(markup).toContain('data-disabled-proof-action="Open pull request"');
+    expect(markup).toContain('data-disabled-action="Resume w/ prompt"');
+    expect(markup).toContain("Resume with prompt is not wired on the delivery summary");
+    expect(markup).toContain('data-disabled-action="Archive"');
+    expect(markup).toContain("Archive requires a durable delivery action route");
+    expect(markup).toContain("[local workspace path]");
+    expect(markup).not.toContain("/Users/martin/infinity");
     expect(markup).not.toContain("Handoff packet");
     expect(markup).not.toContain("Open handoff packet");
     expect(markup).not.toContain("/execution/handoffs/handoff-pending-proof-001");
@@ -306,6 +397,11 @@ describe("DeliverySummary", () => {
           externalPreviewUrl: "https://delivery-production-proof-001.preview.infinity.example",
           externalPreviewProvider: "vercel",
           externalPreviewDeploymentId: "vercel-preview-delivery-production-proof-001",
+          externalDeliveryProof: {
+            preview: {
+              screenshotUrl: "https://delivery-production-proof-001.preview.infinity.example/screenshot.png",
+            },
+          },
           externalProofManifestPath: "r2://infinity-artifacts/prod/deliveries/delivery-production-proof-001/external-delivery-proof.json",
           ciProofUri: "https://github.com/founderos/infinity/commit/proof-commit-sha/checks",
           ciProofProvider: "github_commit_status",
@@ -352,9 +448,122 @@ describe("DeliverySummary", () => {
     expect(markup).toContain("Open pull request");
     expect(markup).toContain("https://github.com/founderos/infinity/pull/124");
     expect(markup).toContain("https://delivery-production-proof-001.preview.infinity.example");
+    expect(markup).toContain('data-preview-card-state="ready"');
+    expect(markup).toContain('data-preview-screenshot="image"');
+    expect(markup).toContain("Delivery preview screenshot");
+    expect(markup).toContain("https://delivery-production-proof-001.preview.infinity.example/screenshot.png");
+    expect(markup).toContain("Open preview");
     expect(markup).toContain("CI proof");
     expect(markup).not.toContain("file://");
     expect(markup).not.toContain("/Users/martin/infinity");
     expect(markup).not.toContain("Launch command");
+  });
+
+  test("shows an expired preview recovery path instead of linking to a failed target", () => {
+    const markup = renderPreviewScenario({
+      delivery: {
+        id: "delivery-preview-expired",
+        initiativeId: "initiative-preview-expired",
+        previewUrl: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-expired",
+        launchProofAt: "2026-04-23T22:00:00.000Z",
+        status: "ready",
+      },
+      previewTarget: {
+        id: "preview-expired",
+        runId: "run-preview-state",
+        deliveryId: "delivery-preview-expired",
+        mode: "local",
+        url: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-expired",
+        healthStatus: "failed",
+        sourcePath: "/tmp/infinity-delivery/expired/preview.html",
+        createdAt: "2026-04-23T22:00:00.000Z",
+        updatedAt: "2026-04-23T22:05:00.000Z",
+      },
+    });
+
+    expect(markup).toContain('data-preview-card-state="expired"');
+    expect(markup).toContain('data-preview-fallback-state="expired"');
+    expect(markup).toContain("Preview expired");
+    expect(markup).toContain("Rebuild preview");
+    expect(markup).toContain("/execution/continuity/initiative-preview-expired");
+    expect(markup).toContain("/execution/task-graphs/task-graph-preview-state");
+    expect(markup).not.toContain('data-preview-screenshot="');
+    expect(markup).not.toContain('<iframe src="http://127.0.0.1:3737/api/control/orchestration/previews/preview-expired"');
+    expect(markup).not.toContain('<a href="http://127.0.0.1:3737/api/control/orchestration/previews/preview-expired"');
+  });
+
+  test("shows loading state while a preview target is still pending", () => {
+    const markup = renderPreviewScenario({
+      delivery: {
+        id: "delivery-preview-loading",
+        launchProofKind: null,
+        status: "pending",
+      },
+      previewTarget: {
+        id: "preview-loading",
+        runId: "run-preview-state",
+        deliveryId: "delivery-preview-loading",
+        mode: "local",
+        url: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-loading",
+        healthStatus: "pending",
+        sourcePath: "/tmp/infinity-delivery/loading/preview.html",
+        createdAt: "2026-04-23T22:00:00.000Z",
+        updatedAt: "2026-04-23T22:01:00.000Z",
+      },
+    });
+
+    expect(markup).toContain('data-preview-card-state="loading"');
+    expect(markup).toContain('data-preview-fallback-state="loading"');
+    expect(markup).toContain("Preview is still building");
+    expect(markup).not.toContain("Rebuild preview");
+    expect(markup).not.toContain('data-preview-screenshot="');
+  });
+
+  test("shows error recovery when a preview target fails before a URL is usable", () => {
+    const markup = renderPreviewScenario({
+      delivery: {
+        id: "delivery-preview-error",
+        previewUrl: null,
+        launchProofKind: null,
+        status: "pending",
+      },
+      previewTarget: {
+        id: "preview-error",
+        runId: "run-preview-state",
+        deliveryId: "delivery-preview-error",
+        mode: "local",
+        url: "http://127.0.0.1:3737/api/control/orchestration/previews/preview-error",
+        healthStatus: "failed",
+        sourcePath: "/tmp/infinity-delivery/error/preview.html",
+        createdAt: "2026-04-23T22:00:00.000Z",
+        updatedAt: "2026-04-23T22:05:00.000Z",
+      },
+    });
+
+    expect(markup).toContain('data-preview-card-state="error"');
+    expect(markup).toContain('data-preview-fallback-state="error"');
+    expect(markup).toContain("Preview failed");
+    expect(markup).toContain("Rebuild preview");
+    expect(markup).toContain("/execution/continuity/initiative-preview-state");
+    expect(markup).not.toContain('data-preview-screenshot="');
+  });
+
+  test("shows rebuild state for scaffold previews without a usable target", () => {
+    const markup = renderPreviewScenario({
+      delivery: {
+        id: "delivery-preview-rebuild",
+        previewUrl: null,
+        launchProofKind: "synthetic_wrapper",
+        status: "pending",
+      },
+    });
+
+    expect(markup).toContain('data-preview-card-state="rebuild"');
+    expect(markup).toContain('data-preview-fallback-state="rebuild"');
+    expect(markup).toContain("Preview needs rebuild");
+    expect(markup).toContain("Rebuild preview");
+    expect(markup).toContain("/execution/continuity/initiative-preview-state");
+    expect(markup).toContain("/execution/task-graphs/task-graph-preview-state");
+    expect(markup).not.toContain('data-preview-screenshot="');
   });
 });

@@ -1,4 +1,5 @@
 import { cn } from "@founderos/ui/lib/utils";
+import React from "react";
 import type { ReactNode } from "react";
 
 const PLANE_STATUS_STYLES = {
@@ -206,22 +207,65 @@ export function PlaneButton({
   );
 }
 
+export function PlaneDisabledAction({
+  label,
+  reason,
+  variant = "subtle",
+  size = "sm",
+  children,
+  className,
+}: {
+  label: string;
+  reason: string;
+  variant?: "primary" | "ghost" | "subtle" | "topbar";
+  size?: "sm" | "md" | "lg";
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className="inline-flex"
+      title={reason}
+      data-disabled-action={label}
+      data-disabled-action-reason={reason}
+    >
+      <PlaneButton
+        variant={variant}
+        size={size}
+        disabled
+        className={className}
+      >
+        {children}
+      </PlaneButton>
+    </span>
+  );
+}
+
 export function PlaneIconButton({
   children,
   active = false,
   size = 36,
   className,
+  disabled = false,
+  title,
+  onClick,
 }: {
   children: ReactNode;
   active?: boolean;
   size?: number;
   className?: string;
+  disabled?: boolean;
+  title?: string;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
+      title={title}
+      onClick={onClick}
       className={cn(
-        "inline-flex items-center justify-center rounded-[14px] border border-[color:var(--shell-control-border)] text-[var(--shell-sidebar-muted)] transition",
+        "inline-flex items-center justify-center rounded-[14px] border border-[color:var(--shell-control-border)] text-[var(--shell-sidebar-muted)] transition disabled:cursor-not-allowed disabled:opacity-40",
         className
       )}
       style={{

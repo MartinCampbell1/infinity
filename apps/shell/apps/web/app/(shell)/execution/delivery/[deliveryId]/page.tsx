@@ -111,6 +111,11 @@ export default async function ExecutionDeliveryPage({
     state.orchestration.handoffPackets.find(
       (candidate) => candidate.deliveryId === delivery.id
     ) ?? null;
+  const previewTargets = Array.isArray(state.orchestration.previewTargets)
+    ? state.orchestration.previewTargets
+    : [];
+  const currentPreviewTarget =
+    previewTargets.find((candidate) => candidate.deliveryId === delivery.id) ?? null;
   const sourceWorkUnits = taskGraphId
     ? state.orchestration.workUnits.filter((workUnit) => workUnit.taskGraphId === taskGraphId)
     : [];
@@ -127,6 +132,7 @@ export default async function ExecutionDeliveryPage({
       handoffId={currentHandoffPacket?.id ?? null}
       sourceWorkUnits={sourceWorkUnits}
       routeScope={routeScope}
+      previewTarget={currentPreviewTarget}
     />
   );
 }

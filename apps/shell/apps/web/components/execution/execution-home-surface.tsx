@@ -25,6 +25,7 @@ import type {
   InitiativeRecord,
 } from "@/lib/server/control-plane/contracts/orchestration";
 import type { ExecutionKernelAvailability } from "@/lib/server/orchestration/batches";
+import { redactLocalUiText } from "../../lib/ui-redaction";
 
 import { ExecutionRunComposer } from "./execution-run-composer";
 import {
@@ -315,7 +316,7 @@ export function ExecutionHomeSurface({
               </div>
               {!kernelAvailability.available ? (
                 <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-3 font-mono text-[11px] leading-5 text-white/72">
-                  cd /Users/martin/infinity/services/execution-kernel{"\n"}./scripts/run-local.sh
+                  cd services/execution-kernel{"\n"}./scripts/run-local.sh
                 </div>
               ) : null}
             </div>
@@ -359,7 +360,7 @@ export function ExecutionHomeSurface({
                 <div className="mt-3 text-[16px] font-medium text-foreground">
                   {currentDelivery?.launchProofKind === "runnable_result" &&
                   currentDelivery.launchProofAt
-                    ? "Runnable localhost result"
+                    ? "Runnable launch result"
                     : currentDelivery?.launchProofKind === "attempt_scaffold"
                       ? "Attempt scaffold only"
                     : currentDelivery?.launchProofKind === "synthetic_wrapper"
@@ -372,10 +373,10 @@ export function ExecutionHomeSurface({
                   {(currentDelivery?.launchTargetLabel
                     ? `${currentDelivery.launchTargetLabel} · `
                     : "") +
-                    (currentDelivery?.launchProofUrl ??
+                    redactLocalUiText(currentDelivery?.launchProofUrl ??
                     currentDelivery?.previewUrl ??
                     currentDelivery?.localOutputPath ??
-                    "No artifact bundle or localhost proof is attached yet.")}
+                    "No artifact bundle or launch proof is attached yet.")}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {currentDelivery ? (

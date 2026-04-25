@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "surfaces": {
+    "delivery-production-ready": {
+      "width": 1440,
+      "height": 1200,
+      "sha256": "eb1b1ea6680fdda6a32235ceb96cc6bf7bc0988c8694edfce7b10c0610e35fd5",
+      "imagePath": "visual-baselines/delivery-production-ready.png"
+    },
+    "delivery-preview-expired": {
+      "width": 1440,
+      "height": 1200,
+      "sha256": "e5ce4329aa563e1c92d9ab219677407a51ef58216e408d400acb8e2d51617cb8",
+      "imagePath": "visual-baselines/delivery-preview-expired.png"
+    },
+    "execution-record-board": {
+      "width": 1440,
+      "height": 1200,
+      "sha256": "1e4e2125529f377999e0ed0718766cb0181788916eccba34bb7e460a0fb48aea",
+      "imagePath": "visual-baselines/execution-record-board.png"
+    }
+  }
+}

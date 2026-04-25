@@ -1,13 +1,15 @@
 import { PencilLine } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 
 import {
   PlaneButton,
+  PlaneDisabledAction,
   PlaneIconButton,
   PlaneProgressBar,
   PlaneStatusPill,
-} from "@/components/execution/plane-run-primitives";
+} from "./plane-run-primitives";
+import { redactLocalUiText } from "../../lib/ui-redaction";
 
 export type AutonomousBoardTask = {
   id: string;
@@ -99,8 +101,8 @@ function normalizeItem(item: AutonomousBoardItem): Required<
     | "featured"
     | "taskItems"
   > {
-  const title = item.title ?? item.headline ?? item.id;
-  const prompt = item.prompt ?? item.detail ?? "";
+  const title = redactLocalUiText(item.title ?? item.headline ?? item.id);
+  const prompt = redactLocalUiText(item.prompt ?? item.detail ?? "");
   const stage = item.stage ?? valueFromMeta(item.meta, "stage ") ?? "unknown";
   const health = item.health ?? valueFromMeta(item.meta, "health ") ?? "unknown";
   const preview = item.preview ?? valueFromMeta(item.meta, "preview ") ?? "none";
@@ -122,22 +124,22 @@ function normalizeItem(item: AutonomousBoardItem): Required<
     prompt,
     stage,
     health,
-    preview,
-    handoff,
+    preview: redactLocalUiText(preview),
+    handoff: redactLocalUiText(handoff),
     updated,
     tasks,
     agent,
     href: item.href ?? null,
     group,
     requestedBy: item.requestedBy ?? null,
-    workspace: item.workspace ?? null,
+    workspace: item.workspace ? redactLocalUiText(item.workspace) : null,
     sessions: item.sessions ?? 0,
     startedAt: item.startedAt ?? null,
-    repo: item.repo ?? null,
-    assignment: item.assignment ?? null,
-    backend: item.backend ?? null,
+    repo: item.repo ? redactLocalUiText(item.repo) : null,
+    assignment: item.assignment ? redactLocalUiText(item.assignment) : null,
+    backend: item.backend ? redactLocalUiText(item.backend) : null,
     attempts: item.attempts ?? null,
-    workspacePath: item.workspacePath ?? null,
+    workspacePath: item.workspacePath ? redactLocalUiText(item.workspacePath) : null,
     displayId: item.displayId ?? null,
     featured: item.featured ?? false,
     taskItems: item.taskItems ?? [],
@@ -240,6 +242,14 @@ export function AutonomousRecordBoard({
   const activeRuns = grouped.find((entry) => entry.group === "running")?.rows.length ?? 0;
   const attentionRuns = grouped.find((entry) => entry.group === "attention")?.rows.length ?? 0;
   const completedRuns = grouped.find((entry) => entry.group === "completed")?.rows.length ?? 0;
+  const missingRunRouteReason =
+    "Open run requires a concrete execution route; this row is read-only until href is attached.";
+  const closeDrawerReason =
+    "Drawer close is disabled in this server-rendered board.";
+  const previewReason =
+    "Preview requires a concrete preview route before it can be enabled.";
+  const logsReason =
+    "Logs require a concrete run log route before they can be enabled.";
 
   return (
     <main className="mx-auto grid max-w-[1520px] gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -358,16 +368,15 @@ export function AutonomousRecordBoard({
 
                 {entry.rows.map((item) => {
                   const isSelected = item.id === selected.id;
-                  return (
-                    <Link
-                      key={item.id}
-                      href={item.href ?? "#"}
-                      className={`grid grid-cols-[96px_minmax(280px,1fr)_130px_96px_100px_116px_80px_22px] items-center gap-3 border-b border-white/5 px-4 py-3 transition ${
+                  const rowClassName = `grid grid-cols-[96px_minmax(280px,1fr)_130px_96px_100px_116px_80px_22px] items-center gap-3 border-b border-white/5 px-4 py-3 transition ${
                         isSelected
                           ? "border-l-2 border-l-[var(--primary)] bg-[rgba(133,169,255,0.07)]"
-                          : "hover:bg-white/[0.025]"
-                      }`}
-                    >
+                          : item.href
+                            ? "hover:bg-white/[0.025]"
+                            : "cursor-not-allowed opacity-70"
+                      }`;
+                  const rowContent = (
+                    <>
                       <div className="font-mono text-[11px] text-white/72">
                         {shortId(item.displayId ?? item.id)}
                       </div>
@@ -385,7 +394,28 @@ export function AutonomousRecordBoard({
                       <div className="text-[11px] text-white/62">{item.agent}</div>
                       <div className="font-mono text-[11px] text-white/56">{item.updated}</div>
                       <div className="text-right text-white/42">›</div>
+                    </>
+                  );
+
+                  return item.href ? (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      className={rowClassName}
+                    >
+                      {rowContent}
                     </Link>
+                  ) : (
+                    <div
+                      key={item.id}
+                      className={rowClassName}
+                      title={missingRunRouteReason}
+                      aria-disabled="true"
+                      data-disabled-action="Open run"
+                      data-disabled-action-reason={missingRunRouteReason}
+                    >
+                      {rowContent}
+                    </div>
                   );
                 })}
               </div>
@@ -401,7 +431,13 @@ export function AutonomousRecordBoard({
             <span>›</span>
             <span>{selected.stage}</span>
             <div className="flex-1" />
-            <PlaneIconButton size={26}>×</PlaneIconButton>
+            <PlaneIconButton
+              size={26}
+              disabled
+              title={closeDrawerReason}
+            >
+              ×
+            </PlaneIconButton>
           </div>
 
           <div className="mt-4">
@@ -433,12 +469,18 @@ export function AutonomousRecordBoard({
                 </PlaneButton>
               </Link>
             ) : null}
-            <PlaneButton variant="subtle" size="sm">
+            <PlaneDisabledAction
+              label="Preview"
+              reason={previewReason}
+            >
               Preview
-            </PlaneButton>
-            <PlaneButton variant="subtle" size="sm">
+            </PlaneDisabledAction>
+            <PlaneDisabledAction
+              label="Logs"
+              reason={logsReason}
+            >
               Logs
-            </PlaneButton>
+            </PlaneDisabledAction>
           </div>
 
           <div className="mt-5 grid grid-cols-[110px_1fr] gap-x-4 gap-y-3 rounded-[14px] border border-white/8 bg-white/[0.025] px-4 py-4 text-[11px]">

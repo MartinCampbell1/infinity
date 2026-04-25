@@ -8,6 +8,11 @@ import {
   resetControlPlaneStateForTests,
 } from "../../../../../../lib/server/control-plane/state/store";
 import {
+  ARTIFACT_OBJECT_BACKEND_ENV_KEY,
+  ARTIFACT_SIGNED_URL_BASE_ENV_KEY,
+  ARTIFACT_SIGNING_SECRET_ENV_KEY,
+  ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY,
+  ARTIFACT_STORE_MODE_ENV_KEY,
   CANONICAL_SHELL_PUBLIC_ORIGIN_ENV_KEY,
   CANONICAL_WORK_UI_BASE_URL_ENV_KEY,
   STRICT_ROLLOUT_ENV_KEY,
@@ -17,7 +22,15 @@ import {
   DEPLOYMENT_ENV_KEY,
   EXECUTION_KERNEL_BASE_URL_ENV_KEY,
   EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY,
+  EXTERNAL_DELIVERY_MODE_ENV_KEY,
+  FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
+  GITHUB_BASE_BRANCH_ENV_KEY,
+  GITHUB_REPOSITORY_ENV_KEY,
+  GITHUB_TOKEN_ENV_KEY,
   PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY,
+  VERCEL_GIT_REPO_ID_ENV_KEY,
+  VERCEL_PROJECT_ID_ENV_KEY,
+  VERCEL_TOKEN_ENV_KEY,
   WORKSPACE_LAUNCH_SECRET_ENV_KEY,
   WORKSPACE_SESSION_GRANT_SECRET_ENV_KEY,
   WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY,
@@ -53,6 +66,21 @@ function configureProductionControlPlaneEnv() {
   process.env[WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY] = "session-secret";
   process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY] = "operator-secret";
   process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY] = "service-secret";
+  process.env[ARTIFACT_STORE_MODE_ENV_KEY] = "object";
+  process.env[ARTIFACT_OBJECT_BACKEND_ENV_KEY] = "vercel_blob";
+  process.env[ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY] =
+    "vercel-blob://infinity-rollout-status";
+  process.env[ARTIFACT_SIGNED_URL_BASE_ENV_KEY] =
+    "https://artifacts.infinity.example/download";
+  process.env[ARTIFACT_SIGNING_SECRET_ENV_KEY] = "artifact-secret";
+  process.env[FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY] = "blob-token";
+  process.env[EXTERNAL_DELIVERY_MODE_ENV_KEY] = "github_vercel";
+  process.env[GITHUB_TOKEN_ENV_KEY] = "github-token";
+  process.env[GITHUB_REPOSITORY_ENV_KEY] = "founderos/infinity";
+  process.env[GITHUB_BASE_BRANCH_ENV_KEY] = "main";
+  process.env[VERCEL_TOKEN_ENV_KEY] = "vercel-token";
+  process.env[VERCEL_PROJECT_ID_ENV_KEY] = "prj_founderos_infinity";
+  process.env[VERCEL_GIT_REPO_ID_ENV_KEY] = "123456789";
 }
 
 describe("/api/control/execution/workspace/rollout-status", () => {

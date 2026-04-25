@@ -52,6 +52,7 @@ export const ARTIFACT_OBJECT_BACKEND_ENV_KEY =
 export const VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY = "BLOB_READ_WRITE_TOKEN";
 export const FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY =
   "FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN";
+export const SECRETS_MANAGER_ENV_KEY = "FOUNDEROS_SECRETS_MANAGER";
 export const EXTERNAL_DELIVERY_MODE_ENV_KEY =
   "FOUNDEROS_EXTERNAL_DELIVERY_MODE";
 export const GITHUB_TOKEN_ENV_KEY = "FOUNDEROS_GITHUB_TOKEN";
@@ -97,6 +98,16 @@ const GITHUB_VERCEL_DELIVERY_ENV_KEYS = [
   VERCEL_TOKEN_ENV_KEY,
   VERCEL_PROJECT_ID_ENV_KEY,
   VERCEL_GIT_REPO_ID_ENV_KEY,
+] as const;
+
+const SUPPORTED_SECRETS_MANAGERS = [
+  "vercel",
+  "aws_secrets_manager",
+  "gcp_secret_manager",
+  "doppler",
+  "onepassword",
+  "vault",
+  "infisical",
 ] as const;
 
 function normalizeEnvValue(value: string | null | undefined) {
@@ -182,6 +193,50 @@ function parseAllowedOrigins(value: string | null | undefined) {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
+}
+
+function parseHttpUrl(value: string | null | undefined) {
+  const normalized = normalizeEnvValue(value);
+  if (!normalized) {
+    return null;
+  }
+  try {
+    const parsed = new URL(normalized);
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function isPrivateIpv4(hostname: string) {
+  const parts = hostname.split(".").map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) {
+    return false;
+  }
+  const [first, second] = parts;
+  if (first === 10) {
+    return true;
+  }
+  if (first === 172 && second !== undefined && second >= 16 && second <= 31) {
+    return true;
+  }
+  return first === 192 && second === 168;
+}
+
+function isPrivateServiceHostname(hostname: string) {
+  const normalized = hostname.toLowerCase();
+  return (
+    isPrivateIpv4(normalized) ||
+    normalized.endsWith(".internal") ||
+    normalized.includes(".internal.") ||
+    normalized.endsWith(".private") ||
+    normalized.includes(".private.") ||
+    normalized.endsWith(".svc") ||
+    normalized.includes(".svc.") ||
+    normalized.endsWith(".cluster.local")
+  );
 }
 
 function findProductionLocalOnlyEnvKeys(env: EnvLike) {
@@ -457,6 +512,156 @@ export function buildDeploymentEnvDiagnostics(env: EnvLike = process.env) {
               "Staging deployment mode requires the full env set but does not reject localhost origins.",
             ]
           : []),
+    ],
+  };
+}
+
+export function buildStagingTopologyDiagnostics(env: EnvLike = process.env) {
+  const deploymentDiagnostics = buildDeploymentEnvDiagnostics(env);
+  const missingEnvKeys = new Set(deploymentDiagnostics.missingEnvKeys);
+  const invalidEnvKeys = new Set(deploymentDiagnostics.invalidEnvKeys);
+  const deploymentEnv = deploymentDiagnostics.deploymentEnv;
+
+  if (deploymentEnv !== "staging") {
+    invalidEnvKeys.add(DEPLOYMENT_ENV_KEY);
+  }
+
+  const shellPublicOrigin = parseHttpUrl(
+    env[CANONICAL_SHELL_PUBLIC_ORIGIN_ENV_KEY],
+  );
+  const workUiBaseUrl = parseHttpUrl(env[CANONICAL_WORK_UI_BASE_URL_ENV_KEY]);
+  const executionKernelBaseUrl = parseHttpUrl(
+    env[EXECUTION_KERNEL_BASE_URL_ENV_KEY],
+  );
+  const allowedOrigins = parseAllowedOrigins(
+    env[PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY],
+  )
+    .map((origin) => parseHttpUrl(origin)?.origin)
+    .filter((origin): origin is string => Boolean(origin));
+
+  const shellReady =
+    shellPublicOrigin?.protocol === "https:" &&
+    !isLocalOnlyUrl(shellPublicOrigin.toString());
+  if (!shellReady && normalizeEnvValue(env[CANONICAL_SHELL_PUBLIC_ORIGIN_ENV_KEY])) {
+    invalidEnvKeys.add(CANONICAL_SHELL_PUBLIC_ORIGIN_ENV_KEY);
+  }
+
+  const workUiSeparate =
+    Boolean(shellPublicOrigin && workUiBaseUrl) &&
+    shellPublicOrigin?.origin !== workUiBaseUrl?.origin;
+  const workUiReady =
+    workUiBaseUrl?.protocol === "https:" &&
+    !isLocalOnlyUrl(workUiBaseUrl.toString()) &&
+    workUiSeparate;
+  if (!workUiReady && normalizeEnvValue(env[CANONICAL_WORK_UI_BASE_URL_ENV_KEY])) {
+    invalidEnvKeys.add(CANONICAL_WORK_UI_BASE_URL_ENV_KEY);
+  }
+
+  const kernelHost = executionKernelBaseUrl?.hostname.toLowerCase() ?? null;
+  const kernelOrigin = executionKernelBaseUrl?.origin ?? null;
+  const kernelPrivate =
+    Boolean(kernelHost) &&
+    isPrivateServiceHostname(kernelHost ?? "") &&
+    kernelOrigin !== shellPublicOrigin?.origin &&
+    kernelOrigin !== workUiBaseUrl?.origin &&
+    !allowedOrigins.includes(kernelOrigin ?? "");
+  const kernelReady =
+    Boolean(executionKernelBaseUrl) &&
+    !isLocalOnlyUrl(executionKernelBaseUrl?.toString()) &&
+    kernelPrivate;
+  if (!kernelReady && normalizeEnvValue(env[EXECUTION_KERNEL_BASE_URL_ENV_KEY])) {
+    invalidEnvKeys.add(EXECUTION_KERNEL_BASE_URL_ENV_KEY);
+  }
+
+  const databaseUrl =
+    normalizeEnvValue(env[CONTROL_PLANE_DATABASE_URL_ENV_KEY]) ??
+    normalizeEnvValue(env[EXECUTION_HANDOFF_DATABASE_URL_ENV_KEY]);
+  const postgresReady =
+    Boolean(databaseUrl) && /^postgres(?:ql)?:\/\//i.test(databaseUrl ?? "");
+  if (databaseUrl && !postgresReady) {
+    invalidEnvKeys.add(CONTROL_PLANE_DATABASE_URL_ENV_KEY);
+  }
+
+  const artifactKeys = [
+    ARTIFACT_STORE_MODE_ENV_KEY,
+    ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY,
+    ARTIFACT_SIGNED_URL_BASE_ENV_KEY,
+    ARTIFACT_SIGNING_SECRET_ENV_KEY,
+    ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY,
+    ARTIFACT_OBJECT_BACKEND_ENV_KEY,
+    VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
+    FOUNDEROS_VERCEL_BLOB_READ_WRITE_TOKEN_ENV_KEY,
+  ] as const;
+  const objectStorageReady =
+    !artifactKeys.some((key) => missingEnvKeys.has(key) || invalidEnvKeys.has(key)) &&
+    normalizeEnvValue(env[ARTIFACT_STORE_MODE_ENV_KEY]) !== "local" &&
+    Boolean(normalizeEnvValue(env[ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY])) &&
+    Boolean(normalizeEnvValue(env[ARTIFACT_SIGNED_URL_BASE_ENV_KEY])) &&
+    Boolean(normalizeEnvValue(env[ARTIFACT_SIGNING_SECRET_ENV_KEY]));
+
+  const secretsManager = normalizeEnvValue(env[SECRETS_MANAGER_ENV_KEY])?.toLowerCase();
+  if (!secretsManager) {
+    missingEnvKeys.add(SECRETS_MANAGER_ENV_KEY);
+  } else if (
+    !SUPPORTED_SECRETS_MANAGERS.includes(
+      secretsManager as (typeof SUPPORTED_SECRETS_MANAGERS)[number],
+    )
+  ) {
+    invalidEnvKeys.add(SECRETS_MANAGER_ENV_KEY);
+  }
+  const secretsManagerReady =
+    Boolean(secretsManager) && !invalidEnvKeys.has(SECRETS_MANAGER_ENV_KEY);
+
+  const ready =
+    deploymentEnv === "staging" &&
+    shellReady &&
+    workUiReady &&
+    kernelReady &&
+    postgresReady &&
+    objectStorageReady &&
+    secretsManagerReady &&
+    missingEnvKeys.size === 0 &&
+    invalidEnvKeys.size === 0;
+
+  return {
+    ready,
+    deploymentEnv,
+    components: {
+      publicShell: {
+        ready: shellReady,
+        origin: shellPublicOrigin?.origin ?? null,
+      },
+      separateWorkUi: {
+        ready: workUiReady,
+        origin: workUiBaseUrl?.origin ?? null,
+        separateFromShell: workUiSeparate,
+      },
+      privateKernel: {
+        ready: kernelReady,
+        host: kernelHost,
+        privateEndpoint: kernelPrivate,
+      },
+      postgres: {
+        ready: postgresReady,
+        configured: Boolean(databaseUrl),
+      },
+      objectStorage: {
+        ready: objectStorageReady,
+        mode: normalizeEnvValue(env[ARTIFACT_STORE_MODE_ENV_KEY]) ?? null,
+        backend: normalizeEnvValue(env[ARTIFACT_OBJECT_BACKEND_ENV_KEY]) ?? null,
+      },
+      secretsManager: {
+        ready: secretsManagerReady,
+        provider: secretsManager ?? null,
+      },
+    },
+    missingEnvKeys: [...missingEnvKeys],
+    invalidEnvKeys: [...invalidEnvKeys],
+    notes: [
+      "Staging topology must mirror production boundaries before production promotion.",
+      "Shell and work-ui must be public HTTPS surfaces on separate origins.",
+      "Execution kernel must remain a private service-to-service endpoint, not a browser CORS origin.",
+      "Postgres, non-local object storage, and an explicit secrets manager provider are required.",
     ],
   };
 }

@@ -75,7 +75,7 @@ function buildLocalExecutionAgentsSnapshot(
     return {
       id: initiative.id,
       name: initiative.title,
-      path: "/Users/martin/infinity",
+      path: "infinity",
       priority: initiative.priority ?? "normal",
       archived: false,
       status: latestRun?.currentStage ?? initiative.status,
@@ -150,7 +150,7 @@ function buildLocalExecutionAgentsSnapshot(
       mode: "local",
       reason: "Local shell orchestration batch",
       dry_run: false,
-      policy_profile: "localhost_solo",
+      policy_profile: "local_execution",
       summary: {
         message: `${initiative?.title ?? batch.initiativeId} · ${batch.workUnitIds.length} work units`,
       } as never,

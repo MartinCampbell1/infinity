@@ -11,7 +11,7 @@ const FRONTDOOR_SUGGESTIONS = [
   {
     eyebrow: "Scaffold",
     prompt:
-      "Build a local-first web app with auth, persistence, verification, and a localhost-ready handoff.",
+      "Build a production-ready web app with auth, persistence, verification, and a signed handoff.",
   },
   {
     eyebrow: "Feature",
@@ -65,7 +65,7 @@ export function PlaneAiHomeSurface({
         </h1>
         <p className="mx-auto mt-4 max-w-[620px] text-center text-[15px] leading-8 text-white/56">
           One prompt. The system clarifies, plans, orchestrates agents, recovers, and delivers a
-          localhost-ready result.
+          verified result.
         </p>
 
         <div className="mt-8">

@@ -67,7 +67,8 @@ describe("execution deliveries board", () => {
     );
 
     expect(markup).toContain("delivery-stale-ready");
-    expect(markup).toContain("status pending");
+    expect(markup).toContain("Missing proof");
+    expect(markup).toContain("7 proof gates missing");
     expect(markup).not.toContain("status ready");
   });
 });

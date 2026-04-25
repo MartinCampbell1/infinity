@@ -7,6 +7,7 @@ import {
 } from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
 import { getExecutionKernelAvailability } from "@/lib/server/orchestration/batches";
+import { redactLocalUiText } from "../../../../lib/ui-redaction";
 
 type ExecutionIssuesSearchParams = Promise<
   Record<string, string | string[] | undefined>
@@ -52,7 +53,7 @@ export default async function ExecutionIssuesPage({
       headline: event.summary,
       detail:
         typeof event.payload.recoveryCommand === "string"
-          ? `Start the local dependency and retry: ${event.payload.recoveryCommand}`
+          ? `Start the local dependency and retry: ${redactLocalUiText(event.payload.recoveryCommand)}`
           : "A local runtime dependency is unavailable, so the autonomous path cannot continue yet.",
       meta: [
         typeof event.payload.dependency === "string" ? event.payload.dependency : "runtime",
@@ -79,10 +80,10 @@ export default async function ExecutionIssuesPage({
                 ? `Execution kernel retryable at ${kernelAvailability.baseUrl}.`
               : `Execution kernel degraded at ${kernelAvailability.baseUrl}.`,
             detail: [
-              kernelAvailability.detail,
-              kernelAvailability.recoveryHint,
+              redactLocalUiText(kernelAvailability.detail),
+              kernelAvailability.recoveryHint ? redactLocalUiText(kernelAvailability.recoveryHint) : null,
               kernelAvailability.latestFailure?.errorSummary
-                ? `Latest failure: ${kernelAvailability.latestFailure.errorSummary}`
+                ? `Latest failure: ${redactLocalUiText(kernelAvailability.latestFailure.errorSummary)}`
                 : null,
             ]
               .filter(Boolean)

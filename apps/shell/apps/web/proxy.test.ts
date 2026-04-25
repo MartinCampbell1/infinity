@@ -19,19 +19,27 @@ function nextRequest(
   init: {
     method?: string;
     token?: string;
+    cookie?: string;
     origin?: string;
     requestMethod?: string;
+    secFetchSite?: string;
   } = {},
 ) {
   const headers = new Headers();
   if (init.token) {
     headers.set("authorization", `Bearer ${init.token}`);
   }
+  if (init.cookie) {
+    headers.set("cookie", init.cookie);
+  }
   if (init.origin) {
     headers.set("origin", init.origin);
   }
   if (init.requestMethod) {
     headers.set("access-control-request-method", init.requestMethod);
+  }
+  if (init.secFetchSite) {
+    headers.set("sec-fetch-site", init.secFetchSite);
   }
 
   return new NextRequest(`http://localhost${pathname}`, {
@@ -107,6 +115,44 @@ describe("privileged API proxy auth gate", () => {
     expect(response.headers.get("access-control-allow-methods")).toContain(
       "DELETE",
     );
+  });
+
+  test("rejects disallowed cross-origin privileged requests before auth", async () => {
+    process.env[REQUIRE_CONTROL_PLANE_AUTH_ENV_KEY] = "1";
+    process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY] = "operator-secret";
+    process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY] = "service-secret";
+
+    const response = proxy(
+      nextRequest("/api/control/orchestration/batches", {
+        method: "POST",
+        origin: "https://evil.example",
+        token: "operator-secret",
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("access-control-allow-origin")).toBeNull();
+    expect(body.detail).toContain("Cross-origin access");
+  });
+
+  test("rejects cross-site browser mutations without relying on cookies", async () => {
+    process.env[REQUIRE_CONTROL_PLANE_AUTH_ENV_KEY] = "1";
+    process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY] = "operator-secret";
+    process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY] = "service-secret";
+
+    const response = proxy(
+      nextRequest("/api/control/orchestration/batches", {
+        method: "POST",
+        cookie: "founderos_control_plane_operator_token=operator-secret",
+        secFetchSite: "cross-site",
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("access-control-allow-origin")).toBeNull();
+    expect(body.detail).toContain("Cross-origin access");
   });
 
   test("rejects service bearer requests on operator-only routes", async () => {

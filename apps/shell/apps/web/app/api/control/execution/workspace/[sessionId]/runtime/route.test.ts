@@ -17,8 +17,20 @@ import {
   DEPLOYMENT_ENV_KEY,
   EXECUTION_KERNEL_BASE_URL_ENV_KEY,
   EXECUTION_KERNEL_SERVICE_AUTH_SECRET_ENV_KEY,
+  EXTERNAL_DELIVERY_MODE_ENV_KEY,
+  GITHUB_BASE_BRANCH_ENV_KEY,
+  GITHUB_REPOSITORY_ENV_KEY,
+  GITHUB_TOKEN_ENV_KEY,
+  ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY,
+  ARTIFACT_SIGNED_URL_BASE_ENV_KEY,
+  ARTIFACT_SIGNING_SECRET_ENV_KEY,
+  ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY,
+  ARTIFACT_STORE_MODE_ENV_KEY,
   PRIVILEGED_API_ALLOWED_ORIGINS_ENV_KEY,
   STRICT_ROLLOUT_ENV_KEY,
+  VERCEL_GIT_REPO_ID_ENV_KEY,
+  VERCEL_PROJECT_ID_ENV_KEY,
+  VERCEL_TOKEN_ENV_KEY,
   WORKSPACE_LAUNCH_SECRET_ENV_KEY,
   WORKSPACE_SESSION_GRANT_SECRET_ENV_KEY,
   WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY,
@@ -92,6 +104,20 @@ function configureProductionControlPlaneEnv() {
   process.env[WORKSPACE_SESSION_TOKEN_SECRET_ENV_KEY] = "session-secret";
   process.env[CONTROL_PLANE_OPERATOR_TOKEN_ENV_KEY] = "operator-secret";
   process.env[CONTROL_PLANE_SERVICE_TOKEN_ENV_KEY] = "service-secret";
+  process.env[ARTIFACT_STORE_MODE_ENV_KEY] = "r2";
+  process.env[ARTIFACT_STORAGE_URI_PREFIX_ENV_KEY] =
+    "r2://infinity-artifacts/prod";
+  process.env[ARTIFACT_SIGNED_URL_BASE_ENV_KEY] =
+    "https://artifacts.infinity.example/download";
+  process.env[ARTIFACT_SIGNING_SECRET_ENV_KEY] = "artifact-secret";
+  process.env[ARTIFACT_OBJECT_MIRROR_ROOT_ENV_KEY] = "/mnt/infinity-artifacts";
+  process.env[EXTERNAL_DELIVERY_MODE_ENV_KEY] = "github_vercel";
+  process.env[GITHUB_TOKEN_ENV_KEY] = "github-token";
+  process.env[GITHUB_REPOSITORY_ENV_KEY] = "founderos/infinity";
+  process.env[GITHUB_BASE_BRANCH_ENV_KEY] = "main";
+  process.env[VERCEL_TOKEN_ENV_KEY] = "vercel-token";
+  process.env[VERCEL_PROJECT_ID_ENV_KEY] = "vercel-project";
+  process.env[VERCEL_GIT_REPO_ID_ENV_KEY] = "vercel-repo";
 }
 
 describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
@@ -467,5 +493,83 @@ describe("/api/control/execution/workspace/[sessionId]/runtime", () => {
 
     expect(response.status).toBe(400);
     expect(body.detail).toContain("must match body.hostContext.sessionId");
+  });
+
+  test("rejects anonymous runtime mutations even with a valid body", async () => {
+    const response = await postWorkspaceRuntimeIngest(
+      new Request(
+        "http://localhost/api/control/execution/workspace/session-2026-04-11-001/runtime",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            hostContext: {
+              projectId: "project-atlas",
+              projectName: "Atlas Launch",
+              sessionId: "session-2026-04-11-001",
+              groupId: "group-ops-01",
+              accountId: "account-chatgpt-01",
+              workspaceId: "workspace-atlas-main",
+              openedFrom: "execution_board",
+            },
+            message: {
+              type: "workspace.tool.started",
+              payload: {
+                toolName: "planner",
+                eventId: "event-anonymous",
+              },
+            },
+          }),
+        }
+      ),
+      { params: Promise.resolve({ sessionId: "session-2026-04-11-001" }) }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({
+      code: "missing_actor",
+      detail: "Workspace runtime ingest requires an authenticated actor.",
+    });
+  });
+
+  test("rejects malicious runtime bridge payload shapes before persistence", async () => {
+    const response = await postWorkspaceRuntimeIngest(
+      new Request(
+        "http://localhost/api/control/execution/workspace/session-2026-04-11-001/runtime",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...WORKSPACE_RUNTIME_ACTOR_HEADERS,
+          },
+          body: JSON.stringify({
+            hostContext: {
+              projectId: "project-atlas",
+              projectName: "Atlas Launch",
+              sessionId: "session-2026-04-11-001",
+              groupId: "group-ops-01",
+              accountId: "account-chatgpt-01",
+              workspaceId: "workspace-atlas-main",
+              openedFrom: "execution_board",
+            },
+            message: {
+              type: "workspace.tool.completed",
+              payload: {
+                toolName: "planner",
+                eventId: "event-malicious",
+                status: "scripted",
+              },
+            },
+          }),
+        }
+      ),
+      { params: Promise.resolve({ sessionId: "session-2026-04-11-001" }) }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.detail).toContain("supported workspace or host bridge message");
+    expect(existsSync(getControlPlaneStatePath())).toBe(false);
   });
 });

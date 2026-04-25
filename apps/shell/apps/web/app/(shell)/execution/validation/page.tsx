@@ -7,7 +7,10 @@ import {
 } from "@/lib/route-scope";
 import { readControlPlaneState } from "@/lib/server/control-plane/state/store";
 import { isStrictRolloutEnv } from "@/lib/server/control-plane/workspace/rollout-config";
-import { isDeliveryHandoffReady } from "../../../../lib/delivery-readiness";
+import {
+  isDeliveryPrimaryHandoffReady,
+  resolveDeliveryReadinessCopy,
+} from "../../../../lib/delivery-readiness";
 import { listDeliveries } from "@/lib/server/orchestration/delivery";
 
 type ExecutionValidationSearchParams = Promise<
@@ -44,24 +47,28 @@ export default async function ExecutionValidationPage({
       const proof = run ? proofByRunId.get(run.id) : null;
       const delivery = deliveryByVerificationId.get(verification.id) ?? null;
       const deliveryHandoffReady = delivery
-        ? isDeliveryHandoffReady(delivery, { strictRolloutEnv })
+        ? isDeliveryPrimaryHandoffReady(delivery, { strictRolloutEnv })
         : false;
-      const deliveryTierLabel =
-        delivery?.readinessTier === "production"
-          ? "Production"
-          : delivery?.readinessTier === "staging"
-            ? "Staging"
-            : "Local solo";
+      const readiness = delivery
+        ? resolveDeliveryReadinessCopy(delivery, { strictRolloutEnv })
+        : null;
       return {
         id: verification.id,
         headline: `Verification ${verification.overallStatus}`,
         detail: proof?.eventTimelinePath ?? "Validation proof will be attached after handoff.",
         meta: [
           `checks ${verification.checks.length}`,
-          proof?.previewReady ? "preview ready · Local solo" : null,
-          proof?.launchReady && deliveryHandoffReady ? `launch ready · ${deliveryTierLabel}` : null,
+          proof?.previewReady
+            ? `preview proof · ${readiness?.badgeLabel ?? "Missing proof"}`
+            : null,
+          proof?.launchReady && readiness && !deliveryHandoffReady
+            ? `${readiness.badgeLabel} · ${readiness.missingProofItems.length} proof gates missing`
+            : null,
+          proof?.launchReady && deliveryHandoffReady
+            ? `launch proof · ${readiness?.badgeLabel ?? "Missing proof"}`
+            : null,
           proof?.handoffReady && deliveryHandoffReady
-            ? `handoff packet ready · ${deliveryTierLabel}`
+            ? `handoff packet ready · ${readiness?.badgeLabel ?? "Missing proof"}`
             : null,
         ],
         href: run

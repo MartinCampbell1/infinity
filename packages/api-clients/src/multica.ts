@@ -29,6 +29,24 @@ export type ExecutionKernelServiceAuthOptions = {
   now?: () => Date;
 };
 
+export class ExecutionKernelRequestError extends Error {
+  readonly status: number;
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    super(detail);
+    this.name = "ExecutionKernelRequestError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+export function isExecutionKernelRequestError(
+  error: unknown
+): error is ExecutionKernelRequestError {
+  return error instanceof ExecutionKernelRequestError;
+}
+
 function normalizeBaseUrl(baseUrl: string) {
   return baseUrl.replace(/\/$/, "");
 }
@@ -122,7 +140,7 @@ async function requestKernel<T>(
       payload && typeof payload.detail === "string"
         ? payload.detail
         : `Execution kernel request failed: ${response.status}`;
-    throw new Error(detail);
+    throw new ExecutionKernelRequestError(response.status, detail);
   }
 
   return payload as T;
