@@ -1,0 +1,12 @@
+{
+  "deliveryId": "delivery-smoke-1777075389147",
+  "initiativeId": "initiative-delivery-smoke-1777075389147",
+  "assemblyId": "assembly-delivery-smoke-1777075389147",
+  "verificationRunId": "verification-delivery-smoke-1777075389147",
+  "artifactStorageUri": "vercel-blob://infinity-artifacts-staging-web/live-smoke/delivery-smoke-1777075389147",
+  "signedManifestUri": "https://infinity-hjjivsozt-ls-projects-adb8778b.vercel.app/api/control/orchestration/artifacts/download?key=live-smoke%2Fdelivery-smoke-1777075389147%2Fsigned-artifact-manifest.json&sha256=fabb305d718984b53fcded467f329c3082ff7d92822a7167b11f497f34835324&expires=2026-04-25T01%3A03%3A11.093Z&signature=d92cf324021dc371d81c935ed47aec36c53a4c56d5e0e865fb37b493e3986304",
+  "deliveryManifestUri": "vercel-blob://infinity-artifacts-staging-web/live-smoke/delivery-smoke-1777075389147/runnable-result.json",
+  "launchManifestUri": "vercel-blob://infinity-artifacts-staging-web/live-smoke/delivery-smoke-1777075389147/runnable-result.json",
+  "hostedPreviewPath": "apps/shell/apps/web/public/deliveries/delivery-smoke-1777075389147/index.html",
+  "hostedPreviewUrlPath": "/deliveries/delivery-smoke-1777075389147/index.html"
+}
