@@ -124,8 +124,12 @@
 		justify-content: space-between;
 		gap: var(--space-6);
 		padding: var(--space-5) var(--space-6);
-		border-bottom: 1px solid rgb(255 255 255 / 0.08);
-		background: linear-gradient(180deg, rgb(15 23 42 / 0.88), rgb(15 23 42 / 0.7));
+		border-bottom: 1px solid var(--founderos-workspace-border);
+		background: linear-gradient(
+			180deg,
+			var(--founderos-workspace-glass),
+			var(--founderos-workspace-panel-bg)
+		);
 		backdrop-filter: blur(10px);
 		position: sticky;
 		top: 0;
@@ -151,7 +155,7 @@
 		font-size: var(--font-size-small);
 		line-height: 1.2rem;
 		font-weight: 600;
-		color: rgb(248 250 252 / 0.96);
+		color: var(--founderos-workspace-fg);
 	}
 
 	.founderos-work-banner__session {
@@ -159,11 +163,11 @@
 		align-items: center;
 		padding: 2px var(--space-2);
 		border-radius: var(--radius-pill);
-		border: 1px solid rgb(255 255 255 / 0.08);
-		background: rgb(255 255 255 / 0.06);
+		border: 1px solid var(--founderos-workspace-border);
+		background: var(--founderos-workspace-subtle);
 		font-size: var(--font-size-micro);
 		line-height: 1rem;
-		color: rgb(226 232 240 / 0.78);
+		color: var(--founderos-workspace-muted);
 	}
 
 	.founderos-work-banner__pills {
@@ -179,11 +183,11 @@
 		gap: var(--space-1);
 		padding: 2px var(--space-3);
 		border-radius: var(--radius-pill);
-		border: 1px solid rgb(255 255 255 / 0.08);
-		background: rgb(255 255 255 / 0.06);
+		border: 1px solid var(--founderos-workspace-border);
+		background: var(--founderos-workspace-subtle);
 		font-size: var(--font-size-micro);
 		line-height: 1rem;
-		color: rgb(226 232 240 / 0.78);
+		color: var(--founderos-workspace-muted);
 	}
 
 	.founderos-pill--quota[data-pressure='medium'] {
@@ -206,20 +210,20 @@
 		justify-content: center;
 		padding: var(--space-2) var(--space-5);
 		border-radius: var(--radius-pill);
-		border: 1px solid rgb(255 255 255 / 0.12);
-		background: rgb(255 255 255 / 0.06);
+		border: 1px solid var(--founderos-workspace-border-strong);
+		background: var(--founderos-workspace-subtle);
 		font-size: var(--font-size-mini);
 		line-height: 1rem;
 		font-weight: 600;
-		color: rgb(226 232 240 / 0.92);
+		color: var(--founderos-workspace-fg);
 		text-decoration: none;
 		transition: background-color var(--transition-fade), border-color var(--transition-fade),
 			color var(--transition-fade);
 	}
 
 	.founderos-work-banner__action:hover {
-		background: rgb(255 255 255 / 0.12);
-		border-color: rgb(255 255 255 / 0.24);
+		background: var(--founderos-workspace-hover);
+		border-color: var(--founderos-workspace-accent-border);
 	}
 
 	.monospace {

@@ -23,6 +23,10 @@ for (const token of [
   "--space-5",
   "--space-6",
   "--radius-pill",
+  "--founderos-density-control-lg",
+  "--founderos-density-icon-sm",
+  "--founderos-density-icon-md",
+  "--founderos-density-icon-lg",
   "--status-pending-bg",
   "--status-failed-bg",
 ]) {

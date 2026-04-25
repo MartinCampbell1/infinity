@@ -608,33 +608,33 @@
 	{#if $founderosLaunchContext.enabled && loaded && (founderosLaunchIntegrityState !== 'valid' || founderosLaunchBootstrapState === 'failed')}
 		<div class="app relative">
 		<div
-			class="bg-[#08101f] text-slate-100 h-screen max-h-[100dvh] flex items-center justify-center px-6"
+			class="founderos-workspace-root h-screen max-h-[100dvh] flex items-center justify-center px-6"
 			data-founderos-launch={$founderosLaunchContext.enabled ? '1' : '0'}
 			data-founderos-embedded={embeddedMode ? '1' : '0'}
 		>
-			<div class="max-w-lg rounded-3xl border border-white/8 bg-slate-900/80 p-6 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
-				<div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+			<div class="founderos-launch-panel max-w-lg rounded-3xl p-6">
+				<div class="founderos-launch-eyebrow text-xs font-semibold uppercase tracking-[0.18em]">
 					FounderOS Launch
 				</div>
-				<h1 class="mt-3 text-2xl font-semibold tracking-tight text-slate-50">
+				<h1 class="founderos-launch-title mt-3 text-2xl font-semibold tracking-tight">
 					Workspace launch could not be verified
 				</h1>
-					<p class="mt-3 text-sm leading-6 text-slate-300">
+					<p class="founderos-launch-copy mt-3 text-sm leading-6">
 						{founderosLaunchBootstrapMessage ??
 							founderosLaunchIntegrityMessage ??
 							'The shell-issued session token is missing, invalid, or expired.'}
 					</p>
-					<div class="mt-5 grid gap-3 text-xs text-slate-400">
+					<div class="founderos-launch-details mt-5 grid gap-3 text-xs">
 					<div>
-						<span class="font-medium text-slate-200">session</span>:
+						<span class="founderos-launch-detail-label font-medium">session</span>:
 						{$founderosLaunchContext.sessionId ?? 'n/a'}
 					</div>
 						<div>
-							<span class="font-medium text-slate-200">state</span>:
+							<span class="founderos-launch-detail-label font-medium">state</span>:
 							{founderosLaunchIntegrityState}
 						</div>
 						<div>
-							<span class="font-medium text-slate-200">bootstrap</span>:
+							<span class="founderos-launch-detail-label font-medium">bootstrap</span>:
 							{founderosLaunchBootstrapState}
 						</div>
 					</div>
@@ -644,7 +644,7 @@
 {:else if $user}
 	<div class="app relative">
 		<div
-			class=" text-slate-100 bg-[#08101f] h-screen max-h-[100dvh] overflow-auto flex flex-row justify-end"
+			class="founderos-workspace-root h-screen max-h-[100dvh] overflow-auto flex flex-row justify-end"
 			data-founderos-launch={$founderosLaunchContext.enabled ? '1' : '0'}
 			data-founderos-embedded={embeddedMode ? '1' : '0'}
 		>
@@ -746,3 +746,30 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	.founderos-workspace-root {
+		background: var(--founderos-workspace-bg);
+		color: var(--founderos-workspace-fg);
+	}
+
+	.founderos-launch-panel {
+		border: 1px solid var(--founderos-workspace-border);
+		background: var(--founderos-workspace-panel-bg);
+		box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+	}
+
+	.founderos-launch-eyebrow,
+	.founderos-launch-details {
+		color: var(--founderos-workspace-muted);
+	}
+
+	.founderos-launch-title,
+	.founderos-launch-detail-label {
+		color: var(--founderos-workspace-fg);
+	}
+
+	.founderos-launch-copy {
+		color: var(--founderos-workspace-muted);
+	}
+</style>

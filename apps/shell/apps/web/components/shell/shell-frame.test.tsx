@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
@@ -29,7 +30,18 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-import { SHELL_SHORTCUT_SECTIONS, ShellFrame, ShellShortcutHelpDialog } from "./shell-frame";
+import {
+  SHELL_HELP_LINKS,
+  SHELL_SHORTCUT_SECTIONS,
+  ShellFrame,
+  ShellShortcutHelpDialog,
+} from "./shell-frame";
+
+const shellGlobals = readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8");
+const sharedTokens = readFileSync(
+  new URL("../../../../../../packages/ui/src/styles/tokens.css", import.meta.url),
+  "utf8",
+);
 
 describe("ShellFrame navigation", () => {
   test("uses a product-facing root breadcrumb aligned with the run control plane nav", () => {
@@ -104,6 +116,11 @@ describe("ShellFrame navigation", () => {
     expect(markup).toContain("Open approvals");
     expect(markup).toContain("Open validation");
     expect(markup).toContain("Start a new run");
+    expect(markup).toContain("Operator help");
+    expect(markup).toContain("Operator glossary");
+    expect(markup).toContain("Known limitations");
+    expect(markup).toContain('href="/execution/help/glossary"');
+    expect(markup).toContain('href="/execution/help/known-limitations"');
     expect(SHELL_SHORTCUT_SECTIONS.flatMap((section) => section.items).map((item) => item.label))
       .toEqual(
         expect.arrayContaining([
@@ -116,6 +133,18 @@ describe("ShellFrame navigation", () => {
           "Open validation",
         ]),
       );
+    expect(SHELL_HELP_LINKS).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Operator glossary",
+          href: "/execution/help/glossary",
+        }),
+        expect.objectContaining({
+          label: "Known limitations",
+          href: "/execution/help/known-limitations",
+        }),
+      ]),
+    );
   });
 
   test("wires the topbar search affordance to the shortcut dialog", () => {
@@ -132,5 +161,27 @@ describe("ShellFrame navigation", () => {
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain("Search runs, tasks, agents...");
     expect(markup).toContain("⌘K");
+  });
+
+  test("uses compact shared density classes for topbar icon controls", () => {
+    mockUsePathname.mockReturnValue("/execution/runs");
+
+    const markup = renderToStaticMarkup(
+      <ShellFrame>
+        <main>Runs board</main>
+      </ShellFrame>,
+    );
+
+    expect(sharedTokens).toContain("--founderos-density-control-lg");
+    expect(sharedTokens).toContain("--founderos-density-icon-md");
+    expect(shellGlobals).toContain(".shell-topbar-icon-button");
+    expect(shellGlobals).toContain("height: var(--founderos-density-control-lg)");
+    expect(shellGlobals).toContain(".shell-icon-md");
+    expect(markup).toContain("shell-topbar-brand-button");
+    expect(markup).toContain("shell-topbar-icon-button");
+    expect(markup).toContain("shell-topbar-action-button");
+    expect(markup).toContain("shell-icon-md");
+    expect(markup).not.toContain("inline-flex h-10 w-10");
+    expect(markup).not.toContain("inline-flex h-10 items-center gap-2");
   });
 });

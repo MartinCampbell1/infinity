@@ -59,6 +59,25 @@ type ShellShortcutSection = {
   items: ShellShortcutItem[];
 };
 
+type ShellHelpLink = {
+  label: string;
+  detail: string;
+  href: string;
+};
+
+export const SHELL_HELP_LINKS: ShellHelpLink[] = [
+  {
+    label: "Operator glossary",
+    detail: "Run, task, attempt, and delivery terms.",
+    href: "/execution/help/glossary",
+  },
+  {
+    label: "Known limitations",
+    detail: "Local, staging, and production readiness limits.",
+    href: "/execution/help/known-limitations",
+  },
+];
+
 const CONTROL_PLANE_ITEMS: ShellNavItem[] = [
   {
     label: "New run",
@@ -335,6 +354,29 @@ export function ShellShortcutHelpDialog({
               </div>
             </div>
           ))}
+          <div className="md:col-span-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)]">
+              Operator help
+            </div>
+            <div className="mt-3 divide-y divide-white/7 rounded-[12px] border border-[color:var(--shell-control-border)] bg-white/[0.025]">
+              {SHELL_HELP_LINKS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-3 py-3 text-left transition hover:bg-[color:var(--shell-control-hover)]"
+                  onClick={onClose}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-medium text-foreground">{item.label}</span>
+                    <span className="mt-1 block text-[12px] leading-5 text-[var(--shell-sidebar-muted)]">
+                      {item.detail}
+                    </span>
+                  </span>
+                  <BookOpenText className="mt-0.5 h-4 w-4 text-[var(--shell-sidebar-muted)]" />
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
     </div>
@@ -491,6 +533,24 @@ function pageMeta(pathname: string) {
       title: "Event timeline",
       description:
         "Append-only autonomous run events, stage transitions, and delivery milestones emitted by the shell.",
+    };
+  }
+
+  if (pathname.startsWith("/execution/help/glossary")) {
+    return {
+      eyebrow: "Execution / Help / Glossary",
+      title: "Operator glossary",
+      description:
+        "Plain-language run, task, attempt, and delivery terms for shell operators.",
+    };
+  }
+
+  if (pathname.startsWith("/execution/help/known-limitations")) {
+    return {
+      eyebrow: "Execution / Help / Limitations",
+      title: "Known limitations",
+      description:
+        "Local, staging, and production readiness limits for honest operator decisions.",
     };
   }
 
@@ -1149,7 +1209,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                     <div className="flex items-center gap-3">
                       <Link
                         href="/"
-                        className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/85 text-[16px] font-medium text-white"
+                        className="shell-topbar-brand-button text-[16px] font-medium"
                         aria-label="New run"
                         title="New run"
                       >
@@ -1157,19 +1217,19 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                       </Link>
                       <div className="flex items-center gap-2 text-[16px] font-medium tracking-[-0.02em] text-foreground">
                         infinity
-                        <ChevronDown className="h-4 w-4 text-[var(--shell-sidebar-muted)]" />
+                        <ChevronDown className="shell-icon-md text-[var(--shell-sidebar-muted)]" />
                       </div>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
                       <div className="md:hidden">
                         <div className="shell-rail-brand">
-                          <PanelLeft className="h-4 w-4" />
+                          <PanelLeft className="shell-icon-md" />
                         </div>
                       </div>
                       <Link
                         href="/"
-                        className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/85 text-[16px] font-medium text-white"
+                        className="shell-topbar-brand-button text-[16px] font-medium"
                         aria-label="New run"
                         title="New run"
                       >
@@ -1185,7 +1245,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                               {part.trim()}
                             </span>
                             {index < parts.length - 1 ? (
-                              <ChevronDown className="h-4 w-4 rotate-[-90deg] text-[var(--shell-sidebar-muted)]" />
+                              <ChevronDown className="shell-icon-md rotate-[-90deg] text-[var(--shell-sidebar-muted)]" />
                             ) : null}
                           </span>
                         ))}
@@ -1202,7 +1262,7 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                   aria-controls="shell-shortcuts-dialog"
                   aria-expanded={shortcutHelpOpen}
                 >
-                  <Search className="h-3.5 w-3.5" />
+                  <Search className="shell-icon-sm" />
                   <span className="flex-1 text-left">Search runs, tasks, agents...</span>
                   <span className="shell-search-shortcut">⌘K</span>
                 </button>
@@ -1211,27 +1271,27 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                   <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
                     {isRootFrontdoor ? (
                       <button type="button" className="shell-topbar-pill">
-                        <Sparkles className="h-3.5 w-3.5" />
+                        <Sparkles className="shell-icon-sm" />
                         Get Started
                       </button>
                     ) : null}
                     <button
                       type="button"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+                      className="shell-topbar-icon-button"
                     >
-                      <Bell className="h-4 w-4" />
+                      <Bell className="shell-icon-md" />
                     </button>
                     <button
                       type="button"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+                      className="shell-topbar-icon-button"
                     >
-                      <LifeBuoy className="h-4 w-4" />
+                      <LifeBuoy className="shell-icon-md" />
                     </button>
                     <button
                       type="button"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/85 text-white"
+                      className="shell-topbar-icon-button shell-topbar-icon-button--accent"
                     >
-                      <UserCircle2 className="h-5 w-5" />
+                      <UserCircle2 className="shell-icon-lg" />
                     </button>
                   </div>
                 ) : (
@@ -1240,30 +1300,30 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                       <>
                         <button
                           type="button"
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--muted-foreground)]"
+                          className="shell-topbar-icon-button text-[var(--muted-foreground)]"
                         >
-                          <Sparkles className="h-3.5 w-3.5" />
+                          <Sparkles className="shell-icon-sm" />
                         </button>
                         <button
                           type="button"
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+                          className="shell-topbar-icon-button"
                         >
-                          <Bell className="h-4 w-4" />
+                          <Bell className="shell-icon-md" />
                         </button>
                         <button
                           type="button"
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+                          className="shell-topbar-icon-button"
                         >
-                          <LifeBuoy className="h-4 w-4" />
+                          <LifeBuoy className="shell-icon-md" />
                         </button>
                       </>
                     ) : null}
                     {currentTopbarMode !== "frontdoor" ? (
                       <Link
                         href="/"
-                        className="inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4 text-[13px] text-white/78"
+                        className="shell-topbar-action-button"
                       >
-                        <PencilLine className="h-4 w-4" />
+                        <PencilLine className="shell-icon-md" />
                         New run
                         </Link>
                     ) : null}
@@ -1271,16 +1331,16 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                       <>
                         <button
                           type="button"
-                          className="inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4 text-[13px] text-white/72"
+                          className="shell-topbar-action-button"
                         >
-                          <Pause className="h-4 w-4" />
+                          <Pause className="shell-icon-md" />
                           Pause
                         </button>
                         <button
                           type="button"
-                          className="inline-flex h-10 items-center gap-2 rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] px-4 text-[13px] text-white/72"
+                          className="shell-topbar-action-button"
                         >
-                          <TimerReset className="h-4 w-4" />
+                          <TimerReset className="shell-icon-md" />
                           Recover
                         </button>
                       </>
@@ -1288,20 +1348,20 @@ export function ShellFrame({ children }: { children: ReactNode }) {
                     {currentTopbarMode === "delivery" ? (
                       <button
                         type="button"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+                        className="shell-topbar-icon-button"
                       />
                     ) : null}
                     {currentTopbarMode === "frontdoor" ? (
                       <button
                         type="button"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/85 text-white"
+                        className="shell-topbar-icon-button shell-topbar-icon-button--accent"
                       >
-                        <UserCircle2 className="h-5 w-5" />
+                        <UserCircle2 className="shell-icon-lg" />
                       </button>
                     ) : (
                       <button
                         type="button"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--shell-control-border)] bg-[color:var(--shell-control-bg)] text-[var(--shell-sidebar-muted)]"
+                        className="shell-topbar-icon-button"
                       />
                     )}
                   </div>

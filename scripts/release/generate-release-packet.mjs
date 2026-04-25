@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_OUTPUT_ROOT = "handoff-packets/release";
+const MANUAL_QA_CHECKLIST_PATH = "docs/qa/manual-screenshot-checklist.md";
 const REDACTED_QUERY_PARAMS = new Set([
   "access_token",
   "auth_token",
@@ -155,6 +156,29 @@ export function collectScreenshotEntries(screenshotManifest) {
     }));
 }
 
+export function collectManualQaChecklist(repoRoot, screenshotManifest) {
+  const requiredDesktop = Array.isArray(screenshotManifest.required_desktop)
+    ? screenshotManifest.required_desktop
+    : [];
+  const requiredFailure = Array.isArray(screenshotManifest.required_failure)
+    ? screenshotManifest.required_failure
+    : [];
+  const requiredStandalone = Array.isArray(screenshotManifest.required_standalone)
+    ? screenshotManifest.required_standalone
+    : [];
+
+  return {
+    label: "manual-screenshot-checklist",
+    path: path.resolve(repoRoot, MANUAL_QA_CHECKLIST_PATH),
+    sourceManifest: path.resolve(repoRoot, "docs/validation/screenshot-pack.json"),
+    requiredDesktop,
+    requiredFailure,
+    requiredStandalone,
+    requiredTotal:
+      requiredDesktop.length + requiredFailure.length + requiredStandalone.length,
+  };
+}
+
 export function gitValue(args, cwd) {
   const result = spawnSync("git", args, {
     cwd,
@@ -186,10 +210,12 @@ export function buildReleasePacket({
   validationDir,
   functionalReport,
   screenshotManifest,
+  manualQaManifest = screenshotManifest,
   git,
 }) {
   const checks = summarizeValidationChecks(functionalReport);
   const screenshots = collectScreenshotEntries(screenshotManifest);
+  const manualQaChecklist = collectManualQaChecklist(repoRoot, manualQaManifest);
   const artifacts = collectArtifactEntries(validationDir, functionalReport);
   const failedChecks = checks.filter((check) => check.status !== "passed");
 
@@ -214,6 +240,7 @@ export function buildReleasePacket({
     },
     artifacts,
     screenshots,
+    manualQaChecklist,
   };
 }
 
@@ -269,6 +296,14 @@ export function renderReleasePacketMarkdown(packet) {
     lines.push(`- ${screenshot.screen_id}${scenario}: \`${screenshot.path}\`${url}`);
   }
 
+  lines.push("", "## Manual QA Checklist", "");
+  lines.push(`- checklist: \`${packet.manualQaChecklist.path}\``);
+  lines.push(`- source manifest: \`${packet.manualQaChecklist.sourceManifest}\``);
+  lines.push(`- required screenshots: \`${packet.manualQaChecklist.requiredTotal}\``);
+  lines.push(
+    `- desktop: \`${packet.manualQaChecklist.requiredDesktop.length}\`; failure: \`${packet.manualQaChecklist.requiredFailure.length}\`; standalone: \`${packet.manualQaChecklist.requiredStandalone.length}\``
+  );
+
   lines.push("");
   return `${lines.join("\n")}\n`;
 }
@@ -287,6 +322,9 @@ export function validateReleasePacket(packet) {
   if (packet.screenshots.length <= 0) {
     missing.push("screenshots");
   }
+  if (!packet.manualQaChecklist?.path || packet.manualQaChecklist.requiredTotal <= 0) {
+    missing.push("manual QA checklist");
+  }
   if (missing.length > 0) {
     throw new Error(`Release packet is missing required evidence: ${missing.join(", ")}`);
   }
@@ -295,12 +333,14 @@ export function validateReleasePacket(packet) {
 export async function writeReleasePacket({ repoRoot, validationDir, outputDir, generatedAt }) {
   const functionalReport = await readJson(path.join(validationDir, "functional-report.json"));
   const screenshotManifest = await readJson(path.join(validationDir, "screenshot-manifest.json"));
+  const manualQaManifest = await readJson(path.join(repoRoot, "docs", "validation", "screenshot-pack.json"));
   const packet = buildReleasePacket({
     generatedAt,
     repoRoot,
     validationDir: path.resolve(validationDir),
     functionalReport,
     screenshotManifest,
+    manualQaManifest,
     git: collectGitMetadata(repoRoot),
   });
   validateReleasePacket(packet);

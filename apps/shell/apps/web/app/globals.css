@@ -2,40 +2,40 @@
 
 :root {
   color-scheme: dark;
-  --background: #131313;
-  --foreground: #edf0f3;
-  --card: #1b1b1b;
+  --background: var(--founderos-shell-content-bg);
+  --foreground: var(--founderos-workspace-fg);
+  --card: var(--founderos-shell-card-bg);
   --card-foreground: #edf2f7;
   --popover: #121821;
   --popover-foreground: #edf2f7;
-  --primary: #85a9ff;
-  --primary-foreground: #08111f;
+  --primary: var(--founderos-primary);
+  --primary-foreground: var(--founderos-primary-foreground);
   --secondary: #1c1c1c;
   --secondary-foreground: #dbe4f0;
-  --muted: #181818;
-  --muted-foreground: #8f949b;
+  --muted: var(--founderos-shell-surface-bg);
+  --muted-foreground: var(--founderos-shell-muted);
   --accent: #1e1e1e;
   --accent-foreground: #edf2f7;
-  --border: rgba(255, 255, 255, 0.08);
+  --border: var(--founderos-shell-border);
   --input: rgba(255, 255, 255, 0.09);
-  --ring: rgba(133, 169, 255, 0.38);
+  --ring: var(--founderos-focus-ring);
   --shell-sidebar-width: 236px;
   --shell-icon-rail-width: 56px;
-  --shell-app-bg: #111111;
+  --shell-app-bg: var(--founderos-shell-bg);
   --shell-app-glow: rgba(255, 255, 255, 0.02);
-  --shell-sidebar-bg: #111111;
-  --shell-sidebar-border: rgba(255, 255, 255, 0.07);
+  --shell-sidebar-bg: var(--founderos-shell-bg);
+  --shell-sidebar-border: var(--founderos-shell-border-subtle);
   --shell-sidebar-muted: #7c8087;
-  --shell-topbar-bg: rgba(17, 17, 17, 0.94);
-  --shell-topbar-border: rgba(255, 255, 255, 0.07);
-  --shell-control-bg: rgba(255, 255, 255, 0.03);
-  --shell-control-border: rgba(255, 255, 255, 0.07);
-  --shell-control-hover: rgba(255, 255, 255, 0.045);
-  --shell-nav-active: rgba(255, 255, 255, 0.055);
-  --shell-nav-active-border: rgba(133, 169, 255, 0.24);
+  --shell-topbar-bg: var(--founderos-shell-topbar-bg);
+  --shell-topbar-border: var(--founderos-shell-border-subtle);
+  --shell-control-bg: var(--founderos-shell-control-bg);
+  --shell-control-border: var(--founderos-shell-border-subtle);
+  --shell-control-hover: var(--founderos-shell-control-hover);
+  --shell-nav-active: var(--founderos-shell-nav-active);
+  --shell-nav-active-border: var(--founderos-shell-active-border);
   --shell-panel-muted: rgba(255, 255, 255, 0.035);
-  --shell-surface-card: rgba(24, 24, 24, 0.96);
-  --shell-surface-elevated: rgba(20, 20, 20, 0.98);
+  --shell-surface-card: var(--founderos-workspace-panel-bg);
+  --shell-surface-elevated: var(--founderos-shell-surface-elevated);
   --shadow-card: none;
   --shadow-elevated: none;
   --shell-topbar-height: 56px;
@@ -404,6 +404,70 @@ iframe {
 .shell-topbar-pill {
   padding: 6px 10px;
   font-size: 10px;
+}
+
+.shell-topbar-brand-button,
+.shell-topbar-icon-button,
+.shell-topbar-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--founderos-density-control-lg);
+  border: 1px solid var(--shell-control-border);
+  background: var(--shell-control-bg);
+  color: var(--shell-sidebar-muted);
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.shell-topbar-brand-button,
+.shell-topbar-icon-button {
+  width: var(--founderos-density-control-lg);
+  border-radius: var(--radius-nav);
+}
+
+.shell-topbar-brand-button,
+.shell-topbar-icon-button--accent {
+  border-color: transparent;
+  background: rgba(14, 165, 233, 0.85);
+  color: #ffffff;
+}
+
+.shell-topbar-action-button {
+  gap: var(--founderos-density-chip-gap);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--founderos-density-toolbar-padding-x);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.shell-topbar-icon-button:hover,
+.shell-topbar-action-button:hover {
+  background: var(--shell-control-hover);
+  color: var(--foreground);
+}
+
+.shell-topbar-icon-button--accent:hover,
+.shell-topbar-brand-button:hover {
+  background: rgba(14, 165, 233, 0.95);
+  color: #ffffff;
+}
+
+.shell-icon-sm {
+  width: var(--founderos-density-icon-sm);
+  height: var(--founderos-density-icon-sm);
+}
+
+.shell-icon-md {
+  width: var(--founderos-density-icon-md);
+  height: var(--founderos-density-icon-md);
+}
+
+.shell-icon-lg {
+  width: var(--founderos-density-icon-lg);
+  height: var(--founderos-density-icon-lg);
 }
 
 .shell-topbar-action {

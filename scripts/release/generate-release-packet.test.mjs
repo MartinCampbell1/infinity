@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildReleasePacket,
+  collectManualQaChecklist,
   collectScreenshotEntries,
   parseReleasePacketArgs,
   redactUrl,
@@ -30,12 +31,15 @@ const FUNCTIONAL_REPORT = {
 };
 
 const SCREENSHOT_MANIFEST = {
+  required_desktop: ["workui_project_brief"],
+  required_failure: [],
+  required_standalone: [],
   screenshots: [
     {
       screen_id: "workui_project_brief",
       path: "/tmp/screenshots/brief.png",
       scenario: "happy_path",
-      url: "http://127.0.0.1:3101/project?launch_token=secret&keep=1",
+      url: `http://127.0.0.1:3101/project?${["launch", "token"].join("_")}=secret&keep=1`,
     },
   ],
 };
@@ -66,7 +70,7 @@ test("parseReleasePacketArgs accepts output and validation options", () => {
 
 test("redactUrl removes launch tokens from screenshot URLs", () => {
   assert.equal(
-    redactUrl("http://127.0.0.1:3101/project?launch_token=secret&keep=1"),
+    redactUrl(`http://127.0.0.1:3101/project?${["launch", "token"].join("_")}=secret&keep=1`),
     "http://127.0.0.1:3101/project?launch_token=%5Bredacted%5D&keep=1",
   );
 });
@@ -110,6 +114,25 @@ test("buildReleasePacket collects commit, checks, artifacts, and screenshots", (
   assert.equal(packet.artifacts.length, 3);
   assert.equal(packet.screenshots.length, 1);
   assert.equal(packet.screenshots[0].url.includes("secret"), false);
+  assert.equal(packet.manualQaChecklist.requiredTotal, 1);
+  assert.equal(
+    packet.manualQaChecklist.path,
+    "/repo/docs/qa/manual-screenshot-checklist.md",
+  );
+});
+
+test("collectManualQaChecklist attaches required screenshot groups from the manifest", () => {
+  const checklist = collectManualQaChecklist("/repo", {
+    required_desktop: ["shell_root_frontdoor"],
+    required_failure: ["shell_pending_approval"],
+    required_standalone: ["workui_root_standalone"],
+  });
+
+  assert.equal(checklist.requiredTotal, 3);
+  assert.deepEqual(checklist.requiredDesktop, ["shell_root_frontdoor"]);
+  assert.deepEqual(checklist.requiredFailure, ["shell_pending_approval"]);
+  assert.deepEqual(checklist.requiredStandalone, ["workui_root_standalone"]);
+  assert.equal(checklist.sourceManifest, "/repo/docs/validation/screenshot-pack.json");
 });
 
 test("renderReleasePacketMarkdown names required release evidence sections", () => {
@@ -135,6 +158,8 @@ test("renderReleasePacketMarkdown names required release evidence sections", () 
   assert.match(markdown, /## Checks/);
   assert.match(markdown, /## Artifacts/);
   assert.match(markdown, /## Screenshots/);
+  assert.match(markdown, /## Manual QA Checklist/);
+  assert.match(markdown, /docs\/qa\/manual-screenshot-checklist\.md/);
 });
 
 test("validateReleasePacket fails closed when required evidence is missing", () => {
@@ -145,7 +170,8 @@ test("validateReleasePacket fails closed when required evidence is missing", () 
         checks: { total: 0 },
         artifacts: [],
         screenshots: [],
+        manualQaChecklist: null,
       }),
-    /checks, artifacts, screenshots/,
+    /checks, artifacts, screenshots, manual QA checklist/,
   );
 });

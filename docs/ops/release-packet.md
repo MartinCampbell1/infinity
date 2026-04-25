@@ -30,6 +30,7 @@ Both files include:
 - repo/browser/critic/check statuses;
 - artifact paths from the validation packet;
 - screenshot manifest entries with sensitive token query parameters redacted.
+- the manual QA screenshot checklist path and required screenshot counts.
 
 ## CI
 
