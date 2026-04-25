@@ -6,7 +6,15 @@ const GLOSSARY_PATH = new URL("../../docs/operator-glossary.md", import.meta.url
 const glossary = readFileSync(GLOSSARY_PATH, "utf8");
 
 test("operator glossary defines the required P3-DOC-02 terms", () => {
-  for (const heading of ["## Run", "## Task", "## Attempt", "## Delivery"]) {
+  for (const heading of [
+    "## Run",
+    "## Task",
+    "## Attempt",
+    "## Delivery",
+    "## Readiness Tier",
+    "## Staging Topology",
+    "## External Proof Manifest",
+  ]) {
     assert.match(glossary, new RegExp(`^${heading}$`, "m"));
   }
 
@@ -20,6 +28,9 @@ test("operator glossary separates attempts from tasks and delivery from proof", 
   assert.match(glossary, /An attempt can fail while the task and run remain recoverable\./);
   assert.match(glossary, /The task is done only when its acceptance evidence is present\./);
   assert.match(glossary, /A delivery is not production-ready unless its proof matches the target environment\./);
+  assert.match(glossary, /`local_solo`, `staging`, or `production`/);
+  assert.match(glossary, /The tier should follow the strongest\s+proof actually attached to the delivery/);
+  assert.match(glossary, /It is the\s+evidence boundary for staging and production claims/);
 });
 
 test("operator glossary stays operator-facing and production-honest", () => {
@@ -27,4 +38,5 @@ test("operator glossary stays operator-facing and production-honest", () => {
   assert.doesNotMatch(glossary, /\bproduction-ready by default\b/i);
   assert.match(glossary, /Quick Decision Table/);
   assert.match(glossary, /Recovery can retry the same account, fail over to a fallback account/);
+  assert.match(glossary, /docs\/ops\/staging-topology\.md/);
 });

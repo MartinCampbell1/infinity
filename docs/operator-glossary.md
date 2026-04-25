@@ -66,6 +66,26 @@ A delivery is not production-ready unless its proof matches the target environme
 
 ## Related Terms
 
+## Readiness Tier
+
+A readiness tier is the trust level a delivery can honestly claim:
+`local_solo`, `staging`, or `production`. The tier should follow the strongest
+proof actually attached to the delivery, not the operator's desired wording.
+
+## Staging Topology
+
+A staging topology is the production-like hosted environment described in
+`docs/ops/staging-topology.md`. It requires non-local shell and work-ui origins,
+a private execution kernel, durable Postgres-backed state, non-local artifact
+storage, and a named secrets manager.
+
+## External Proof Manifest
+
+An external proof manifest records hosted delivery evidence such as a GitHub PR,
+hosted preview, CI result, signed manifest, and signed artifact URLs. It is the
+evidence boundary for staging and production claims, not a replacement for
+fresh verification on future releases.
+
 ## Brief
 
 A brief is the shell-authored interpretation of the operator request. It turns a
@@ -109,3 +129,6 @@ problem, or incomplete proof. Recovery can retry the same account, fail over to 
 | The final result record and proof | Delivery |
 | Planner dependency structure | Task graph |
 | Retry or failover path | Recovery |
+| Local, staging, or production trust level | Readiness tier |
+| Hosted production-like environment contract | Staging topology |
+| Hosted PR/preview/CI/artifact evidence | External proof manifest |
