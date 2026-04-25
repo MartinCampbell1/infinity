@@ -5,7 +5,9 @@
 - Step: `P3-DX-01. Agent task template library`
 - Source of truth: `/Users/martin/Downloads/infinity_full_audit_fix_plan_2026-04-24.md`
 - Acceptance criteria: templates for backend/frontend/QA agents committed.
-- Current pre-commit status: backend/frontend/QA templates are present in the dirty worktree, test-covered, and ready to commit.
+- Current post-commit status: backend/frontend/QA templates are committed in
+  the current branch history, test-covered, and covered by the independent
+  pre-commit critic gate below.
 - Repo boundary: all edits are inside `/Users/martin/infinity`; reference repos remain read-only.
 - Resource rule: no watchers, no dev servers, no browser/full-suite checks for this bounded DX/docs step.
 
@@ -35,9 +37,10 @@
 
 ## Acceptance Handling
 
-The audit wording says templates should be committed. This handoff is part of a
-pre-commit remediation batch, so the current gate proves the templates are
-present, test-covered, and ready to commit. The commit itself is still pending.
+The audit wording says templates should be committed. The independent critic
+gate below was intentionally run as a pre-commit implementation gate; after
+that gate passed, the P3 remediation batch was committed on
+`codex/p0-be-14-staging-smoke`.
 
 ## Verification Passed
 
@@ -102,7 +105,8 @@ Status: GO
 
 Scope checked:
 - `P3-DX-01. Agent task template library`
-- Acceptance bounded to template artifacts for backend/frontend/QA agents in the dirty worktree, plus supporting test/handoff evidence.
+- Acceptance bounded to template artifacts for backend/frontend/QA agents in the
+  then-dirty worktree, plus supporting test/handoff evidence.
 
 Done:
 - `docs/dx/agent-task-templates/README.md` exists and indexes backend/frontend/QA templates.
