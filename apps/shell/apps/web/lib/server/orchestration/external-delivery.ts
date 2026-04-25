@@ -59,6 +59,10 @@ function configuredExternalDeliveryMode() {
   return envValue("FOUNDEROS_EXTERNAL_DELIVERY_MODE")?.toLowerCase() ?? "";
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function isProductionLikeDeployment() {
   const deploymentEnv = envValue("FOUNDEROS_DEPLOYMENT_ENV")?.toLowerCase();
   return deploymentEnv === "production" || deploymentEnv === "staging";
@@ -629,7 +633,11 @@ async function publishVercelPreview(params: {
     }),
   });
   const attempts = Number.parseInt(
-    envValue("FOUNDEROS_VERCEL_DEPLOYMENT_POLL_ATTEMPTS") ?? "3",
+    envValue("FOUNDEROS_VERCEL_DEPLOYMENT_POLL_ATTEMPTS") ?? "60",
+    10,
+  );
+  const pollIntervalMs = Number.parseInt(
+    envValue("FOUNDEROS_VERCEL_DEPLOYMENT_POLL_INTERVAL_MS") ?? "5000",
     10,
   );
   let observed = created;
@@ -640,6 +648,9 @@ async function publishVercelPreview(params: {
     }
     if (state === "ERROR" || state === "CANCELED") {
       throw new Error(`Vercel preview deployment ${created.id} failed with state ${state}.`);
+    }
+    if (Number.isFinite(pollIntervalMs) && pollIntervalMs > 0) {
+      await delay(pollIntervalMs);
     }
     observed = await vercelRequest<typeof observed>(
       params.config,

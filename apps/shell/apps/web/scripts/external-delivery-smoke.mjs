@@ -254,7 +254,7 @@ const result = spawnSync(
     "run",
     "lib/server/orchestration/external-delivery.live.test.ts",
     "--testTimeout",
-    "120000",
+    "420000",
   ],
   {
     cwd: appRoot,

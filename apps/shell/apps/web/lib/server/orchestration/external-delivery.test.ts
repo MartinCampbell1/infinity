@@ -76,6 +76,7 @@ function configureGithubVercel() {
   process.env.FOUNDEROS_VERCEL_TOKEN = "vercel-token";
   process.env.FOUNDEROS_VERCEL_PROJECT_ID = "prj_founderos_infinity";
   process.env.FOUNDEROS_VERCEL_GIT_REPO_ID = "123456789";
+  process.env.FOUNDEROS_VERCEL_DEPLOYMENT_POLL_INTERVAL_MS = "0";
 }
 
 function configureGithubVercelWithTeamSlug() {
