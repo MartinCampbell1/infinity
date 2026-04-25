@@ -137,6 +137,7 @@ npm run docs:operator-glossary:test
 npm run docs:known-limitations:test
 npm run docs:security-model:test
 npm run docs:production-readiness:test
+npm run docs:staging-topology:test
 ```
 
 Validation commands:

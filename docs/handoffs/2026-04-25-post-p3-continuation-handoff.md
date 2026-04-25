@@ -3,17 +3,18 @@
 ## Current Branch State
 
 - Branch: `codex/p0-be-14-staging-smoke`
-- Last completed work commit before this docs-consistency refresh:
-  `9b70c6f docs: refresh post-p3 continuation handoff`
-- Remote delta before this docs-consistency refresh: branch was ahead of
-  `origin/codex/p0-be-14-staging-smoke` by 9 commits.
-- Remote delta after this docs-consistency refresh commit: branch is expected
-  to be ahead of `origin/codex/p0-be-14-staging-smoke` by 10 commits.
+- Last completed work commit before this staging-topology docs refresh:
+  `e410666 docs: clarify staging readiness tier`
+- Remote delta before this staging-topology docs refresh: branch was ahead of
+  `origin/codex/p0-be-14-staging-smoke` by 10 commits.
+- Remote delta after this staging-topology docs refresh commit: branch is
+  expected to be ahead of `origin/codex/p0-be-14-staging-smoke` by 11 commits.
 - Worktree status before this handoff refresh started: clean.
 
-## Completed Commits Since Remote Before This Docs-Consistency Refresh Commit
+## Completed Commits Since Remote Before This Staging-Topology Docs Refresh Commit
 
 ```text
+e410666 docs: clarify staging readiness tier
 9b70c6f docs: refresh post-p3 continuation handoff
 e1e6b5a docs: list focused documentation checks
 12c0429 docs: add post-p3 continuation handoff
@@ -25,8 +26,8 @@ a4bc139 chore: close p3 remediation batch
 9d73a3b chore: save audit remediation checkpoint
 ```
 
-After this docs-consistency refresh is committed, that new commit should be the
-newest commit on the branch.
+After this staging-topology docs refresh is committed, that new commit should
+be the newest commit on the branch.
 
 ## What Changed After The Savepoint
 
@@ -62,6 +63,9 @@ Additional small commits aligned docs with the actual branch state:
   from heavier validation commands, including the production-readiness doc test.
 - `docs/production-readiness.md` now treats `staging` as hosted staging proof
   with fresh external evidence, rather than "strict env but no hosted proof".
+- `docs/ops/staging-topology.md` now names the concrete non-local artifact
+  storage envs, and `docs:staging-topology:test` guards the staging topology
+  contract.
 
 ## Verification Observed In This Continuation
 
@@ -77,6 +81,12 @@ npm run docs:dev-setup:test
 
 npm run docs:production-readiness:test
 # passed again after the staging-tier wording refresh: 3/3
+
+npm run docs:staging-topology:test
+# passed: 3/3
+
+npm run docs:dev-setup:test
+# passed again after adding docs:staging-topology:test to focused checks: 3/3
 
 cd apps/shell/apps/web && npx vitest run app/'(shell)'/execution/help/known-limitations/page.test.tsx
 # passed: 1/1
@@ -152,6 +162,21 @@ durable result summaries are:
   confirmed the branch math, doc wording, doc test coverage, and `Not Run`
   wording.
 
+### Staging-topology documentation guard
+
+- Result: initial read-only critic `NO-GO` because the new test file was still
+  untracked; file was staged; follow-up read-only critic rerun `GO`.
+- Scope: `docs/ops/staging-topology.md`,
+  `scripts/docs/staging-topology-doc.test.mjs`, `package.json`,
+  `docs/dev-setup.md`, `scripts/docs/dev-setup-doc.test.mjs`, and this handoff
+  refresh.
+- Finding: the staging topology doc now names concrete artifact storage envs,
+  and a focused doc test guards non-local shell/work-ui boundaries, private
+  kernel and Postgres requirements, object storage envs, secrets manager, and
+  boot diagnostics coverage. The follow-up critic confirmed the new test file
+  is staged, the package script and dev-setup command are wired, and the handoff
+  branch math remains correct.
+
 ## Not Run
 
 - No push was performed.
@@ -160,8 +185,8 @@ durable result summaries are:
 
 ## Current Stop Point
 
-After committing this docs-consistency refresh, the branch should be ahead of
-origin by 10 commits with a clean worktree.
+After committing this staging-topology docs refresh, the branch should be ahead
+of origin by 11 commits with a clean worktree.
 
 The next meaningful operator decision is whether to push
 `codex/p0-be-14-staging-smoke` or start a new bounded workstream beyond the

@@ -17,8 +17,11 @@ Required boundaries:
   `FOUNDEROS_PRIVILEGED_API_ALLOWED_ORIGINS`.
 - Postgres: `FOUNDEROS_CONTROL_PLANE_DATABASE_URL` or
   `FOUNDEROS_EXECUTION_HANDOFF_DATABASE_URL` must be a Postgres URL.
-- Object storage: artifact storage must be non-local and include a signed URL
-  base plus signing secret.
+- Object storage: `FOUNDEROS_ARTIFACT_STORE_MODE` must select a non-local
+  backend, and artifact storage must include
+  `FOUNDEROS_ARTIFACT_STORAGE_URI_PREFIX`,
+  `FOUNDEROS_ARTIFACT_SIGNED_URL_BASE`, and
+  `FOUNDEROS_ARTIFACT_SIGNING_SECRET`.
 - Secrets manager: `FOUNDEROS_SECRETS_MANAGER` must name the staging secret
   provider, for example `vercel`, `aws_secrets_manager`,
   `gcp_secret_manager`, `doppler`, `onepassword`, `vault`, or `infisical`.

@@ -30,6 +30,7 @@ test("docs/dev-setup.md names critical local commands and env vars", () => {
     "npm run docs:dev-setup:test",
     "npm run docs:known-limitations:test",
     "npm run docs:production-readiness:test",
+    "npm run docs:staging-topology:test",
     "FOUNDEROS_MIGRATION_TEST_DATABASE_URL",
     "FOUNDEROS_CONTROL_PLANE_STATE_DIR",
   ]) {
