@@ -786,3 +786,49 @@ Next steps:
    new preview route;
 5. rerun `npm run external-delivery:preflight --workspace @founderos/web`, then
    the mutating smoke with `FOUNDEROS_EXTERNAL_DELIVERY_ALLOW_MUTATIONS=1`.
+
+## 2026-04-25 P0-BE-14 Live Smoke Evidence
+
+The full external-delivery smoke later passed against real GitHub, Vercel, and
+Vercel Blob staging resources.
+
+Command:
+
+```text
+FOUNDEROS_EXTERNAL_DELIVERY_ALLOW_MUTATIONS=1 npm run test:external-delivery-smoke --workspace @founderos/web
+# passed: 1 live file / 1 live test, duration ~138s
+```
+
+Concrete evidence:
+
+```text
+deliveryId: delivery-smoke-1777075954563
+GitHub PR: https://github.com/MartinCampbell1/infinity/pull/7
+delivery branch: delivery/delivery-smoke-1777075954563
+proof commit: cc4cf7de3a446f92b14301e1b626cca5328b3fe7
+CI state: success
+Vercel deployment: dpl_6wkVjvUUA5QbGo5R7wLGvZj8mSpd
+Vercel state: READY
+preview URL: https://infinity-obzdvmptt-ls-projects-adb8778b.vercel.app/deliveries/delivery-smoke-1777075954563/index.html
+preview fetch: 200 and contained FOUNDEROS_EXTERNAL_PREVIEW_EXPECTED_TEXT
+proof file: delivery-proofs/delivery-smoke-1777075954563.json
+proof file sha: a0fb6b2c20275dd39f53b807d46b61f595ce70e1
+signed manifest sha header: ac25340470b482cbdfa01b21149dbe79660fce784720ea8084c6b4e657e3fe43
+first signed artifact key: live-smoke/delivery-smoke-1777075954563/runnable-result.json
+first signed artifact sha header: 92d1d9a9a6b549117f83d0b0bfc733fcabd9914e71814a4f7f7aaa2c25c41360
+local path leak checks: signed manifest and first signed artifact both clean
+```
+
+Additional fixes made during live-smoke hardening:
+
+- Vercel serverless route runtime now avoids the `ERR_REQUIRE_ESM` launcher
+  failure by keeping the web app package CommonJS-scoped while ESM scripts
+  remain `.mjs`;
+- GitHub branch upsert treats `422 Reference does not exist` as a missing ref
+  and falls through to `POST /git/refs`;
+- Vercel deployment creation omits invalid `target: "preview"`;
+- Vercel readiness polling now waits between polls and the live smoke timeout
+  has margin over the default polling budget.
+
+Full P0-BE-14 now has real external PR, hosted preview, CI proof, signed
+manifest download, signed artifact download, and no-local-path leak evidence.
