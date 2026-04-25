@@ -128,5 +128,21 @@ A passing smoke must prove all of these in one run:
 9. The external proof manifest and signed artifact manifest use object/signed
    URLs, not local file paths.
 
-Until that command succeeds against real staging credentials, P0-BE-14 remains a
-blocked staging-smoke item even if all mocked provider tests are green.
+## Latest P0-BE-14 staging evidence
+
+As of 2026-04-25, the external delivery smoke has passed once against real
+GitHub, Vercel, and Vercel Blob staging resources. The recorded evidence lives
+in `docs/handoffs/2026-04-25-p0-be-14-external-delivery-handoff.md` and
+includes:
+
+- GitHub PR: `https://github.com/MartinCampbell1/infinity/pull/7`
+- delivery branch: `delivery/delivery-smoke-1777075954563`
+- Vercel deployment: `dpl_6wkVjvUUA5QbGo5R7wLGvZj8mSpd`
+- preview fetch: `200` with `FOUNDEROS_EXTERNAL_PREVIEW_EXPECTED_TEXT`
+- signed manifest and first signed artifact checksum headers
+- local path leak checks for signed manifest and first signed artifact
+
+This closes the P0-BE-14 external delivery proof gate for that documented
+staging run. It does not by itself make every future release production-ready:
+each release still needs a fresh external proof manifest, current credentials,
+and the release gates described above.

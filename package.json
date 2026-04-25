@@ -45,6 +45,7 @@
     "docs:operator-glossary:test": "node --test ./scripts/docs/operator-glossary-doc.test.mjs",
     "docs:known-limitations:test": "node --test ./scripts/docs/known-limitations-doc.test.mjs",
     "docs:security-model:test": "node --test ./scripts/docs/security-model-doc.test.mjs",
+    "docs:production-readiness:test": "node --test ./scripts/docs/production-readiness-doc.test.mjs",
     "security:embedded-auth": "node ./scripts/security/check-work-ui-embedded-auth.mjs",
     "security:sbom": "node ./scripts/security/generate-sbom.mjs",
     "security:audit:critical": "node ./scripts/security/critical-vulnerability-gate.mjs",
