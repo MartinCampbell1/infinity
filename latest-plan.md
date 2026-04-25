@@ -7,6 +7,7 @@
 ### Текущий execution status
 
 - Visual reference baseline обновился: `FounderOS` теперь считаем почти финальным shell-language reference, а `Open WebUI` — rolling workspace reference, который ещё можно периодически refresh-ить в `references/*` и затем port-ить в `apps/*` без прямых upstream edits.
+- Post-checkpoint P3 remediation batch закрыт с независимыми critic gates от `P3-FE-04` through `P3-DX-01`, а `docs/production-readiness.md` теперь ссылается на documented P0-BE-14 live staging smoke evidence вместо устаревшего blocker wording.
 - `apps/shell` теперь проходит локальный MVP bootstrap внутри `infinity`: `npm run shell:typecheck`, `npm run shell:build`, `npm run shell:test` зелёные.
 - `apps/shell` завершил shell durability phase: control-plane state store теперь Postgres-priority с unified fallback file state, а async propagation закрывает approvals, recoveries, accounts, sessions, workspace и events через один shell-owned durability seam.
 - `apps/shell` завершил relational Postgres-backed read-model phase: when Postgres is wired, shell directories/events/sessions now read from spec-shaped relational tables (`execution_sessions`, `execution_session_events`, `approval_requests`, `recovery_incidents`, `account_quota_snapshots`, `account_quota_updates`, `operator_action_audit_events`), while the unified control-plane state blob remains the fallback/migration seam.
