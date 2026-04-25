@@ -3,17 +3,19 @@
 ## Current Branch State
 
 - Branch: `codex/p0-be-14-staging-smoke`
-- Last completed work commit before this handoff:
-  `452f779 docs: refresh staging limitations evidence`
-- Remote delta before this handoff commit: branch was ahead of
-  `origin/codex/p0-be-14-staging-smoke` by 6 commits.
-- Remote delta after this handoff commit: branch is expected to be ahead of
-  `origin/codex/p0-be-14-staging-smoke` by 7 commits.
-- Worktree status before this handoff file was created: clean.
+- Last completed work commit before this handoff refresh:
+  `e1e6b5a docs: list focused documentation checks`
+- Remote delta before this handoff refresh: branch was ahead of
+  `origin/codex/p0-be-14-staging-smoke` by 8 commits.
+- Remote delta after this handoff refresh commit: branch is expected to be
+  ahead of `origin/codex/p0-be-14-staging-smoke` by 9 commits.
+- Worktree status before this handoff refresh started: clean.
 
-## Commits Since Remote
+## Completed Commits Since Remote Before This Refresh Commit
 
 ```text
+e1e6b5a docs: list focused documentation checks
+12c0429 docs: add post-p3 continuation handoff
 452f779 docs: refresh staging limitations evidence
 9fb2b99 docs: sync latest plan status
 5fd8a68 docs: update production readiness evidence
@@ -21,6 +23,9 @@
 a4bc139 chore: close p3 remediation batch
 9d73a3b chore: save audit remediation checkpoint
 ```
+
+After this handoff refresh is committed, that new handoff-refresh commit should
+be the newest commit on the branch.
 
 ## What Changed After The Savepoint
 
@@ -52,6 +57,8 @@ Additional small commits aligned docs with the actual branch state:
 - `docs/known-limitations.md` and the shell help route now say the P0-BE-14
   staging delivery baseline passed once, while future staging deliveries still
   require fresh external proof.
+- `docs/dev-setup.md` now lists the focused documentation checks separately
+  from heavier validation commands, including the production-readiness doc test.
 
 ## Verification Observed In This Continuation
 
@@ -60,6 +67,9 @@ npm run docs:production-readiness:test
 # passed: 3/3
 
 npm run docs:known-limitations:test
+# passed: 3/3
+
+npm run docs:dev-setup:test
 # passed: 3/3
 
 cd apps/shell/apps/web && npx vitest run app/'(shell)'/execution/help/known-limitations/page.test.tsx
@@ -114,6 +124,14 @@ durable result summaries are:
 - Finding: stale blocked wording is gone, the future-proof caveat remains, and
   the doc test plus route test cover the changed wording.
 
+### Dev-setup focused documentation checks
+
+- Result: `GO`
+- Scope: `docs/dev-setup.md` and `scripts/docs/dev-setup-doc.test.mjs`.
+- Finding: the focused documentation checks block is narrow, includes
+  `docs:production-readiness:test`, and remains separated from heavier
+  validation commands.
+
 ## Not Run
 
 - No push was performed.
@@ -122,7 +140,7 @@ durable result summaries are:
 
 ## Current Stop Point
 
-After committing this handoff, the branch should be ahead of origin by 7
+After committing this handoff refresh, the branch should be ahead of origin by 9
 commits with a clean worktree.
 
 The next meaningful operator decision is whether to push
