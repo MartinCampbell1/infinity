@@ -8,7 +8,7 @@ local runnable result is useful, but it is not a production release claim.
 | Tier | Meaning | Required proof |
 | --- | --- | --- |
 | `local_solo` | A single local operator can run the shell, work UI, kernel, and localhost delivery proof. | Runnable-result launch manifest plus local preview proof. |
-| `staging` | Strict rollout environment is enabled, but the delivery still lacks hosted proof. | `FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV=1` plus explicit shell/workspace rollout envs. |
+| `staging` | Strict rollout environment is enabled and the delivery is evaluated against hosted staging proof, not localhost evidence. | `FOUNDEROS_REQUIRE_EXPLICIT_ROLLOUT_ENV=1`, explicit shell/workspace rollout envs, and fresh external staging proof for the release under review. |
 | `production` | The delivery can use production wording. | Strict rollout env plus an attached external proof manifest. |
 
 ## Copy rule

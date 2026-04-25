@@ -3,17 +3,18 @@
 ## Current Branch State
 
 - Branch: `codex/p0-be-14-staging-smoke`
-- Last completed work commit before this handoff refresh:
-  `e1e6b5a docs: list focused documentation checks`
-- Remote delta before this handoff refresh: branch was ahead of
-  `origin/codex/p0-be-14-staging-smoke` by 8 commits.
-- Remote delta after this handoff refresh commit: branch is expected to be
-  ahead of `origin/codex/p0-be-14-staging-smoke` by 9 commits.
+- Last completed work commit before this docs-consistency refresh:
+  `9b70c6f docs: refresh post-p3 continuation handoff`
+- Remote delta before this docs-consistency refresh: branch was ahead of
+  `origin/codex/p0-be-14-staging-smoke` by 9 commits.
+- Remote delta after this docs-consistency refresh commit: branch is expected
+  to be ahead of `origin/codex/p0-be-14-staging-smoke` by 10 commits.
 - Worktree status before this handoff refresh started: clean.
 
-## Completed Commits Since Remote Before This Refresh Commit
+## Completed Commits Since Remote Before This Docs-Consistency Refresh Commit
 
 ```text
+9b70c6f docs: refresh post-p3 continuation handoff
 e1e6b5a docs: list focused documentation checks
 12c0429 docs: add post-p3 continuation handoff
 452f779 docs: refresh staging limitations evidence
@@ -24,8 +25,8 @@ a4bc139 chore: close p3 remediation batch
 9d73a3b chore: save audit remediation checkpoint
 ```
 
-After this handoff refresh is committed, that new handoff-refresh commit should
-be the newest commit on the branch.
+After this docs-consistency refresh is committed, that new commit should be the
+newest commit on the branch.
 
 ## What Changed After The Savepoint
 
@@ -59,6 +60,8 @@ Additional small commits aligned docs with the actual branch state:
   require fresh external proof.
 - `docs/dev-setup.md` now lists the focused documentation checks separately
   from heavier validation commands, including the production-readiness doc test.
+- `docs/production-readiness.md` now treats `staging` as hosted staging proof
+  with fresh external evidence, rather than "strict env but no hosted proof".
 
 ## Verification Observed In This Continuation
 
@@ -71,6 +74,9 @@ npm run docs:known-limitations:test
 
 npm run docs:dev-setup:test
 # passed: 3/3
+
+npm run docs:production-readiness:test
+# passed again after the staging-tier wording refresh: 3/3
 
 cd apps/shell/apps/web && npx vitest run app/'(shell)'/execution/help/known-limitations/page.test.tsx
 # passed: 1/1
@@ -132,6 +138,20 @@ durable result summaries are:
   `docs:production-readiness:test`, and remains separated from heavier
   validation commands.
 
+### Production-readiness staging-tier wording refresh
+
+- Result: initial read-only critic `NO-GO`; fix applied; follow-up read-only
+  critic rerun `GO`.
+- Scope: `docs/production-readiness.md`,
+  `scripts/docs/production-readiness-doc.test.mjs`, and this handoff refresh.
+- Finding: the staging tier no longer says hosted proof is missing by
+  definition; the doc test now guards both the staging meaning and required
+  proof wording, and still prevents production overclaiming from one staging
+  run. The unsupported `codex review --commit HEAD` historical claim was
+  removed from this handoff after critic feedback. The follow-up critic
+  confirmed the branch math, doc wording, doc test coverage, and `Not Run`
+  wording.
+
 ## Not Run
 
 - No push was performed.
@@ -140,8 +160,8 @@ durable result summaries are:
 
 ## Current Stop Point
 
-After committing this handoff refresh, the branch should be ahead of origin by 9
-commits with a clean worktree.
+After committing this docs-consistency refresh, the branch should be ahead of
+origin by 10 commits with a clean worktree.
 
 The next meaningful operator decision is whether to push
 `codex/p0-be-14-staging-smoke` or start a new bounded workstream beyond the

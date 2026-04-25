@@ -40,7 +40,10 @@ test("production readiness does not overclaim from one staging run", () => {
   const doc = readDoc();
 
   assert.match(doc, /fresh external proof manifest/i);
+  assert.match(doc, /hosted staging proof, not localhost evidence/i);
+  assert.match(doc, /fresh external staging proof for the release under review/i);
   assert.match(doc, /does not by itself make every future release production-ready/i);
   assert.doesNotMatch(doc, /P0-BE-14 remains a\s+blocked staging-smoke item/i);
+  assert.doesNotMatch(doc, /staging`\s*\|\s*Strict rollout environment is enabled, but the delivery still lacks hosted proof/i);
   assert.doesNotMatch(doc, /\bTODO\b/i);
 });
